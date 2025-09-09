@@ -84,9 +84,7 @@ export function HomePage({ member }: HomePageProps) {
       <div className="space-y-6">
         {/* Welcome & Next Meeting Header */}
         <div className="glass-panel p-6">
-          <h1 className="text-2xl font-light mb-4 text-gradient">
-            welcome, {member.name}
-          </h1>
+          <h1 className="text-2xl font-light mb-4">welcome, {member.name}</h1>
           {nextMeeting ? (
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
               <div>

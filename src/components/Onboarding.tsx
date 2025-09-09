@@ -143,9 +143,7 @@ export function Onboarding() {
 
   return (
     <div className="glass-panel p-8 max-w-xl mx-auto">
-      <h2 className="text-2xl font-light mb-2 text-gradient">
-        complete your onboarding
-      </h2>
+      <h2 className="text-2xl font-light mb-2">complete your onboarding</h2>
       <p className="text-sm text-text-muted mb-6">
         please use your{" "}
         <span className="font-medium">real first and last name</span>. phone
@@ -205,7 +203,7 @@ export function Onboarding() {
               checked={enableNotifications}
               onChange={(e) => setEnableNotifications(e.target.checked)}
             />
-            <div className="w-11 h-6 bg-glass border border-border-glass peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-gradient-orange-purple"></div>
+            <div className="w-11 h-6 bg-glass border border-border-glass peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-sunset-orange"></div>
           </label>
         </div>
         {enableNotifications && permissionState !== "granted" && (

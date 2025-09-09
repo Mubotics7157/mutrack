@@ -65,9 +65,7 @@ export function MembersPage({ member }: MembersPageProps) {
       <div className="glass-panel p-8">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-6">
           <div>
-            <h1 className="text-3xl font-light mb-2 text-gradient">
-              team members
-            </h1>
+            <h1 className="text-3xl font-light mb-2">team members</h1>
             <p className="text-text-muted">
               manage roles and permissions for frc team 7157
             </p>

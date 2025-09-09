@@ -135,14 +135,12 @@ export function ProfilePage({ member }: ProfilePageProps) {
       {/* Profile Header */}
       <div className="glass-panel p-8">
         <div className="flex flex-col md:flex-row items-start md:items-center gap-6">
-          <div className="w-24 h-24 bg-gradient-orange-purple rounded-2xl flex items-center justify-center text-4xl font-medium text-void-black shadow-glow">
+          <div className="w-24 h-24 bg-glass border border-border-glass rounded-2xl flex items-center justify-center text-4xl font-medium text-text-primary">
             {member.name.charAt(0).toUpperCase()}
           </div>
 
           <div className="flex-1">
-            <h1 className="text-3xl font-light mb-2 text-gradient">
-              {member.name}
-            </h1>
+            <h1 className="text-3xl font-light mb-2">{member.name}</h1>
             <p className="text-text-muted mb-3">{member.email}</p>
             <div className="flex flex-wrap items-center gap-4">
               <span className={`badge ${getRoleBadgeClass()}`}>
@@ -285,7 +283,7 @@ export function ProfilePage({ member }: ProfilePageProps) {
                 checked
                 disabled
               />
-              <div className="w-11 h-6 bg-gradient-orange-purple border border-border-glass peer-focus:outline-none rounded-full peer after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:translate-x-full"></div>
+              <div className="w-11 h-6 bg-glass border border-border-glass peer-focus:outline-none rounded-full peer after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:translate-x-full"></div>
             </label>
           </div>
         </div>

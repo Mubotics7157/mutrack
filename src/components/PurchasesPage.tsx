@@ -159,9 +159,7 @@ export function PurchasesPage({ member }: PurchasesPageProps) {
       <div className="glass-panel p-8">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-6">
           <div>
-            <h1 className="text-3xl font-light mb-2 text-gradient">
-              purchase management
-            </h1>
+            <h1 className="text-3xl font-light mb-2">purchase management</h1>
             <p className="text-text-muted">
               track requests and orders for team equipment
             </p>
@@ -199,7 +197,7 @@ export function PurchasesPage({ member }: PurchasesPageProps) {
               onClick={() => setActiveView("requests")}
               className={`px-6 py-2 rounded-full text-sm font-mono transition-all ${
                 activeView === "requests"
-                  ? "bg-gradient-orange-purple text-void-black"
+                  ? "bg-sunset-orange text-void-black"
                   : "text-text-muted hover:text-text-primary"
               }`}
             >
@@ -209,7 +207,7 @@ export function PurchasesPage({ member }: PurchasesPageProps) {
               onClick={() => setActiveView("orders")}
               className={`px-6 py-2 rounded-full text-sm font-mono transition-all ${
                 activeView === "orders"
-                  ? "bg-gradient-orange-purple text-void-black"
+                  ? "bg-sunset-orange text-void-black"
                   : "text-text-muted hover:text-text-primary"
               }`}
             >

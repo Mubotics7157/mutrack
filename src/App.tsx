@@ -69,10 +69,14 @@ function NavigationBar({ currentPage, onPageChange }: NavigationBarProps) {
             <div className="w-8 h-8 bg-gradient-orange-red rounded-xl flex items-center justify-center font-bold text-void-black shadow-glow">
               μ
             </div>
-            <h1 className="text-lg font-light text-gradient">mutrack</h1>
-            <span className="px-2 py-0.5 bg-glass backdrop-blur-md border border-border-glass rounded-full text-xs text-text-muted font-mono">
-              by frc 7157
-            </span>
+            <div className="flex items-baseline gap-2">
+              <h1 className="text-lg font-light text-gradient leading-none">
+                mutrack
+              </h1>
+              <span className="text-xs text-text-dim font-mono leading-none">
+                by frc 7157
+              </span>
+            </div>
           </div>
         </div>
       </div>
@@ -85,10 +89,14 @@ function NavigationBar({ currentPage, onPageChange }: NavigationBarProps) {
             <div className="w-10 h-10 bg-gradient-orange-red rounded-xl flex items-center justify-center font-bold text-lg text-void-black shadow-glow">
               μ
             </div>
-            <h1 className="text-xl font-light text-gradient">mutrack</h1>
-            <span className="px-3 py-1 bg-glass backdrop-blur-md border border-border-glass rounded-full text-xs text-text-muted font-mono">
-              by frc 7157
-            </span>
+            <div className="flex items-baseline gap-2">
+              <h1 className="text-xl font-light text-gradient leading-none">
+                mutrack
+              </h1>
+              <span className="text-xs text-text-dim font-mono leading-none">
+                by frc 7157
+              </span>
+            </div>
           </div>
 
           {/* Navigation Links */}
@@ -121,15 +129,6 @@ function NavigationBar({ currentPage, onPageChange }: NavigationBarProps) {
 
           {/* User Actions */}
           <div className="flex items-center gap-4">
-            {currentMember && (
-              <div
-                className="avatar"
-                onClick={() => onPageChange("profile")}
-                title={currentMember.name}
-              >
-                {currentMember.name.charAt(0).toUpperCase()}
-              </div>
-            )}
             <button
               onClick={() => void signOut()}
               className="px-4 py-2 text-sm text-text-muted hover:text-text-primary transition-all duration-300 flex items-center gap-2"
