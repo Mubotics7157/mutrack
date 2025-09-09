@@ -3,6 +3,8 @@ import { useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { Doc } from "../../convex/_generated/dataModel";
 import { toast } from "sonner";
+import { useAuthActions } from "@convex-dev/auth/react";
+import { AlertTriangle } from "lucide-react";
 
 interface ProfilePageProps {
   member: Doc<"members">;
@@ -12,7 +14,7 @@ export function ProfilePage({ member }: ProfilePageProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [showPasswordChange, setShowPasswordChange] = useState(false);
   
-  const signOut = useMutation(api.auth.signOut);
+  const { signOut } = useAuthActions();
   
   const [profileForm, setProfileForm] = useState({
     name: member.name,

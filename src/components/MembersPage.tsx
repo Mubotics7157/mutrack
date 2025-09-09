@@ -3,6 +3,7 @@ import { api } from "../../convex/_generated/api";
 import { Doc } from "../../convex/_generated/dataModel";
 import { toast } from "sonner";
 import { useState } from "react";
+import { AlertTriangle } from "lucide-react";
 
 interface MembersPageProps {
   member: Doc<"members">;
@@ -209,7 +210,7 @@ export function MembersPage({ member }: MembersPageProps) {
       {canManageRoles && (
         <div className="glass-panel p-6 border border-yellow-500/30">
           <div className="flex items-start gap-3">
-            <span className="text-yellow-400 text-xl">⚠️</span>
+            <AlertTriangle size={20} className="text-yellow-400 flex-shrink-0 mt-0.5" />
             <div>
               <h4 className="text-sm font-mono text-yellow-400 mb-2">admin note</h4>
               <p className="text-sm text-text-muted">

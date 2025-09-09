@@ -62,9 +62,15 @@
   }
 
   .btn-primary {
-    @apply bg-gradient-orange-purple border-0 text-void-black font-medium;
+    @apply bg-gradient-orange-red border-0 text-void-black font-medium;
     @apply shadow-[0_8px_24px_rgba(249,115,22,0.3)];
     @apply hover:shadow-[0_12px_32px_rgba(249,115,22,0.4)];
+  }
+  
+  .btn-secondary {
+    @apply bg-gradient-orange-purple border-0 text-void-black font-medium;
+    @apply shadow-[0_8px_24px_rgba(136,58,234,0.3)];
+    @apply hover:shadow-[0_12px_32px_rgba(136,58,234,0.4)];
   }
 
   .btn-success {
@@ -128,7 +134,7 @@
     @apply flex items-center justify-center font-medium text-void-black;
     @apply border-2 border-border-glass cursor-pointer;
     @apply transition-all duration-300 ease-smooth;
-    @apply hover:scale-105 hover:shadow-[0_0_20px_rgba(249,115,22,0.3)];
+    @apply hover:scale-105 hover:shadow-[0_0_20px_rgba(136,58,234,0.3)];
   }
 
   /* Loading Spinner */
@@ -139,9 +145,17 @@
 
   /* Calendar Styles */
   .calendar-day {
-    @apply aspect-square bg-glass flex flex-col items-center justify-center;
-    @apply p-2 cursor-pointer transition-all duration-300 ease-smooth;
+    @apply bg-glass flex flex-col items-center justify-center;
+    @apply p-1 md:p-2 cursor-pointer transition-all duration-300 ease-smooth;
     @apply hover:bg-glass-hover;
+    min-height: 50px;
+  }
+  
+  @media (min-width: 768px) {
+    .calendar-day {
+      @apply aspect-square;
+      min-height: 80px;
+    }
   }
 
   .calendar-day.today {
@@ -155,7 +169,7 @@
 
   .calendar-day.has-event::after {
     @apply absolute bottom-1 w-1 h-1 bg-accent-green rounded-full;
-    @apply shadow-[0_0_8px_rgba(82,227,164,0.5)];
+    @apply shadow-[0_0_8px_rgba(82,227,164,0.5)] hidden md:block;
     content: '';
   }
 

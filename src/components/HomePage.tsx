@@ -3,6 +3,15 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { Doc } from "../../convex/_generated/dataModel";
 import { toast } from "sonner";
+import { 
+  Calendar, 
+  Plus, 
+  MapPin, 
+  Clock,
+  ChevronLeft,
+  ChevronRight,
+  X
+} from "lucide-react";
 
 interface HomePageProps {
   member: Doc<"members">;
@@ -18,116 +27,181 @@ export function HomePage({ member }: HomePageProps) {
     new Date(m.date) >= new Date()
   ).slice(0, 5);
 
-  return (
-    <div className="space-y-6">
-      {/* Welcome Section */}
-      <div className="glass-panel p-8">
-        <div className="mb-6">
-          <h1 className="text-3xl font-light mb-2 text-gradient">
-            welcome back, {member.name}
-          </h1>
-          <p className="text-text-muted">
-            {new Date().toLocaleDateString('en-US', { 
-              weekday: 'long', 
-              year: 'numeric', 
-              month: 'long', 
-              day: 'numeric' 
-            }).toLowerCase()}
-          </p>
-        </div>
+  // Quick meeting creation with smart defaults
+  const [quickMeetingDate, setQuickMeetingDate] = useState<Date | null>(null);
 
-        {/* Quick Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <QuickStat 
-            label="upcoming meetings" 
-            value={upcomingMeetings?.length || 0}
-            color="text-accent-purple"
-          />
-          <QuickStat 
-            label="attendance rate" 
-            value="92%"
-            color="text-accent-green"
-          />
-          <QuickStat 
-            label="team members" 
-            value="24"
-            color="text-sunset-orange"
-          />
-        </div>
+  const handleQuickMeeting = (date: Date) => {
+    setQuickMeetingDate(date);
+    setShowNewMeeting(true);
+  };
+
+  // Find the next meeting
+  const nextMeeting = upcomingMeetings?.[0];
+  const getTimeUntilMeeting = (meetingDate: Date) => {
+    const now = new Date();
+    const diff = meetingDate.getTime() - now.getTime();
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+    const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    
+    if (days > 0) {
+      return `in ${days} day${days > 1 ? 's' : ''}`;
+    } else if (hours > 0) {
+      return `in ${hours} hour${hours > 1 ? 's' : ''}`;
+    } else {
+      return 'soon';
+    }
+  };
+
+  return (
+    <>
+      {/* New Meeting Modal - Outside main content flow */}
+      {showNewMeeting && (
+        <NewMeetingModal 
+          onClose={() => {
+            setShowNewMeeting(false);
+            setQuickMeetingDate(null);
+          }}
+          member={member}
+          defaultDate={quickMeetingDate}
+        />
+      )}
+      
+      <div className="space-y-6">
+        {/* Welcome & Next Meeting Header */}
+      <div className="glass-panel p-6">
+        <h1 className="text-2xl font-light mb-4 text-gradient">
+          welcome, {member.name}
+        </h1>
+        {nextMeeting ? (
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            <div>
+              <h2 className="text-lg font-light mb-1">
+                next meeting: <span className="text-sunset-orange">{nextMeeting.title}</span>
+              </h2>
+              <p className="text-text-muted flex items-center gap-2">
+                <Clock size={14} />
+                {new Date(nextMeeting.date).toLocaleDateString('en-US', { 
+                  weekday: 'short', 
+                  month: 'short', 
+                  day: 'numeric'
+                }).toLowerCase()} at {nextMeeting.startTime} 
+                <span className="text-accent-green ml-2">
+                  {getTimeUntilMeeting(new Date(nextMeeting.date))}
+                </span>
+              </p>
+              {nextMeeting.location && (
+                <p className="text-text-muted flex items-center gap-2 mt-1">
+                  <MapPin size={14} />
+                  {nextMeeting.location}
+                </p>
+              )}
+            </div>
+            <div className="flex gap-2">
+              <button 
+                className="btn-modern btn-primary"
+                onClick={() => {
+                  // RSVP logic will be implemented
+                  toast.success("rsvp feature coming soon");
+                }}
+              >
+                rsvp: attending
+              </button>
+              <button 
+                className="btn-modern"
+                onClick={() => {
+                  // RSVP logic will be implemented
+                  toast.success("rsvp feature coming soon");
+                }}
+              >
+                can't attend
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div>
+            <p className="text-text-muted">
+              no upcoming meetings scheduled
+            </p>
+            {(member.role === "admin" || member.role === "lead") && (
+              <p className="text-sm text-text-dim mt-2">
+                use the quick actions below to schedule a meeting
+              </p>
+            )}
+          </div>
+        )}
       </div>
+
+      {/* Quick Actions Bar - Only for admins/leads */}
+      {(member.role === "admin" || member.role === "lead") && (
+        <div className="flex gap-2 flex-wrap">
+          <button 
+            className="btn-modern btn-primary flex items-center gap-2"
+            onClick={() => setShowNewMeeting(true)}
+          >
+            <Plus size={16} />
+            <span>schedule meeting</span>
+          </button>
+          <button 
+            className="btn-modern flex items-center gap-2"
+            onClick={() => {
+              const tomorrow = new Date();
+              tomorrow.setDate(tomorrow.getDate() + 1);
+              tomorrow.setHours(16, 0, 0, 0); // Default to 4 PM
+              handleQuickMeeting(tomorrow);
+            }}
+          >
+            <Plus size={16} />
+            <span>quick: tomorrow 4pm</span>
+          </button>
+          <button 
+            className="btn-modern flex items-center gap-2"
+            onClick={() => {
+              const nextWeek = new Date();
+              nextWeek.setDate(nextWeek.getDate() + 7);
+              nextWeek.setHours(16, 0, 0, 0);
+              handleQuickMeeting(nextWeek);
+            }}
+          >
+            <Plus size={16} />
+            <span>quick: next week</span>
+          </button>
+        </div>
+      )}
 
       {/* Calendar Section */}
       <div className="glass-panel p-8">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
           <h2 className="text-2xl font-light">meeting calendar</h2>
-          <div className="flex gap-2">
-            <button 
-              className="btn-modern"
-              onClick={() => setViewMode(viewMode === "month" ? "week" : "month")}
-            >
-              {viewMode === "month" ? "week view" : "month view"}
-            </button>
-            <button 
-              className="btn-modern btn-primary"
-              onClick={() => setShowNewMeeting(true)}
-            >
-              + schedule meeting
-            </button>
-          </div>
+          <button 
+            className="btn-modern"
+            onClick={() => setViewMode(viewMode === "month" ? "week" : "month")}
+          >
+            {viewMode === "month" ? "week view" : "month view"}
+          </button>
         </div>
 
         <CalendarView 
           meetings={meetings || []}
           selectedDate={selectedDate}
           onDateSelect={setSelectedDate}
+          onDateDoubleClick={handleQuickMeeting}
           viewMode={viewMode}
         />
       </div>
 
-      {/* Upcoming Meetings */}
-      <div className="glass-panel p-8">
-        <h2 className="text-2xl font-light mb-6">upcoming meetings</h2>
-        
-        {upcomingMeetings && upcomingMeetings.length > 0 ? (
-          <div className="space-y-4">
-            {upcomingMeetings.map((meeting: any) => (
-              <MeetingCard key={meeting._id} meeting={meeting} member={member} />
-            ))}
+        {/* All Upcoming Meetings */}
+        {upcomingMeetings && upcomingMeetings.length > 1 && (
+          <div className="glass-panel p-8">
+            <h2 className="text-2xl font-light mb-6">all upcoming meetings</h2>
+            <div className="space-y-4">
+              {upcomingMeetings.map((meeting: any) => (
+                <MeetingCard key={meeting._id} meeting={meeting} member={member} />
+              ))}
+            </div>
           </div>
-        ) : (
-          <p className="text-text-muted text-center py-8">
-            no upcoming meetings scheduled
-          </p>
         )}
       </div>
-
-      {/* New Meeting Modal */}
-      {showNewMeeting && (
-        <NewMeetingModal 
-          onClose={() => setShowNewMeeting(false)}
-          member={member}
-        />
-      )}
-    </div>
-  );
-}
-
-interface QuickStatProps {
-  label: string;
-  value: string | number;
-  color: string;
-}
-
-function QuickStat({ label, value, color }: QuickStatProps) {
-  return (
-    <div className="card-modern text-center">
-      <div className={`text-3xl font-light mb-2 ${color}`}>
-        {value}
-      </div>
-      <div className="text-sm text-text-muted">
-        {label}
-      </div>
-    </div>
+    </>
   );
 }
 
@@ -135,10 +209,11 @@ interface CalendarViewProps {
   meetings: any[];
   selectedDate: Date;
   onDateSelect: (date: Date) => void;
+  onDateDoubleClick: (date: Date) => void;
   viewMode: "month" | "week";
 }
 
-function CalendarView({ meetings, selectedDate, onDateSelect, viewMode }: CalendarViewProps) {
+function CalendarView({ meetings, selectedDate, onDateSelect, onDateDoubleClick, viewMode }: CalendarViewProps) {
   const getDaysInMonth = (date: Date) => {
     const year = date.getFullYear();
     const month = date.getMonth();
@@ -177,9 +252,9 @@ function CalendarView({ meetings, selectedDate, onDateSelect, viewMode }: Calend
     ? getDaysInMonth(selectedDate)
     : getWeekDays(selectedDate);
 
-  const hasMeeting = (date: Date | null) => {
-    if (!date) return false;
-    return meetings.some((m: any) => {
+  const getMeetingsForDate = (date: Date | null) => {
+    if (!date) return [];
+    return meetings.filter((m: any) => {
       const meetingDate = new Date(m.date);
       return meetingDate.toDateString() === date.toDateString();
     });
@@ -206,7 +281,7 @@ function CalendarView({ meetings, selectedDate, onDateSelect, viewMode }: Calend
             onDateSelect(newDate);
           }}
         >
-          ←
+          <ChevronLeft size={16} />
         </button>
         
         <h3 className="text-lg font-mono text-text-secondary">
@@ -228,42 +303,60 @@ function CalendarView({ meetings, selectedDate, onDateSelect, viewMode }: Calend
             onDateSelect(newDate);
           }}
         >
-          →
+          <ChevronRight size={16} />
         </button>
       </div>
 
       {/* Day Labels */}
       <div className="grid grid-cols-7 gap-1 mb-2">
         {['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'].map(day => (
-          <div key={day} className="text-center text-xs text-text-muted font-mono py-2">
-            {day}
+          <div key={day} className="text-center text-xs text-text-muted font-mono py-1 md:py-2">
+            <span className="hidden md:inline">{day}</span>
+            <span className="md:hidden">{day.charAt(0)}</span>
           </div>
         ))}
       </div>
 
       {/* Calendar Days */}
-      <div className="grid grid-cols-7 gap-1 bg-border-glass p-1 rounded-xl">
-        {days.map((date, index) => (
-          <div
-            key={index}
-            className={`
-              calendar-day
-              ${date && isToday(date) ? 'today' : ''}
-              ${date && hasMeeting(date) ? 'has-event' : ''}
-            `}
-            onClick={() => date && onDateSelect(date)}
-            style={{ 
-              cursor: date ? "pointer" : "default",
-              opacity: date ? 1 : 0.3
-            }}
-          >
-            {date && (
-              <span className="text-sm font-light">
-                {date.getDate()}
-              </span>
-            )}
-          </div>
-        ))}
+      <div className="grid grid-cols-7 gap-0.5 md:gap-1 bg-border-glass p-0.5 md:p-1 rounded-xl">
+        {days.map((date, index) => {
+          const dayMeetings = date ? getMeetingsForDate(date) : [];
+          return (
+            <div
+              key={index}
+              className={`
+                calendar-day relative
+                ${date && isToday(date) ? 'today' : ''}
+                ${dayMeetings.length > 0 ? 'has-event' : ''}
+              `}
+              onClick={() => date && onDateSelect(date)}
+              onDoubleClick={() => date && onDateDoubleClick(date)}
+              style={{ 
+                cursor: date ? "pointer" : "default",
+                opacity: date ? 1 : 0.3
+              }}
+              title={date ? `Double-click to add meeting on ${date.toLocaleDateString()}` : undefined}
+            >
+              {date && (
+                <>
+                  <span className="text-xs md:text-sm font-light">
+                    {date.getDate()}
+                  </span>
+                  {dayMeetings.length > 0 && (
+                    <div className="mt-1">
+                      <div className="text-[10px] md:text-xs text-accent-green font-mono md:hidden">
+                        {dayMeetings.length}
+                      </div>
+                      <div className="hidden md:block text-xs text-accent-green font-mono">
+                        {dayMeetings.length} meeting{dayMeetings.length > 1 ? 's' : ''}
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -292,20 +385,24 @@ function MeetingCard({ meeting, member }: MeetingCardProps) {
         <h3 className="text-lg font-light mb-1">
           {meeting.title}
         </h3>
-        <p className="text-sm text-text-muted">
-          {new Date(meeting.date).toLocaleDateString('en-US', {
-            weekday: 'short',
-            month: 'short',
-            day: 'numeric',
-            hour: 'numeric',
-            minute: '2-digit'
-          }).toLowerCase()}
-        </p>
-        {meeting.location && (
-          <p className="text-xs text-text-dim mt-1">
-            📍 {meeting.location}
-          </p>
-        )}
+        <div className="flex items-center gap-4 text-sm text-text-muted">
+          <span className="flex items-center gap-1">
+            <Clock size={14} />
+            {new Date(meeting.date).toLocaleDateString('en-US', {
+              weekday: 'short',
+              month: 'short',
+              day: 'numeric',
+              hour: 'numeric',
+              minute: '2-digit'
+            }).toLowerCase()}
+          </span>
+          {meeting.location && (
+            <span className="flex items-center gap-1">
+              <MapPin size={14} />
+              {meeting.location}
+            </span>
+          )}
+        </div>
       </div>
       
       <div className="flex gap-2">
@@ -337,14 +434,36 @@ function MeetingCard({ meeting, member }: MeetingCardProps) {
 interface NewMeetingModalProps {
   onClose: () => void;
   member: Doc<"members">;
+  defaultDate?: Date | null;
 }
 
-function NewMeetingModal({ onClose, member }: NewMeetingModalProps) {
-  const [title, setTitle] = useState("");
-  const [date, setDate] = useState("");
-  const [startTime, setStartTime] = useState("");
-  const [endTime, setEndTime] = useState("");
-  const [location, setLocation] = useState("");
+function NewMeetingModal({ onClose, member, defaultDate }: NewMeetingModalProps) {
+  const [title, setTitle] = useState("team meeting");
+  const [date, setDate] = useState(() => {
+    if (defaultDate) {
+      return defaultDate.toISOString().split('T')[0];
+    }
+    return "";
+  });
+  const [startTime, setStartTime] = useState(() => {
+    if (defaultDate) {
+      const hours = defaultDate.getHours().toString().padStart(2, '0');
+      const minutes = defaultDate.getMinutes().toString().padStart(2, '0');
+      return `${hours}:${minutes}`;
+    }
+    return "16:00"; // Default to 4 PM
+  });
+  const [endTime, setEndTime] = useState(() => {
+    if (defaultDate) {
+      const endDate = new Date(defaultDate);
+      endDate.setHours(endDate.getHours() + 2); // Default 2 hour meeting
+      const hours = endDate.getHours().toString().padStart(2, '0');
+      const minutes = endDate.getMinutes().toString().padStart(2, '0');
+      return `${hours}:${minutes}`;
+    }
+    return "18:00"; // Default to 6 PM
+  });
+  const [location, setLocation] = useState("robotics lab");
   const [description, setDescription] = useState("");
   
   const createMeeting = useMutation(api.meetings.createMeeting);
@@ -373,11 +492,16 @@ function NewMeetingModal({ onClose, member }: NewMeetingModalProps) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="glass-panel p-8 max-w-lg w-full max-h-[90vh] overflow-y-auto">
-        <h2 className="text-2xl font-light mb-6">
-          schedule new meeting
-        </h2>
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
+      <div className="glass-panel p-8 max-w-lg w-full max-h-[85vh] overflow-y-auto relative">
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-2xl font-light">
+            {defaultDate ? `schedule meeting for ${defaultDate.toLocaleDateString()}` : 'schedule new meeting'}
+          </h2>
+          <button onClick={onClose} className="text-text-muted hover:text-text-primary">
+            <X size={20} />
+          </button>
+        </div>
         
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
@@ -390,6 +514,7 @@ function NewMeetingModal({ onClose, member }: NewMeetingModalProps) {
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="e.g., weekly team meeting"
+              autoFocus
             />
           </div>
 
@@ -435,13 +560,16 @@ function NewMeetingModal({ onClose, member }: NewMeetingModalProps) {
             <label className="block mb-2 text-sm text-text-muted">
               location
             </label>
-            <input
-              type="text"
-              className="input-modern"
-              value={location}
-              onChange={(e) => setLocation(e.target.value)}
-              placeholder="e.g., robotics lab"
-            />
+            <div className="relative">
+              <MapPin size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-dim" />
+              <input
+                type="text"
+                className="input-modern pl-10"
+                value={location}
+                onChange={(e) => setLocation(e.target.value)}
+                placeholder="e.g., robotics lab"
+              />
+            </div>
           </div>
 
           <div>
@@ -458,8 +586,9 @@ function NewMeetingModal({ onClose, member }: NewMeetingModalProps) {
           </div>
 
           <div className="flex gap-4 pt-4">
-            <button type="submit" className="btn-modern btn-primary flex-1">
-              schedule meeting
+            <button type="submit" className="btn-modern btn-primary flex-1 flex items-center justify-center gap-2">
+              <Plus size={16} />
+              <span>schedule meeting</span>
             </button>
             <button type="button" className="btn-modern flex-1" onClick={onClose}>
               cancel

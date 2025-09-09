@@ -8,7 +8,7 @@ export default {
         "void-black": "#000000",
         "dark-bg": "rgba(15, 15, 15, 0.98)",
         "darker-bg": "rgba(10, 10, 10, 0.98)",
-        
+
         // Accent colors
         "accent-purple": "#883aea",
         "accent-purple-dim": "rgba(136, 58, 234, 0.3)",
@@ -16,23 +16,24 @@ export default {
         "sunset-orange-dim": "rgba(249, 115, 22, 0.3)",
         "accent-green": "#52e3a4",
         "error-red": "#f76464",
-        
+
         // Text colors
         "text-primary": "rgba(255, 255, 255, 1)",
         "text-secondary": "rgba(255, 255, 255, 0.8)",
         "text-muted": "rgba(255, 255, 255, 0.6)",
         "text-dim": "rgba(255, 255, 255, 0.4)",
-        
+
         // Glass effects
-        "glass": "rgba(255, 255, 255, 0.03)",
+        glass: "rgba(255, 255, 255, 0.03)",
         "glass-hover": "rgba(255, 255, 255, 0.05)",
         "border-glass": "rgba(255, 255, 255, 0.08)",
         "border-glass-hover": "rgba(255, 255, 255, 0.15)",
       },
       backgroundImage: {
-        'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
-        'gradient-orange-purple': 'linear-gradient(135deg, #f97316, #883aea)',
-        'gradient-text': 'linear-gradient(90deg, #f97316, #883aea)',
+        "gradient-radial": "radial-gradient(var(--tw-gradient-stops))",
+        "gradient-orange-purple": "linear-gradient(135deg, #f97316, #883aea)",
+        "gradient-orange-red": "linear-gradient(135deg, #f97316, #ef4444)",
+        "gradient-text": "linear-gradient(90deg, #f97316, #883aea)",
       },
       spacing: {
         section: "2rem",
@@ -51,7 +52,8 @@ export default {
         "pulse-slow": "pulse 8s ease-in-out infinite",
         glow: "glow 2s ease-in-out infinite alternate",
         "fade-in": "fadeIn 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards",
-        "fade-in-scale": "fadeInScale 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards",
+        "fade-in-scale":
+          "fadeInScale 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards",
         "slide-in": "slideIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards",
       },
       keyframes: {
@@ -98,7 +100,7 @@ export default {
         ],
       },
       transitionTimingFunction: {
-        'smooth': 'cubic-bezier(0.16, 1, 0.3, 1)',
+        smooth: "cubic-bezier(0.16, 1, 0.3, 1)",
       },
     },
   },
