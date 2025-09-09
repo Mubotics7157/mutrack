@@ -14,7 +14,9 @@ const applicationTables = {
     onboardingCompleted: v.optional(v.boolean()),
     role: v.union(v.literal("admin"), v.literal("lead"), v.literal("member")),
     joinedAt: v.number(),
-  }).index("by_user", ["userId"]),
+  })
+    .index("by_user", ["userId"])
+    .index("by_notifications_enabled", ["notificationsEnabled"]),
 
   meetings: defineTable({
     title: v.string(),

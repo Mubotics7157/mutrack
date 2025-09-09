@@ -1,6 +1,7 @@
 import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
+import { internal } from "./_generated/api";
 
 export const getMeetings = query({
   args: {},
@@ -15,6 +16,13 @@ export const getMeetings = query({
       .take(50);
 
     return meetings;
+  },
+});
+
+export const getMeetingById = query({
+  args: { meetingId: v.id("meetings") },
+  handler: async (ctx, args) => {
+    return await ctx.db.get(args.meetingId);
   },
 });
 
@@ -40,11 +48,33 @@ export const createMeeting = mutation({
       throw new Error("Only admins and leads can create meetings");
     }
 
-    return await ctx.db.insert("meetings", {
+    const meetingId = await ctx.db.insert("meetings", {
       ...args,
       createdBy: userId,
       createdAt: Date.now(),
     });
+    // Notify immediately about creation
+    await ctx.scheduler.runAfter(
+      0,
+      internal.notifications.sendMeetingCreatedNotification,
+      { meetingId }
+    );
+    // Schedule reminder 3 hours before the meeting start
+    const meetingStart = args.date; // assuming date is ms since epoch for meeting day; combine with startTime if needed
+    // Parse startTime "HH:MM" to hours/minutes
+    const [hours, minutes] = args.startTime
+      .split(":")
+      .map((x) => parseInt(x, 10));
+    const startDate = new Date(meetingStart);
+    startDate.setHours(hours, minutes, 0, 0);
+    const reminderTime = new Date(startDate.getTime() - 3 * 60 * 60 * 1000);
+    const delayMs = Math.max(0, reminderTime.getTime() - Date.now());
+    await ctx.scheduler.runAfter(
+      delayMs,
+      internal.notifications.sendMeetingReminderNotification,
+      { meetingId }
+    );
+    return meetingId;
   },
 });
 
@@ -161,15 +191,17 @@ export const getMyRsvpForMeeting = query({
 });
 
 export const getRsvpsForMeeting = query({
-  args: { 
-    meetingId: v.id("meetings") 
+  args: {
+    meetingId: v.id("meetings"),
   },
-  returns: v.array(v.object({
-    _id: v.id("meetingRsvps"),
-    memberId: v.id("members"),
-    status: v.union(v.literal("attending"), v.literal("not_attending")),
-    updatedAt: v.number(),
-  })),
+  returns: v.array(
+    v.object({
+      _id: v.id("meetingRsvps"),
+      memberId: v.id("members"),
+      status: v.union(v.literal("attending"), v.literal("not_attending")),
+      updatedAt: v.number(),
+    })
+  ),
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
     if (!userId) return [];
@@ -187,11 +219,68 @@ export const getRsvpsForMeeting = query({
       .withIndex("by_meeting", (q) => q.eq("meetingId", args.meetingId))
       .collect();
 
-    return rsvps.map(rsvp => ({
+    return rsvps.map((rsvp) => ({
       _id: rsvp._id,
       memberId: rsvp.memberId,
       status: rsvp.status,
       updatedAt: rsvp.updatedAt,
     }));
+  },
+});
+
+export const getRsvpedMeetingsForCurrentMember = query({
+  args: {},
+  returns: v.array(
+    v.object({
+      _id: v.id("meetings"),
+      title: v.string(),
+      description: v.optional(v.string()),
+      date: v.number(),
+      startTime: v.string(),
+      endTime: v.string(),
+      location: v.optional(v.string()),
+    })
+  ),
+  handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) return [];
+
+    const member = await ctx.db
+      .query("members")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .unique();
+    if (!member) return [];
+
+    const rsvps = await ctx.db
+      .query("meetingRsvps")
+      .withIndex("by_member", (q) => q.eq("memberId", member._id))
+      .collect();
+
+    const now = Date.now();
+    const meetings: Array<{
+      _id: any;
+      title: string;
+      description?: string;
+      date: number;
+      startTime: string;
+      endTime: string;
+      location?: string;
+    }> = [];
+    for (const r of rsvps) {
+      const m = await ctx.db.get(r.meetingId);
+      if (m && m.date < now) {
+        meetings.push({
+          _id: m._id,
+          title: m.title,
+          description: m.description,
+          date: m.date,
+          startTime: m.startTime,
+          endTime: m.endTime,
+          location: m.location,
+        });
+      }
+    }
+    meetings.sort((a, b) => b.date - a.date);
+    return meetings;
   },
 });

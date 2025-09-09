@@ -17,6 +17,7 @@ import type * as auth from "../auth.js";
 import type * as http from "../http.js";
 import type * as meetings from "../meetings.js";
 import type * as members from "../members.js";
+import type * as notifications from "../notifications.js";
 import type * as purchases from "../purchases.js";
 import type * as router from "../router.js";
 
@@ -33,6 +34,7 @@ declare const fullApi: ApiFromModules<{
   http: typeof http;
   meetings: typeof meetings;
   members: typeof members;
+  notifications: typeof notifications;
   purchases: typeof purchases;
   router: typeof router;
 }>;

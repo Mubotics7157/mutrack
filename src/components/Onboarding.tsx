@@ -67,6 +67,9 @@ function extractKeys(sub: PushSubscription): {
 export function Onboarding() {
   const completeOnboarding = useMutation(api.members.completeOnboarding);
   const savePush = useMutation(api.members.savePushSubscription);
+  const setNotificationsEnabled = useMutation(
+    api.members.setNotificationsEnabled
+  );
 
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -103,6 +106,7 @@ export function Onboarding() {
       const { endpoint, keys } = extractKeys(sub);
       await savePush({ endpoint, keys });
     }
+    await setNotificationsEnabled({ enabled: true });
     toast.success("notifications enabled");
     setPermissionState("granted");
   };
@@ -126,6 +130,9 @@ export function Onboarding() {
         notificationsEnabled:
           enableNotifications && permissionState === "granted",
       });
+      if (enableNotifications && permissionState === "granted") {
+        await setNotificationsEnabled({ enabled: true });
+      }
       toast.success("onboarding complete");
     } catch (err) {
       toast.error("failed to complete onboarding");

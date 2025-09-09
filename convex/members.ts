@@ -1,6 +1,7 @@
 import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
+import { internalQuery } from "./_generated/server";
 
 export const getCurrentMember = query({
   args: {},
@@ -145,6 +146,48 @@ export const savePushSubscription = mutation({
         createdAt: Date.now(),
       });
     }
+    return null;
+  },
+});
+
+export const listEnabledMembersQuery = internalQuery({
+  args: {},
+  returns: v.array(v.any()),
+  handler: async (ctx) => {
+    const members = await ctx.db
+      .query("members")
+      .withIndex("by_notifications_enabled", (q) =>
+        q.eq("notificationsEnabled", true)
+      )
+      .collect();
+    return members;
+  },
+});
+
+export const internalListSubscriptionsForMember = internalQuery({
+  args: { memberId: v.id("members") },
+  returns: v.array(v.any()),
+  handler: async (ctx, args) => {
+    const subs = await ctx.db
+      .query("pushSubscriptions")
+      .withIndex("by_member", (q) => q.eq("memberId", args.memberId))
+      .collect();
+    return subs;
+  },
+});
+
+export const setNotificationsEnabled = mutation({
+  args: { enabled: v.boolean() },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+    const member = await ctx.db
+      .query("members")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .unique();
+    if (!member) throw new Error("Member not found");
+    await ctx.db.patch(member._id, { notificationsEnabled: args.enabled });
     return null;
   },
 });
