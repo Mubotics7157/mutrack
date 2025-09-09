@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   Authenticated,
   Unauthenticated,
@@ -7,107 +7,231 @@ import {
 } from "convex/react";
 import { api } from "../convex/_generated/api";
 import { SignInForm } from "./SignInForm";
-import { SignOutButton } from "./SignOutButton";
 import { Toaster } from "sonner";
-import { Dashboard } from "./components/Dashboard";
+import { HomePage } from "./components/HomePage";
+import { MembersPage } from "./components/MembersPage";
+import { PurchasesPage } from "./components/PurchasesPage";
+import { ProfilePage } from "./components/ProfilePage";
+
+type PageType = "home" | "members" | "purchases" | "profile";
 
 export default function App() {
+  const [currentPage, setCurrentPage] = useState<PageType>("home");
+
   return (
-    <div className="min-h-screen">
-      <div className="min-h-screen backdrop-blur-sm">
-        <header className="sticky top-0 z-50 bg-black/30 backdrop-blur-md border-b border-white/10">
-          <div className="max-w-7xl mx-auto px-4 h-16 flex justify-between items-center">
-            <div className="flex items-center space-x-3">
-              <div className="w-8 h-8 bg-gradient-to-r from-orange-500 to-orange-600 rounded-lg flex items-center justify-center">
-                <span className="text-black font-bold text-sm">μ</span>
-              </div>
-              <h1 className="text-xl font-bold bg-gradient-to-r from-orange-400 to-orange-600 bg-clip-text text-transparent">
-                MuTrack
-              </h1>
-              <span className="text-xs text-gray-400 bg-gray-800/50 px-2 py-1 rounded-full">
-                FRC Team 7157
-              </span>
-            </div>
-            <Authenticated>
-              <SignOutButton />
-            </Authenticated>
-          </div>
-        </header>
+    <div className="min-h-screen bg-void-black relative overflow-hidden">
+      {/* Background Pulse Effect */}
+      <div className="fixed inset-0 pulse-bg pointer-events-none" />
 
-        <main className="max-w-7xl mx-auto px-4 py-8">
-          <Content />
-        </main>
-
-        <Toaster
-          theme="dark"
-          toastOptions={{
-            style: {
-              background: "rgba(15, 15, 15, 0.98)",
-              backdropFilter: "blur(24px)",
-              border: "1px solid rgba(255, 255, 255, 0.08)",
-              color: "#fff",
-              boxShadow: "0 0 40px rgba(249, 115, 22, 0.2)",
-            },
-          }}
+      <Authenticated>
+        <NavigationBar
+          currentPage={currentPage}
+          onPageChange={setCurrentPage}
         />
-      </div>
+        <MainContent currentPage={currentPage} />
+      </Authenticated>
+
+      <Unauthenticated>
+        <AuthScreen />
+      </Unauthenticated>
+
+      <Toaster
+        theme="dark"
+        toastOptions={{
+          style: {
+            background: "rgba(15, 15, 15, 0.98)",
+            backdropFilter: "blur(24px)",
+            border: "1px solid rgba(255, 255, 255, 0.08)",
+            color: "#fff",
+            boxShadow: "0 0 40px rgba(136, 58, 234, 0.2)",
+          },
+        }}
+      />
     </div>
   );
 }
 
-function Content() {
-  const loggedInUser = useQuery(api.auth.loggedInUser);
+interface NavigationBarProps {
+  currentPage: PageType;
+  onPageChange: (page: PageType) => void;
+}
+
+function NavigationBar({ currentPage, onPageChange }: NavigationBarProps) {
+  const currentMember = useQuery(api.members.getCurrentMember);
+  const signOut = useMutation(api.auth.signOut);
+
+  return (
+    <>
+      {/* Desktop Navigation */}
+      <nav className="nav-bar hidden md:block">
+        <div className="max-w-7xl mx-auto px-8 h-20 flex items-center justify-between">
+          {/* Brand */}
+          <div className="flex items-center gap-4">
+            <div className="w-10 h-10 bg-gradient-orange-purple rounded-xl flex items-center justify-center font-bold text-lg text-void-black shadow-glow">
+              μ
+            </div>
+            <h1 className="text-xl font-light text-gradient">mutrack</h1>
+            <span className="px-3 py-1 bg-glass backdrop-blur-md border border-border-glass rounded-full text-xs text-text-muted font-mono">
+              by frc 7157
+            </span>
+          </div>
+
+          {/* Navigation Links */}
+          <div className="flex gap-2 p-1 bg-glass backdrop-blur-md border border-border-glass rounded-full">
+            <button
+              className={`nav-link ${currentPage === "home" ? "active" : ""}`}
+              onClick={() => onPageChange("home")}
+            >
+              home
+            </button>
+            <button
+              className={`nav-link ${currentPage === "members" ? "active" : ""}`}
+              onClick={() => onPageChange("members")}
+            >
+              members
+            </button>
+            <button
+              className={`nav-link ${currentPage === "purchases" ? "active" : ""}`}
+              onClick={() => onPageChange("purchases")}
+            >
+              purchases
+            </button>
+            <button
+              className={`nav-link ${currentPage === "profile" ? "active" : ""}`}
+              onClick={() => onPageChange("profile")}
+            >
+              profile
+            </button>
+          </div>
+
+          {/* User Actions */}
+          <div className="flex items-center gap-4">
+            {currentMember && (
+              <div
+                className="avatar"
+                onClick={() => onPageChange("profile")}
+                title={currentMember.name}
+              >
+                {currentMember.name.charAt(0).toUpperCase()}
+              </div>
+            )}
+            <button
+              onClick={() => signOut()}
+              className="px-4 py-2 text-sm text-text-muted hover:text-text-primary transition-all duration-300"
+            >
+              sign out
+            </button>
+          </div>
+        </div>
+      </nav>
+
+      {/* Mobile Navigation */}
+      <nav className="mobile-nav md:hidden">
+        <div className="flex justify-around">
+          <button
+            className={`mobile-nav-link ${currentPage === "home" ? "active" : ""}`}
+            onClick={() => onPageChange("home")}
+          >
+            <span className="text-lg">📅</span>
+            <span>home</span>
+          </button>
+          <button
+            className={`mobile-nav-link ${currentPage === "members" ? "active" : ""}`}
+            onClick={() => onPageChange("members")}
+          >
+            <span className="text-lg">👥</span>
+            <span>members</span>
+          </button>
+          <button
+            className={`mobile-nav-link ${currentPage === "purchases" ? "active" : ""}`}
+            onClick={() => onPageChange("purchases")}
+          >
+            <span className="text-lg">🛒</span>
+            <span>purchases</span>
+          </button>
+          <button
+            className={`mobile-nav-link ${currentPage === "profile" ? "active" : ""}`}
+            onClick={() => onPageChange("profile")}
+          >
+            <span className="text-lg">👤</span>
+            <span>profile</span>
+          </button>
+        </div>
+      </nav>
+    </>
+  );
+}
+
+interface MainContentProps {
+  currentPage: PageType;
+}
+
+function MainContent({ currentPage }: MainContentProps) {
   const currentMember = useQuery(api.members.getCurrentMember);
   const createMember = useMutation(api.members.createMemberIfNotExists);
 
   // Auto-create member if logged in but no member record exists
   React.useEffect(() => {
-    if (loggedInUser && currentMember === null) {
+    if (currentMember === null) {
       createMember();
     }
-  }, [loggedInUser, currentMember, createMember]);
+  }, [currentMember, createMember]);
 
-  if (loggedInUser === undefined || currentMember === undefined) {
+  if (currentMember === undefined) {
     return (
-      <div className="flex justify-center items-center min-h-[60vh]">
+      <main className="pt-24 px-8 pb-24 md:pb-8 max-w-7xl mx-auto">
         <div className="glass-panel p-8 text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-2 border-orange-400 border-t-transparent mx-auto mb-4"></div>
-          <p className="text-gray-300">Loading MuTrack...</p>
+          <div className="loading-spinner mx-auto mb-4" />
+          <p className="text-text-muted">loading mutrack...</p>
         </div>
-      </div>
+      </main>
+    );
+  }
+
+  if (!currentMember) {
+    return (
+      <main className="pt-24 px-8 pb-24 md:pb-8 max-w-7xl mx-auto">
+        <div className="glass-panel p-8 text-center">
+          <h2 className="text-xl font-light mb-4">
+            setting up your profile...
+          </h2>
+          <div className="loading-spinner mx-auto" />
+        </div>
+      </main>
     );
   }
 
   return (
-    <>
-      <Authenticated>
-        {currentMember ? (
-          <Dashboard member={currentMember} />
-        ) : (
-          <div className="flex justify-center items-center min-h-[60vh]">
-            <div className="glass-panel p-8 text-center">
-              <h2 className="text-xl font-semibold text-white mb-4">
-                setting up your profile...
-              </h2>
-              <div className="animate-spin rounded-full h-8 w-8 border-2 border-orange-400 border-t-transparent mx-auto"></div>
-            </div>
-          </div>
+    <main className="pt-24 px-4 md:px-8 pb-24 md:pb-8 max-w-7xl mx-auto">
+      <div className="animate-fade-in">
+        {currentPage === "home" && <HomePage member={currentMember} />}
+        {currentPage === "members" && <MembersPage member={currentMember} />}
+        {currentPage === "purchases" && (
+          <PurchasesPage member={currentMember} />
         )}
-      </Authenticated>
+        {currentPage === "profile" && <ProfilePage member={currentMember} />}
+      </div>
+    </main>
+  );
+}
 
-      <Unauthenticated>
-        <div className="flex justify-center items-center min-h-[60vh]">
-          <div className="glass-panel p-8 w-full max-w-md">
-            <div className="text-center mb-8">
-              <h2 className="text-2xl font-bold text-white mb-2">
-                welcome to mutrack
-              </h2>
-              <p className="text-gray-300">internal tool for frc team 7157</p>
-            </div>
-            <SignInForm />
+function AuthScreen() {
+  return (
+    <div className="min-h-screen flex items-center justify-center px-4">
+      <div className="glass-panel p-8 md:p-10 max-w-md w-full">
+        <div className="text-center mb-8">
+          <div className="w-20 h-20 bg-gradient-orange-purple rounded-2xl flex items-center justify-center font-bold text-3xl text-void-black shadow-glow mx-auto mb-6">
+            μ
           </div>
+          <h2 className="text-3xl font-light mb-2 text-gradient">
+            welcome to mutrack
+          </h2>
+          <p className="text-text-muted text-sm">
+            internal tool for frc team 7157
+          </p>
         </div>
-      </Unauthenticated>
-    </>
+        <SignInForm />
+      </div>
+    </div>
   );
 }
