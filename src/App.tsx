@@ -12,6 +12,7 @@ import { HomePage } from "./components/HomePage";
 import { MembersPage } from "./components/MembersPage";
 import { PurchasesPage } from "./components/PurchasesPage";
 import { ProfilePage } from "./components/ProfilePage";
+import { Onboarding } from "./components/Onboarding";
 import { Home, Users, ShoppingCart, User, LogOut } from "lucide-react";
 import { useAuthActions } from "@convex-dev/auth/react";
 
@@ -212,6 +213,14 @@ function MainContent({ currentPage }: MainContentProps) {
           </h2>
           <div className="loading-spinner mx-auto" />
         </div>
+      </main>
+    );
+  }
+
+  if (!currentMember.onboardingCompleted) {
+    return (
+      <main className="pt-20 md:pt-24 px-4 md:px-8 pb-24 md:pb-8 max-w-7xl mx-auto">
+        <Onboarding />
       </main>
     );
   }

@@ -52,6 +52,9 @@ export function PurchasesPanel({ member }: PurchasesPanelProps) {
   // Vendor autocomplete for request form
   const vendorResults =
     useQuery(api.purchases.searchVendors, { q: requestForm.vendorName }) || [];
+  // Vendor autocomplete for order form
+  const vendorResultsForOrder =
+    useQuery(api.purchases.searchVendors, { q: orderForm.vendor }) || [];
 
   const handleRequestSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -104,9 +107,10 @@ export function PurchasesPanel({ member }: PurchasesPanelProps) {
 
   const handleOrderSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (selectedRequestIds.length === 0) return;
 
     try {
+      // Ensure vendor exists for autocomplete consistency
+      await ensureVendor({ name: orderForm.vendor.trim() });
       await createOrder({
         requestIds: selectedRequestIds as any,
         vendor: orderForm.vendor,
@@ -224,11 +228,6 @@ export function PurchasesPanel({ member }: PurchasesPanelProps) {
         {canManageOrders && activeView === "requests" && (
           <button
             onClick={() => {
-              const approved = requests.filter((r) => r.status === "approved");
-              if (approved.length === 0) {
-                toast.error("No approved requests to create orders from");
-                return;
-              }
               setShowOrderForm(true);
             }}
             className="btn-secondary"
@@ -421,7 +420,7 @@ export function PurchasesPanel({ member }: PurchasesPanelProps) {
 
           <div className="mb-4">
             <label className="block text-sm font-medium text-gray-300 mb-2">
-              Select Approved Requests *
+              Select Approved Requests (optional)
             </label>
             <div className="max-h-60 overflow-auto border border-white/10 rounded-lg divide-y divide-white/10">
               {requests
@@ -459,13 +458,13 @@ export function PurchasesPanel({ member }: PurchasesPanelProps) {
             </div>
           </div>
 
-          {selectedRequestIds.length > 0 && (
-            <form onSubmit={handleOrderSubmit} className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">
-                    Vendor *
-                  </label>
+          <form onSubmit={handleOrderSubmit} className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Vendor *
+                </label>
+                <div className="relative">
                   <input
                     type="text"
                     value={orderForm.vendor}
@@ -476,73 +475,89 @@ export function PurchasesPanel({ member }: PurchasesPanelProps) {
                     required
                     placeholder="e.g., Amazon, McMaster-Carr"
                   />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">
-                    Total Cost *
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={orderForm.totalCost}
-                    onChange={(e) =>
-                      setOrderForm({ ...orderForm, totalCost: e.target.value })
-                    }
-                    className="input-field"
-                    required
-                    placeholder="0.00"
-                  />
+                  {orderForm.vendor && vendorResultsForOrder.length > 0 && (
+                    <div className="absolute z-10 mt-1 w-full bg-black/90 border border-white/10 rounded-lg max-h-48 overflow-auto">
+                      {vendorResultsForOrder.map((v: any) => (
+                        <button
+                          type="button"
+                          key={v._id}
+                          onClick={() =>
+                            setOrderForm({ ...orderForm, vendor: v.name })
+                          }
+                          className="block w-full text-left px-3 py-2 hover:bg-white/10 text-sm text-gray-200"
+                        >
+                          {v.name}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Cart/Order Link
+                  Total Cost *
                 </label>
                 <input
-                  type="url"
-                  value={orderForm.cartLink}
+                  type="number"
+                  step="0.01"
+                  value={orderForm.totalCost}
                   onChange={(e) =>
-                    setOrderForm({ ...orderForm, cartLink: e.target.value })
+                    setOrderForm({ ...orderForm, totalCost: e.target.value })
                   }
                   className="input-field"
-                  placeholder="https://..."
+                  required
+                  placeholder="0.00"
                 />
               </div>
+            </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Notes
-                </label>
-                <textarea
-                  value={orderForm.notes}
-                  onChange={(e) =>
-                    setOrderForm({ ...orderForm, notes: e.target.value })
-                  }
-                  className="input-field"
-                  rows={2}
-                  placeholder="Additional notes, special instructions..."
-                />
-              </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                Cart/Order Link
+              </label>
+              <input
+                type="url"
+                value={orderForm.cartLink}
+                onChange={(e) =>
+                  setOrderForm({ ...orderForm, cartLink: e.target.value })
+                }
+                className="input-field"
+                placeholder="https://..."
+              />
+            </div>
 
-              <div className="flex space-x-3 pt-4">
-                <button type="submit" className="btn-primary">
-                  Create Order
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowOrderForm(false);
-                    setSelectedRequestIds([]);
-                  }}
-                  className="btn-secondary"
-                >
-                  Cancel
-                </button>
-              </div>
-            </form>
-          )}
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                Notes
+              </label>
+              <textarea
+                value={orderForm.notes}
+                onChange={(e) =>
+                  setOrderForm({ ...orderForm, notes: e.target.value })
+                }
+                className="input-field"
+                rows={2}
+                placeholder="Additional notes, special instructions..."
+              />
+            </div>
+
+            <div className="flex space-x-3 pt-4">
+              <button type="submit" className="btn-primary">
+                Create Order
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowOrderForm(false);
+                  setSelectedRequestIds([]);
+                }}
+                className="btn-secondary"
+              >
+                Cancel
+              </button>
+            </div>
+          </form>
         </div>
       )}
 

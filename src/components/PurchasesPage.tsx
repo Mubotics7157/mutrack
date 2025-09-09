@@ -36,7 +36,6 @@ export function PurchasesPage({ member }: PurchasesPageProps) {
     pending: requests.filter((r) => r.status === "pending").length,
     approved: requests.filter((r) => r.status === "approved").length,
     totalOrders: orders.length,
-    totalSpent: orders.reduce((sum, order) => sum + order.totalCost, 0),
   };
 
   const [requestForm, setRequestForm] = useState({
@@ -59,6 +58,8 @@ export function PurchasesPage({ member }: PurchasesPageProps) {
   const vendorResults =
     useQuery(api.purchases.searchVendors, { q: requestForm.vendorName }) || [];
   const ensureVendor = useMutation(api.purchases.ensureVendor);
+  const vendorResultsForOrder =
+    useQuery(api.purchases.searchVendors, { q: orderForm.vendor }) || [];
 
   const handleRequestSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -110,9 +111,9 @@ export function PurchasesPage({ member }: PurchasesPageProps) {
 
   const handleOrderSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (selectedRequestIds.length === 0) return;
 
     try {
+      await ensureVendor({ name: orderForm.vendor.trim() });
       await createOrder({
         requestIds: selectedRequestIds as any,
         vendor: orderForm.vendor,
@@ -168,7 +169,7 @@ export function PurchasesPage({ member }: PurchasesPageProps) {
         </div>
 
         {/* Stats Grid */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
           <div className="card-modern text-center">
             <div className="text-2xl font-light text-yellow-400 mb-1">
               {stats.pending}
@@ -186,12 +187,6 @@ export function PurchasesPage({ member }: PurchasesPageProps) {
               {stats.totalOrders}
             </div>
             <div className="text-sm text-text-muted">orders</div>
-          </div>
-          <div className="card-modern text-center">
-            <div className="text-2xl font-light text-sunset-orange mb-1">
-              ${stats.totalSpent.toFixed(0)}
-            </div>
-            <div className="text-sm text-text-muted">total spent</div>
           </div>
         </div>
       </div>
@@ -232,13 +227,6 @@ export function PurchasesPage({ member }: PurchasesPageProps) {
             {canManageOrders && activeView === "requests" && (
               <button
                 onClick={() => {
-                  const approvedRequests = requests.filter(
-                    (r) => r.status === "approved"
-                  );
-                  if (approvedRequests.length === 0) {
-                    toast.error("no approved requests to create orders from");
-                    return;
-                  }
                   setShowOrderForm(true);
                 }}
                 className="btn-modern"
@@ -429,7 +417,7 @@ export function PurchasesPage({ member }: PurchasesPageProps) {
 
           <div className="mb-4">
             <label className="block mb-2 text-sm text-text-muted">
-              select approved requests *
+              select approved requests to link to this order
             </label>
             <div className="max-h-60 overflow-auto border border-border-glass rounded-xl divide-y divide-border-glass">
               {requests
@@ -467,23 +455,41 @@ export function PurchasesPage({ member }: PurchasesPageProps) {
             </div>
           </div>
 
-          {selectedRequestIds.length > 0 && (
+          {true && (
             <form onSubmit={handleOrderSubmit} className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block mb-2 text-sm text-text-muted">
                     vendor *
                   </label>
-                  <input
-                    type="text"
-                    value={orderForm.vendor}
-                    onChange={(e) =>
-                      setOrderForm({ ...orderForm, vendor: e.target.value })
-                    }
-                    className="input-modern"
-                    required
-                    placeholder="e.g., amazon, mcmaster-carr"
-                  />
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={orderForm.vendor}
+                      onChange={(e) =>
+                        setOrderForm({ ...orderForm, vendor: e.target.value })
+                      }
+                      className="input-modern"
+                      required
+                      placeholder="e.g., amazon, mcmaster-carr"
+                    />
+                    {orderForm.vendor && vendorResultsForOrder.length > 0 && (
+                      <div className="absolute z-10 mt-1 w-full bg-void-black/95 border border-border-glass rounded-xl max-h-48 overflow-auto">
+                        {vendorResultsForOrder.map((v: any) => (
+                          <button
+                            type="button"
+                            key={v._id}
+                            onClick={() =>
+                              setOrderForm({ ...orderForm, vendor: v.name })
+                            }
+                            className="block w-full text-left px-3 py-2 hover:bg-white/10 text-sm"
+                          >
+                            {v.name}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 <div>

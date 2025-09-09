@@ -11,7 +11,7 @@ export function SignInForm() {
   return (
     <div className="w-full">
       <form
-        className="flex flex-col gap-form-field"
+        className="flex flex-col gap-4"
         onSubmit={(e) => {
           e.preventDefault();
           setSubmitting(true);
@@ -33,45 +33,37 @@ export function SignInForm() {
         }}
       >
         <input
-          className="auth-input-field"
+          className="input-modern"
           type="email"
           name="email"
-          placeholder="Email"
+          placeholder="email"
           required
         />
         <input
-          className="auth-input-field"
+          className="input-modern"
           type="password"
           name="password"
-          placeholder="Password"
+          placeholder="password"
           required
         />
-        <button className="auth-button" type="submit" disabled={submitting}>
-          {flow === "signIn" ? "Sign in" : "Sign up"}
+        <button className="btn-modern btn-primary w-full" type="submit" disabled={submitting}>
+          {flow === "signIn" ? "sign in" : "sign up"}
         </button>
-        <div className="text-center text-sm text-secondary">
+        <div className="text-center text-sm text-text-muted">
           <span>
             {flow === "signIn"
-              ? "Don't have an account? "
-              : "Already have an account? "}
+              ? "don't have an account? "
+              : "already have an account? "}
           </span>
           <button
             type="button"
-            className="text-primary hover:text-primary-hover hover:underline font-medium cursor-pointer"
+            className="text-accent-purple hover:text-sunset-orange hover:underline font-medium cursor-pointer transition-colors duration-300"
             onClick={() => setFlow(flow === "signIn" ? "signUp" : "signIn")}
           >
-            {flow === "signIn" ? "Sign up instead" : "Sign in instead"}
+            {flow === "signIn" ? "sign up instead" : "sign in instead"}
           </button>
         </div>
       </form>
-      <div className="flex items-center justify-center my-3">
-        <hr className="my-4 grow border-gray-200" />
-        <span className="mx-4 text-secondary">or</span>
-        <hr className="my-4 grow border-gray-200" />
-      </div>
-      <button className="auth-button" onClick={() => void signIn("anonymous")}>
-        Sign in anonymously
-      </button>
     </div>
   );
 }

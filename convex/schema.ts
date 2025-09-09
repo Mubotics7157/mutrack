@@ -7,6 +7,11 @@ const applicationTables = {
     userId: v.id("users"),
     name: v.string(),
     email: v.string(),
+    firstName: v.optional(v.string()),
+    lastName: v.optional(v.string()),
+    phoneNumber: v.optional(v.string()),
+    notificationsEnabled: v.optional(v.boolean()),
+    onboardingCompleted: v.optional(v.boolean()),
     role: v.union(v.literal("admin"), v.literal("lead"), v.literal("member")),
     joinedAt: v.number(),
   }).index("by_user", ["userId"]),
@@ -66,6 +71,18 @@ const applicationTables = {
     confirmationImageId: v.optional(v.id("_storage")),
     notes: v.optional(v.string()),
   }).index("by_orderer", ["orderedBy"]),
+
+  pushSubscriptions: defineTable({
+    memberId: v.id("members"),
+    endpoint: v.string(),
+    keys: v.object({
+      p256dh: v.string(),
+      auth: v.string(),
+    }),
+    createdAt: v.number(),
+  })
+    .index("by_member", ["memberId"])
+    .index("by_endpoint", ["endpoint"]),
 
   vendors: defineTable({
     name: v.string(),
