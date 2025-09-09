@@ -7,8 +7,8 @@ self.addEventListener("push", (event) => {
   const body = data.body || "You have an upcoming meeting.";
   const options = {
     body,
-    icon: "/icon-192.png",
-    badge: "/icon-192.png",
+    icon: "/web-app-manifest-192x192.png",
+    badge: "/web-app-manifest-192x192.png",
     data,
   };
   event.waitUntil(self.registration.showNotification(title, options));
