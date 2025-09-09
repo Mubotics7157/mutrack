@@ -22,6 +22,16 @@ const applicationTables = {
     createdAt: v.number(),
   }).index("by_date", ["date"]),
 
+  meetingRsvps: defineTable({
+    meetingId: v.id("meetings"),
+    memberId: v.id("members"),
+    status: v.union(v.literal("attending"), v.literal("not_attending")),
+    updatedAt: v.number(),
+  })
+    .index("by_meeting", ["meetingId"])
+    .index("by_member", ["memberId"])
+    .index("by_meeting_and_member", ["meetingId", "memberId"]),
+
   purchaseRequests: defineTable({
     title: v.string(),
     description: v.string(),
@@ -39,7 +49,8 @@ const applicationTables = {
     approvedBy: v.optional(v.id("users")),
     approvedAt: v.optional(v.number()),
     rejectionReason: v.optional(v.string()),
-  }).index("by_status", ["status"])
+  })
+    .index("by_status", ["status"])
     .index("by_requester", ["requestedBy"]),
 
   purchaseOrders: defineTable({
@@ -51,7 +62,8 @@ const applicationTables = {
     orderedAt: v.number(),
     confirmationImageId: v.optional(v.id("_storage")),
     notes: v.optional(v.string()),
-  }).index("by_request", ["requestId"])
+  })
+    .index("by_request", ["requestId"])
     .index("by_orderer", ["orderedBy"]),
 };
 
