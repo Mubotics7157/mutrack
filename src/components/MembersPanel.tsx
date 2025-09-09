@@ -13,7 +13,10 @@ export function MembersPanel({ member }: MembersPanelProps) {
 
   const canManageRoles = member.role === "admin";
 
-  const handleRoleChange = async (memberId: string, newRole: "admin" | "lead" | "member") => {
+  const handleRoleChange = async (
+    memberId: string,
+    newRole: "admin" | "lead" | "member"
+  ) => {
     try {
       await updateMemberRole({ memberId: memberId as any, newRole });
       toast.success("Member role updated successfully!");
@@ -66,14 +69,16 @@ export function MembersPanel({ member }: MembersPanelProps) {
           </p>
         </div>
         <div className="text-right">
-          <p className="text-2xl font-bold text-cyan-400">{members.length}</p>
+          <p className="text-2xl font-bold text-orange-400">{members.length}</p>
           <p className="text-xs text-gray-400">Total Members</p>
         </div>
       </div>
 
       {/* Role Legend */}
       <div className="glass-panel p-4">
-        <h4 className="text-sm font-medium text-gray-300 mb-3">Role Permissions</h4>
+        <h4 className="text-sm font-medium text-gray-300 mb-3">
+          Role Permissions
+        </h4>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
           <div className="flex items-center space-x-3">
             <span className="px-2 py-1 rounded-full text-xs font-medium bg-red-500/20 text-red-300 border border-red-500/30">
@@ -107,14 +112,16 @@ export function MembersPanel({ member }: MembersPanelProps) {
             <div key={teamMember._id} className="glass-panel p-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-4">
-                  <div className="w-10 h-10 bg-gradient-to-r from-cyan-400 to-purple-400 rounded-full flex items-center justify-center">
+                  <div className="w-10 h-10 bg-gradient-to-r from-orange-500 to-orange-600 rounded-full flex items-center justify-center">
                     <span className="text-black font-semibold text-sm">
                       {teamMember.name.charAt(0).toUpperCase()}
                     </span>
                   </div>
-                  
+
                   <div>
-                    <h4 className="font-medium text-white">{teamMember.name}</h4>
+                    <h4 className="font-medium text-white">
+                      {teamMember.name}
+                    </h4>
                     <p className="text-sm text-gray-400">{teamMember.email}</p>
                     <p className="text-xs text-gray-500">
                       Joined {formatJoinDate(teamMember.joinedAt)}
@@ -126,11 +133,13 @@ export function MembersPanel({ member }: MembersPanelProps) {
                   {canManageRoles ? (
                     <select
                       value={teamMember.role}
-                      onChange={(e) => handleRoleChange(
-                        teamMember._id, 
-                        e.target.value as "admin" | "lead" | "member"
-                      )}
-                      className="bg-black/30 border border-white/20 rounded-lg px-3 py-1 text-sm text-white focus:border-cyan-500 focus:outline-none"
+                      onChange={(e) =>
+                        handleRoleChange(
+                          teamMember._id,
+                          e.target.value as "admin" | "lead" | "member"
+                        )
+                      }
+                      className="bg-black/30 border border-white/20 rounded-lg px-3 py-1 text-sm text-white focus:border-orange-500 focus:outline-none"
                       disabled={teamMember._id === member._id} // Can't change own role
                     >
                       <option value="member">Member</option>
@@ -138,13 +147,16 @@ export function MembersPanel({ member }: MembersPanelProps) {
                       <option value="admin">Admin</option>
                     </select>
                   ) : (
-                    <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getRoleColor(teamMember.role)}`}>
-                      {teamMember.role.charAt(0).toUpperCase() + teamMember.role.slice(1)}
+                    <span
+                      className={`px-3 py-1 rounded-full text-xs font-medium border ${getRoleColor(teamMember.role)}`}
+                    >
+                      {teamMember.role.charAt(0).toUpperCase() +
+                        teamMember.role.slice(1)}
                     </span>
                   )}
-                  
+
                   {teamMember._id === member._id && (
-                    <span className="text-xs text-cyan-400 bg-cyan-500/10 px-2 py-1 rounded-full">
+                    <span className="text-xs text-orange-400 bg-orange-500/10 px-2 py-1 rounded-full">
                       You
                     </span>
                   )}
@@ -160,10 +172,13 @@ export function MembersPanel({ member }: MembersPanelProps) {
           <div className="flex items-start space-x-3">
             <span className="text-yellow-400 mt-1">⚠️</span>
             <div>
-              <h4 className="text-sm font-medium text-yellow-300 mb-1">Admin Note</h4>
+              <h4 className="text-sm font-medium text-yellow-300 mb-1">
+                Admin Note
+              </h4>
               <p className="text-xs text-gray-400">
-                Be careful when changing member roles. Admins have full access to all system features.
-                You cannot change your own role for security reasons.
+                Be careful when changing member roles. Admins have full access
+                to all system features. You cannot change your own role for
+                security reasons.
               </p>
             </div>
           </div>

@@ -15,7 +15,9 @@ export function MeetingsPanel({ member }: MeetingsPanelProps) {
   const deleteMeeting = useMutation(api.meetings.deleteMeeting);
 
   const [showForm, setShowForm] = useState(false);
-  const [editingMeeting, setEditingMeeting] = useState<Doc<"meetings"> | null>(null);
+  const [editingMeeting, setEditingMeeting] = useState<Doc<"meetings"> | null>(
+    null
+  );
   const [formData, setFormData] = useState({
     title: "",
     description: "",
@@ -29,10 +31,10 @@ export function MeetingsPanel({ member }: MeetingsPanelProps) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     try {
       const dateMs = new Date(formData.date).getTime();
-      
+
       if (editingMeeting) {
         await updateMeeting({
           meetingId: editingMeeting._id,
@@ -55,7 +57,7 @@ export function MeetingsPanel({ member }: MeetingsPanelProps) {
         });
         toast.success("Meeting created successfully!");
       }
-      
+
       resetForm();
     } catch (error) {
       toast.error("Failed to save meeting");
@@ -79,7 +81,7 @@ export function MeetingsPanel({ member }: MeetingsPanelProps) {
     setFormData({
       title: meeting.title,
       description: meeting.description || "",
-      date: new Date(meeting.date).toISOString().split('T')[0],
+      date: new Date(meeting.date).toISOString().split("T")[0],
       startTime: meeting.startTime,
       endTime: meeting.endTime,
       location: meeting.location || "",
@@ -109,9 +111,9 @@ export function MeetingsPanel({ member }: MeetingsPanelProps) {
   };
 
   const formatTime = (time: string) => {
-    const [hours, minutes] = time.split(':');
+    const [hours, minutes] = time.split(":");
     const hour = parseInt(hours);
-    const ampm = hour >= 12 ? 'PM' : 'AM';
+    const ampm = hour >= 12 ? "PM" : "AM";
     const displayHour = hour % 12 || 12;
     return `${displayHour}:${minutes} ${ampm}`;
   };
@@ -122,10 +124,7 @@ export function MeetingsPanel({ member }: MeetingsPanelProps) {
       <div className="flex items-center justify-between">
         <h3 className="text-xl font-semibold text-white">Meeting Schedule</h3>
         {canManageMeetings && (
-          <button
-            onClick={() => setShowForm(true)}
-            className="btn-primary"
-          >
+          <button onClick={() => setShowForm(true)} className="btn-primary">
             + Schedule Meeting
           </button>
         )}
@@ -137,7 +136,7 @@ export function MeetingsPanel({ member }: MeetingsPanelProps) {
           <h4 className="text-lg font-medium text-white mb-4">
             {editingMeeting ? "Edit Meeting" : "Schedule New Meeting"}
           </h4>
-          
+
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
@@ -147,12 +146,14 @@ export function MeetingsPanel({ member }: MeetingsPanelProps) {
                 <input
                   type="text"
                   value={formData.title}
-                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, title: e.target.value })
+                  }
                   className="input-field"
                   required
                 />
               </div>
-              
+
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">
                   Location
@@ -160,7 +161,9 @@ export function MeetingsPanel({ member }: MeetingsPanelProps) {
                 <input
                   type="text"
                   value={formData.location}
-                  onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, location: e.target.value })
+                  }
                   className="input-field"
                   placeholder="e.g., Room 101, Workshop"
                 />
@@ -173,7 +176,9 @@ export function MeetingsPanel({ member }: MeetingsPanelProps) {
               </label>
               <textarea
                 value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, description: e.target.value })
+                }
                 className="input-field"
                 rows={3}
                 placeholder="Meeting agenda, topics to discuss..."
@@ -188,12 +193,14 @@ export function MeetingsPanel({ member }: MeetingsPanelProps) {
                 <input
                   type="date"
                   value={formData.date}
-                  onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, date: e.target.value })
+                  }
                   className="input-field"
                   required
                 />
               </div>
-              
+
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">
                   Start Time *
@@ -201,12 +208,14 @@ export function MeetingsPanel({ member }: MeetingsPanelProps) {
                 <input
                   type="time"
                   value={formData.startTime}
-                  onChange={(e) => setFormData({ ...formData, startTime: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, startTime: e.target.value })
+                  }
                   className="input-field"
                   required
                 />
               </div>
-              
+
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">
                   End Time *
@@ -214,7 +223,9 @@ export function MeetingsPanel({ member }: MeetingsPanelProps) {
                 <input
                   type="time"
                   value={formData.endTime}
-                  onChange={(e) => setFormData({ ...formData, endTime: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, endTime: e.target.value })
+                  }
                   className="input-field"
                   required
                 />
@@ -256,7 +267,7 @@ export function MeetingsPanel({ member }: MeetingsPanelProps) {
                   <h4 className="text-lg font-medium text-white mb-2">
                     {meeting.title}
                   </h4>
-                  
+
                   <div className="flex flex-wrap items-center gap-4 text-sm text-gray-300 mb-3">
                     <div className="flex items-center space-x-2">
                       <span>📅</span>
@@ -264,7 +275,10 @@ export function MeetingsPanel({ member }: MeetingsPanelProps) {
                     </div>
                     <div className="flex items-center space-x-2">
                       <span>⏰</span>
-                      <span>{formatTime(meeting.startTime)} - {formatTime(meeting.endTime)}</span>
+                      <span>
+                        {formatTime(meeting.startTime)} -{" "}
+                        {formatTime(meeting.endTime)}
+                      </span>
                     </div>
                     {meeting.location && (
                       <div className="flex items-center space-x-2">
@@ -273,17 +287,19 @@ export function MeetingsPanel({ member }: MeetingsPanelProps) {
                       </div>
                     )}
                   </div>
-                  
+
                   {meeting.description && (
-                    <p className="text-gray-400 text-sm">{meeting.description}</p>
+                    <p className="text-gray-400 text-sm">
+                      {meeting.description}
+                    </p>
                   )}
                 </div>
-                
+
                 {canManageMeetings && (
                   <div className="flex space-x-2 ml-4">
                     <button
                       onClick={() => handleEdit(meeting)}
-                      className="text-cyan-400 hover:text-cyan-300 p-2 rounded-lg hover:bg-white/5 transition-colors"
+                      className="text-orange-400 hover:text-orange-300 p-2 rounded-lg hover:bg-white/5 transition-colors"
                       title="Edit meeting"
                     >
                       ✏️
