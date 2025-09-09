@@ -243,7 +243,7 @@ export function HomePage({ member }: HomePageProps) {
             onDateDoubleClick={handleQuickMeeting}
             viewMode={viewMode}
           />
-          
+
           {/* Selected Date Details */}
           {showSelectedDate && (
             <SelectedDateDetails
@@ -432,7 +432,10 @@ function CalendarView({
                   {dayMeetings.length > 0 && (
                     <div className="mt-1 space-y-0.5">
                       {dayMeetings.slice(0, 2).map((m: any, idx: number) => (
-                        <div key={idx} className="text-[9px] md:text-[10px] text-accent-green">
+                        <div
+                          key={idx}
+                          className="text-[9px] md:text-[10px] text-accent-green"
+                        >
                           <div className="font-mono">{m.startTime}</div>
                           {m.location && (
                             <div className="text-text-dim truncate hidden md:block">
@@ -581,7 +584,7 @@ function NewMeetingModal({
     }
     return "18:00"; // Default to 6 PM
   });
-  const [location, setLocation] = useState("robotics lab");
+  const [location, setLocation] = useState("bohs");
   const [description, setDescription] = useState("");
 
   const createMeeting = useMutation(api.meetings.createMeeting);
@@ -703,7 +706,7 @@ function NewMeetingModal({
                   className="input-modern pl-10"
                   value={location}
                   onChange={(e) => setLocation(e.target.value)}
-                  placeholder="e.g., robotics lab"
+                  placeholder="e.g., bohs"
                 />
               </div>
             </div>
@@ -753,7 +756,13 @@ interface SelectedDateDetailsProps {
   onClose: () => void;
 }
 
-function SelectedDateDetails({ date, meetings, members, currentMember, onClose }: SelectedDateDetailsProps) {
+function SelectedDateDetails({
+  date,
+  meetings,
+  members,
+  currentMember,
+  onClose,
+}: SelectedDateDetailsProps) {
   const meetingsForDate = meetings.filter((m: any) => {
     const meetingDate = new Date(m.date);
     return meetingDate.toDateString() === date.toDateString();
@@ -767,13 +776,16 @@ function SelectedDateDetails({ date, meetings, members, currentMember, onClose }
     <div className="mt-6 p-6 bg-glass border border-border-glass rounded-xl">
       <div className="flex justify-between items-center mb-4">
         <h3 className="text-lg font-light">
-          meetings for {date.toLocaleDateString('en-US', { 
-            weekday: 'long', 
-            month: 'long', 
-            day: 'numeric' 
-          }).toLowerCase()}
+          meetings for{" "}
+          {date
+            .toLocaleDateString("en-US", {
+              weekday: "long",
+              month: "long",
+              day: "numeric",
+            })
+            .toLowerCase()}
         </h3>
-        <button 
+        <button
           onClick={onClose}
           className="text-text-muted hover:text-text-primary"
         >
@@ -784,32 +796,41 @@ function SelectedDateDetails({ date, meetings, members, currentMember, onClose }
       <div className="space-y-4">
         {meetingsForDate.map((meeting: any) => {
           const MeetingRsvps = () => {
-            const rsvps = useQuery(
-              api.meetings.getRsvpsForMeeting,
-              { meetingId: meeting._id }
-            );
+            const rsvps = useQuery(api.meetings.getRsvpsForMeeting, {
+              meetingId: meeting._id,
+            });
 
             if (!rsvps) return null;
 
-            const attending = rsvps.filter((r: any) => r.status === "attending");
-            const notAttending = rsvps.filter((r: any) => r.status === "not_attending");
+            const attending = rsvps.filter(
+              (r: any) => r.status === "attending"
+            );
+            const notAttending = rsvps.filter(
+              (r: any) => r.status === "not_attending"
+            );
 
             return (
               <div className="pl-4 border-l-2 border-border-glass">
                 <div className="flex items-center gap-2 mb-2">
                   <Users size={14} className="text-text-muted" />
-                  <span className="text-sm font-mono text-text-secondary">rsvps</span>
+                  <span className="text-sm font-mono text-text-secondary">
+                    rsvps
+                  </span>
                 </div>
-                
+
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div>
                     <div className="flex items-center gap-1 text-accent-green mb-1">
                       <CheckCircle size={12} />
-                      <span className="font-mono">attending ({attending.length})</span>
+                      <span className="font-mono">
+                        attending ({attending.length})
+                      </span>
                     </div>
                     <div className="space-y-1">
                       {attending.map((rsvp: any) => {
-                        const member = members.find((m: any) => m._id === rsvp.memberId);
+                        const member = members.find(
+                          (m: any) => m._id === rsvp.memberId
+                        );
                         return member ? (
                           <div key={rsvp._id} className="text-text-muted">
                             {member.name}
@@ -818,15 +839,19 @@ function SelectedDateDetails({ date, meetings, members, currentMember, onClose }
                       })}
                     </div>
                   </div>
-                  
+
                   <div>
                     <div className="flex items-center gap-1 text-error-red mb-1">
                       <XCircle size={12} />
-                      <span className="font-mono">not attending ({notAttending.length})</span>
+                      <span className="font-mono">
+                        not attending ({notAttending.length})
+                      </span>
                     </div>
                     <div className="space-y-1">
                       {notAttending.map((rsvp: any) => {
-                        const member = members.find((m: any) => m._id === rsvp.memberId);
+                        const member = members.find(
+                          (m: any) => m._id === rsvp.memberId
+                        );
                         return member ? (
                           <div key={rsvp._id} className="text-text-muted">
                             {member.name}
@@ -844,7 +869,9 @@ function SelectedDateDetails({ date, meetings, members, currentMember, onClose }
             <div key={meeting._id} className="space-y-3">
               <div className="flex justify-between items-start">
                 <div>
-                  <h4 className="font-medium text-text-primary">{meeting.title}</h4>
+                  <h4 className="font-medium text-text-primary">
+                    {meeting.title}
+                  </h4>
                   <div className="flex items-center gap-4 text-sm text-text-muted mt-1">
                     <span className="flex items-center gap-1">
                       <Clock size={12} />
@@ -858,10 +885,13 @@ function SelectedDateDetails({ date, meetings, members, currentMember, onClose }
                     )}
                   </div>
                   {meeting.description && (
-                    <p className="text-sm text-text-muted mt-2">{meeting.description}</p>
+                    <p className="text-sm text-text-muted mt-2">
+                      {meeting.description}
+                    </p>
                   )}
                 </div>
-                {(currentMember.role === "admin" || currentMember.role === "lead") && (
+                {(currentMember.role === "admin" ||
+                  currentMember.role === "lead") && (
                   <button
                     className="btn-modern btn-danger p-2"
                     onClick={async () => {
