@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import ReactDOM from "react-dom";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { Doc } from "../../convex/_generated/dataModel";
@@ -491,10 +492,19 @@ function NewMeetingModal({ onClose, member, defaultDate }: NewMeetingModalProps)
     onClose();
   };
 
-  return (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
-      <div className="glass-panel p-8 max-w-lg w-full max-h-[85vh] overflow-y-auto relative">
-        <div className="flex justify-between items-center mb-6">
+  // Use React Portal to render modal at document body level
+  return ReactDOM.createPortal(
+    <>
+      {/* Backdrop */}
+      <div 
+        className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[9998]"
+        onClick={onClose}
+      />
+      
+      {/* Modal */}
+      <div className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-[9999] w-full max-w-lg p-4">
+        <div className="glass-panel p-8 max-h-[85vh] overflow-y-auto">
+          <div className="flex justify-between items-center mb-6">
           <h2 className="text-2xl font-light">
             {defaultDate ? `schedule meeting for ${defaultDate.toLocaleDateString()}` : 'schedule new meeting'}
           </h2>
@@ -595,7 +605,9 @@ function NewMeetingModal({ onClose, member, defaultDate }: NewMeetingModalProps)
             </button>
           </div>
         </form>
+        </div>
       </div>
-    </div>
+    </>,
+    document.body
   );
 }
