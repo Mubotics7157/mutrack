@@ -13,6 +13,9 @@ import {
   ChevronRight,
   X,
   Trash2,
+  Users,
+  CheckCircle,
+  XCircle,
 } from "lucide-react";
 
 interface HomePageProps {
@@ -23,8 +26,10 @@ export function HomePage({ member }: HomePageProps) {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [showNewMeeting, setShowNewMeeting] = useState(false);
   const [viewMode, setViewMode] = useState<"month" | "week">("month");
+  const [showSelectedDate, setShowSelectedDate] = useState(false);
 
   const meetings = useQuery(api.meetings.getMeetings);
+  const allMembers = useQuery(api.members.getAllMembers);
   const rsvpToMeeting = useMutation(api.meetings.rsvpToMeeting);
   const [rsvpSubmitting, setRsvpSubmitting] = useState(false);
   const upcomingMeetings = meetings
@@ -231,10 +236,24 @@ export function HomePage({ member }: HomePageProps) {
           <CalendarView
             meetings={meetings || []}
             selectedDate={selectedDate}
-            onDateSelect={setSelectedDate}
+            onDateSelect={(date) => {
+              setSelectedDate(date);
+              setShowSelectedDate(true);
+            }}
             onDateDoubleClick={handleQuickMeeting}
             viewMode={viewMode}
           />
+          
+          {/* Selected Date Details */}
+          {showSelectedDate && (
+            <SelectedDateDetails
+              date={selectedDate}
+              meetings={meetings || []}
+              members={allMembers || []}
+              currentMember={member}
+              onClose={() => setShowSelectedDate(false)}
+            />
+          )}
         </div>
 
         {/* All Upcoming Meetings */}
@@ -411,14 +430,22 @@ function CalendarView({
                     {date.getDate()}
                   </span>
                   {dayMeetings.length > 0 && (
-                    <div className="mt-1">
-                      <div className="text-[10px] md:text-xs text-accent-green font-mono md:hidden">
-                        {dayMeetings.length}
-                      </div>
-                      <div className="hidden md:block text-xs text-accent-green font-mono">
-                        {dayMeetings.length} meeting
-                        {dayMeetings.length > 1 ? "s" : ""}
-                      </div>
+                    <div className="mt-1 space-y-0.5">
+                      {dayMeetings.slice(0, 2).map((m: any, idx: number) => (
+                        <div key={idx} className="text-[9px] md:text-[10px] text-accent-green">
+                          <div className="font-mono">{m.startTime}</div>
+                          {m.location && (
+                            <div className="text-text-dim truncate hidden md:block">
+                              {m.location}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                      {dayMeetings.length > 2 && (
+                        <div className="text-[9px] text-text-dim">
+                          +{dayMeetings.length - 2} more
+                        </div>
+                      )}
                     </div>
                   )}
                 </>
@@ -715,5 +742,147 @@ function NewMeetingModal({
       </div>
     </>,
     document.body
+  );
+}
+
+interface SelectedDateDetailsProps {
+  date: Date;
+  meetings: any[];
+  members: any[];
+  currentMember: Doc<"members">;
+  onClose: () => void;
+}
+
+function SelectedDateDetails({ date, meetings, members, currentMember, onClose }: SelectedDateDetailsProps) {
+  const meetingsForDate = meetings.filter((m: any) => {
+    const meetingDate = new Date(m.date);
+    return meetingDate.toDateString() === date.toDateString();
+  });
+
+  const deleteMeeting = useMutation(api.meetings.deleteMeeting);
+
+  if (meetingsForDate.length === 0) return null;
+
+  return (
+    <div className="mt-6 p-6 bg-glass border border-border-glass rounded-xl">
+      <div className="flex justify-between items-center mb-4">
+        <h3 className="text-lg font-light">
+          meetings for {date.toLocaleDateString('en-US', { 
+            weekday: 'long', 
+            month: 'long', 
+            day: 'numeric' 
+          }).toLowerCase()}
+        </h3>
+        <button 
+          onClick={onClose}
+          className="text-text-muted hover:text-text-primary"
+        >
+          <X size={16} />
+        </button>
+      </div>
+
+      <div className="space-y-4">
+        {meetingsForDate.map((meeting: any) => {
+          const MeetingRsvps = () => {
+            const rsvps = useQuery(
+              api.meetings.getRsvpsForMeeting,
+              { meetingId: meeting._id }
+            );
+
+            if (!rsvps) return null;
+
+            const attending = rsvps.filter((r: any) => r.status === "attending");
+            const notAttending = rsvps.filter((r: any) => r.status === "not_attending");
+
+            return (
+              <div className="pl-4 border-l-2 border-border-glass">
+                <div className="flex items-center gap-2 mb-2">
+                  <Users size={14} className="text-text-muted" />
+                  <span className="text-sm font-mono text-text-secondary">rsvps</span>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <div className="flex items-center gap-1 text-accent-green mb-1">
+                      <CheckCircle size={12} />
+                      <span className="font-mono">attending ({attending.length})</span>
+                    </div>
+                    <div className="space-y-1">
+                      {attending.map((rsvp: any) => {
+                        const member = members.find((m: any) => m._id === rsvp.memberId);
+                        return member ? (
+                          <div key={rsvp._id} className="text-text-muted">
+                            {member.name}
+                          </div>
+                        ) : null;
+                      })}
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <div className="flex items-center gap-1 text-error-red mb-1">
+                      <XCircle size={12} />
+                      <span className="font-mono">not attending ({notAttending.length})</span>
+                    </div>
+                    <div className="space-y-1">
+                      {notAttending.map((rsvp: any) => {
+                        const member = members.find((m: any) => m._id === rsvp.memberId);
+                        return member ? (
+                          <div key={rsvp._id} className="text-text-muted">
+                            {member.name}
+                          </div>
+                        ) : null;
+                      })}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          };
+
+          return (
+            <div key={meeting._id} className="space-y-3">
+              <div className="flex justify-between items-start">
+                <div>
+                  <h4 className="font-medium text-text-primary">{meeting.title}</h4>
+                  <div className="flex items-center gap-4 text-sm text-text-muted mt-1">
+                    <span className="flex items-center gap-1">
+                      <Clock size={12} />
+                      {meeting.startTime} - {meeting.endTime}
+                    </span>
+                    {meeting.location && (
+                      <span className="flex items-center gap-1">
+                        <MapPin size={12} />
+                        {meeting.location}
+                      </span>
+                    )}
+                  </div>
+                  {meeting.description && (
+                    <p className="text-sm text-text-muted mt-2">{meeting.description}</p>
+                  )}
+                </div>
+                {(currentMember.role === "admin" || currentMember.role === "lead") && (
+                  <button
+                    className="btn-modern btn-danger p-2"
+                    onClick={async () => {
+                      if (confirm(`Delete "${meeting.title}"?`)) {
+                        await deleteMeeting({ meetingId: meeting._id });
+                        toast.success("meeting deleted");
+                      }
+                    }}
+                    title="Delete meeting"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                )}
+              </div>
+
+              {/* RSVPs Section */}
+              <MeetingRsvps />
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 }

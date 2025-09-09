@@ -21,7 +21,7 @@ export const getPurchaseRequests = query({
           .query("members")
           .withIndex("by_user", (q) => q.eq("userId", request.requestedBy))
           .unique();
-        
+
         let approver = null;
         if (request.approvedBy) {
           approver = await ctx.db
@@ -30,10 +30,13 @@ export const getPurchaseRequests = query({
             .unique();
         }
 
+        const vendor = await ctx.db.get(request.vendorId);
+
         return {
           ...request,
           requesterName: requester?.name || "Unknown",
           approverName: approver?.name || null,
+          vendorName: vendor?.name || "Unknown",
         };
       })
     );
@@ -48,6 +51,9 @@ export const createPurchaseRequest = mutation({
     description: v.string(),
     estimatedCost: v.number(),
     priority: v.union(v.literal("low"), v.literal("medium"), v.literal("high")),
+    link: v.string(),
+    quantity: v.number(),
+    vendorId: v.id("vendors"),
   },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
@@ -65,10 +71,7 @@ export const createPurchaseRequest = mutation({
 export const updateRequestStatus = mutation({
   args: {
     requestId: v.id("purchaseRequests"),
-    status: v.union(
-      v.literal("approved"),
-      v.literal("rejected")
-    ),
+    status: v.union(v.literal("approved"), v.literal("rejected")),
     rejectionReason: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
@@ -103,7 +106,9 @@ export const getPurchaseOrders = query({
 
     const ordersWithDetails = await Promise.all(
       orders.map(async (order) => {
-        const request = await ctx.db.get(order.requestId);
+        const requests = await Promise.all(
+          order.requestIds.map((id) => ctx.db.get(id))
+        );
         const orderer = await ctx.db
           .query("members")
           .withIndex("by_user", (q) => q.eq("userId", order.orderedBy))
@@ -111,12 +116,14 @@ export const getPurchaseOrders = query({
 
         let confirmationImageUrl = null;
         if (order.confirmationImageId) {
-          confirmationImageUrl = await ctx.storage.getUrl(order.confirmationImageId);
+          confirmationImageUrl = await ctx.storage.getUrl(
+            order.confirmationImageId
+          );
         }
 
         return {
           ...order,
-          request,
+          requests: requests.filter(Boolean),
           ordererName: orderer?.name || "Unknown",
           confirmationImageUrl,
         };
@@ -129,7 +136,7 @@ export const getPurchaseOrders = query({
 
 export const createPurchaseOrder = mutation({
   args: {
-    requestId: v.id("purchaseRequests"),
+    requestIds: v.array(v.id("purchaseRequests")),
     vendor: v.string(),
     cartLink: v.optional(v.string()),
     totalCost: v.number(),
@@ -148,8 +155,10 @@ export const createPurchaseOrder = mutation({
       throw new Error("Only admins and leads can create purchase orders");
     }
 
-    // Update request status to ordered
-    await ctx.db.patch(args.requestId, { status: "ordered" });
+    // Update requests status to ordered
+    for (const requestId of args.requestIds) {
+      await ctx.db.patch(requestId, { status: "ordered" });
+    }
 
     return await ctx.db.insert("purchaseOrders", {
       ...args,
@@ -191,10 +200,61 @@ export const updateOrderConfirmation = mutation({
       confirmationImageId: args.confirmationImageId,
     });
 
-    // Update the related request to fulfilled
+    // Update the related requests to fulfilled
     const order = await ctx.db.get(args.orderId);
     if (order) {
-      await ctx.db.patch(order.requestId, { status: "fulfilled" });
+      for (const requestId of order.requestIds) {
+        await ctx.db.patch(requestId, { status: "fulfilled" });
+      }
     }
+  },
+});
+
+// Vendor helpers
+export const searchVendors = query({
+  args: {
+    q: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const queryText = args.q.trim();
+    if (queryText === "") {
+      // return a few vendors for empty input
+      return await ctx.db.query("vendors").take(10);
+    }
+    // Prefix search using index range
+    const lower = queryText;
+    const upper = queryText + "\uffff";
+    const results = [];
+    const cursor = ctx.db
+      .query("vendors")
+      .withIndex("by_name", (q) => q.gte("name", lower))
+      .order("asc");
+    for await (const vendor of cursor) {
+      if (vendor.name >= lower && vendor.name < upper) {
+        results.push(vendor);
+        if (results.length >= 10) break;
+      } else if (vendor.name >= upper) {
+        break;
+      }
+    }
+    return results;
+  },
+});
+
+export const ensureVendor = mutation({
+  args: { name: v.string() },
+  returns: v.id("vendors"),
+  handler: async (ctx, args) => {
+    const name = args.name.trim();
+    if (name === "") {
+      throw new Error("Vendor name required");
+    }
+    const existing = await ctx.db
+      .query("vendors")
+      .withIndex("by_name", (q) => q.eq("name", name))
+      .unique();
+    if (existing) return existing._id;
+    const id = await ctx.db.insert("vendors", { name });
+    return id;
   },
 });

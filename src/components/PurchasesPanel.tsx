@@ -14,7 +14,9 @@ export function PurchasesPanel({ member }: PurchasesPanelProps) {
   const [activeView, setActiveView] = useState<ViewType>("requests");
   const [showRequestForm, setShowRequestForm] = useState(false);
   const [showOrderForm, setShowOrderForm] = useState(false);
-  const [selectedRequest, setSelectedRequest] = useState<any>(null);
+  const [selectedRequestIds, setSelectedRequestIds] = useState<Array<string>>(
+    []
+  );
 
   const requests = useQuery(api.purchases.getPurchaseRequests) || [];
   const orders = useQuery(api.purchases.getPurchaseOrders) || [];
@@ -26,6 +28,7 @@ export function PurchasesPanel({ member }: PurchasesPanelProps) {
   const updateOrderConfirmation = useMutation(
     api.purchases.updateOrderConfirmation
   );
+  const ensureVendor = useMutation(api.purchases.ensureVendor);
 
   const canManageOrders = member.role === "admin" || member.role === "lead";
 
@@ -34,6 +37,9 @@ export function PurchasesPanel({ member }: PurchasesPanelProps) {
     description: "",
     estimatedCost: "",
     priority: "medium" as "low" | "medium" | "high",
+    link: "",
+    quantity: "1",
+    vendorName: "",
   });
 
   const [orderForm, setOrderForm] = useState({
@@ -43,14 +49,25 @@ export function PurchasesPanel({ member }: PurchasesPanelProps) {
     notes: "",
   });
 
+  // Vendor autocomplete for request form
+  const vendorResults =
+    useQuery(api.purchases.searchVendors, { q: requestForm.vendorName }) || [];
+
   const handleRequestSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      // Ensure vendor exists and get id
+      const vendorId = await ensureVendor({
+        name: requestForm.vendorName.trim(),
+      });
       await createRequest({
         title: requestForm.title,
         description: requestForm.description,
         estimatedCost: parseFloat(requestForm.estimatedCost),
         priority: requestForm.priority,
+        link: requestForm.link,
+        quantity: parseInt(requestForm.quantity || "1", 10),
+        vendorId,
       });
       toast.success("Purchase request submitted!");
       setRequestForm({
@@ -58,6 +75,9 @@ export function PurchasesPanel({ member }: PurchasesPanelProps) {
         description: "",
         estimatedCost: "",
         priority: "medium",
+        link: "",
+        quantity: "1",
+        vendorName: "",
       });
       setShowRequestForm(false);
     } catch (error) {
@@ -84,11 +104,11 @@ export function PurchasesPanel({ member }: PurchasesPanelProps) {
 
   const handleOrderSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedRequest) return;
+    if (selectedRequestIds.length === 0) return;
 
     try {
       await createOrder({
-        requestId: selectedRequest._id,
+        requestIds: selectedRequestIds as any,
         vendor: orderForm.vendor,
         cartLink: orderForm.cartLink || undefined,
         totalCost: parseFloat(orderForm.totalCost),
@@ -97,7 +117,7 @@ export function PurchasesPanel({ member }: PurchasesPanelProps) {
       toast.success("Purchase order created!");
       setOrderForm({ vendor: "", cartLink: "", totalCost: "", notes: "" });
       setShowOrderForm(false);
-      setSelectedRequest(null);
+      setSelectedRequestIds([]);
     } catch (error) {
       toast.error("Failed to create order");
     }
@@ -204,10 +224,8 @@ export function PurchasesPanel({ member }: PurchasesPanelProps) {
         {canManageOrders && activeView === "requests" && (
           <button
             onClick={() => {
-              const approvedRequests = requests.filter(
-                (r) => r.status === "approved"
-              );
-              if (approvedRequests.length === 0) {
+              const approved = requests.filter((r) => r.status === "approved");
+              if (approved.length === 0) {
                 toast.error("No approved requests to create orders from");
                 return;
               }
@@ -261,6 +279,79 @@ export function PurchasesPanel({ member }: PurchasesPanelProps) {
                 required
                 placeholder="Detailed description, specifications, intended use..."
               />
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Item Link *
+                </label>
+                <input
+                  type="url"
+                  value={requestForm.link}
+                  onChange={(e) =>
+                    setRequestForm({ ...requestForm, link: e.target.value })
+                  }
+                  className="input-field"
+                  required
+                  placeholder="https://..."
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Quantity *
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  step={1}
+                  value={requestForm.quantity}
+                  onChange={(e) =>
+                    setRequestForm({ ...requestForm, quantity: e.target.value })
+                  }
+                  className="input-field"
+                  required
+                  placeholder="1"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                Vendor *
+              </label>
+              <div className="relative">
+                <input
+                  type="text"
+                  value={requestForm.vendorName}
+                  onChange={(e) =>
+                    setRequestForm({
+                      ...requestForm,
+                      vendorName: e.target.value,
+                    })
+                  }
+                  className="input-field"
+                  required
+                  placeholder="e.g., Amazon, McMaster-Carr"
+                />
+                {requestForm.vendorName && vendorResults.length > 0 && (
+                  <div className="absolute z-10 mt-1 w-full bg-black/90 border border-white/10 rounded-lg max-h-48 overflow-auto">
+                    {vendorResults.map((v: any) => (
+                      <button
+                        type="button"
+                        key={v._id}
+                        onClick={() =>
+                          setRequestForm({ ...requestForm, vendorName: v.name })
+                        }
+                        className="block w-full text-left px-3 py-2 hover:bg-white/10 text-sm text-gray-200"
+                      >
+                        {v.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -330,29 +421,45 @@ export function PurchasesPanel({ member }: PurchasesPanelProps) {
 
           <div className="mb-4">
             <label className="block text-sm font-medium text-gray-300 mb-2">
-              Select Approved Request *
+              Select Approved Requests *
             </label>
-            <select
-              value={selectedRequest?._id || ""}
-              onChange={(e) => {
-                const request = requests.find((r) => r._id === e.target.value);
-                setSelectedRequest(request);
-              }}
-              className="input-field"
-              required
-            >
-              <option value="">Choose a request...</option>
+            <div className="max-h-60 overflow-auto border border-white/10 rounded-lg divide-y divide-white/10">
               {requests
                 .filter((r) => r.status === "approved")
-                .map((request) => (
-                  <option key={request._id} value={request._id}>
-                    {request.title} - ${request.estimatedCost}
-                  </option>
-                ))}
-            </select>
+                .map((r) => {
+                  const checked = selectedRequestIds.includes(r._id);
+                  return (
+                    <label
+                      key={r._id}
+                      className="flex items-center gap-3 px-3 py-2 text-sm text-gray-200"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedRequestIds([
+                              ...selectedRequestIds,
+                              r._id,
+                            ]);
+                          } else {
+                            setSelectedRequestIds(
+                              selectedRequestIds.filter((id) => id !== r._id)
+                            );
+                          }
+                        }}
+                      />
+                      <span className="flex-1 truncate">{r.title}</span>
+                      <span className="text-gray-400">
+                        ${r.estimatedCost.toFixed(2)}
+                      </span>
+                    </label>
+                  );
+                })}
+            </div>
           </div>
 
-          {selectedRequest && (
+          {selectedRequestIds.length > 0 && (
             <form onSubmit={handleOrderSubmit} className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
@@ -427,7 +534,7 @@ export function PurchasesPanel({ member }: PurchasesPanelProps) {
                   type="button"
                   onClick={() => {
                     setShowOrderForm(false);
-                    setSelectedRequest(null);
+                    setSelectedRequestIds([]);
                   }}
                   className="btn-secondary"
                 >
@@ -477,6 +584,18 @@ export function PurchasesPanel({ member }: PurchasesPanelProps) {
                       </span>
                       <span className="text-gray-400">
                         ${request.estimatedCost.toFixed(2)}
+                      </span>
+                      <span className="text-gray-400">x{request.quantity}</span>
+                      <a
+                        className="text-orange-400 underline"
+                        href={request.link}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        link
+                      </a>
+                      <span className="text-gray-400">
+                        vendor: {request.vendorName}
                       </span>
                       <span className="text-gray-500">
                         by {request.requesterName}
@@ -538,7 +657,10 @@ export function PurchasesPanel({ member }: PurchasesPanelProps) {
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex-1">
                     <h4 className="text-lg font-medium text-white mb-2">
-                      {order.request?.title || "Unknown Item"}
+                      {order.requests
+                        ?.map((r: any) => r?.title)
+                        .filter(Boolean)
+                        .join(", ") || "Unknown Items"}
                     </h4>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-gray-300 mb-3">

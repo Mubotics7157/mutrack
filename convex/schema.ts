@@ -37,6 +37,9 @@ const applicationTables = {
     description: v.string(),
     estimatedCost: v.number(),
     priority: v.union(v.literal("low"), v.literal("medium"), v.literal("high")),
+    link: v.string(),
+    quantity: v.number(),
+    vendorId: v.id("vendors"),
     status: v.union(
       v.literal("pending"),
       v.literal("approved"),
@@ -54,7 +57,7 @@ const applicationTables = {
     .index("by_requester", ["requestedBy"]),
 
   purchaseOrders: defineTable({
-    requestId: v.id("purchaseRequests"),
+    requestIds: v.array(v.id("purchaseRequests")),
     vendor: v.string(),
     cartLink: v.optional(v.string()),
     totalCost: v.number(),
@@ -62,9 +65,11 @@ const applicationTables = {
     orderedAt: v.number(),
     confirmationImageId: v.optional(v.id("_storage")),
     notes: v.optional(v.string()),
-  })
-    .index("by_request", ["requestId"])
-    .index("by_orderer", ["orderedBy"]),
+  }).index("by_orderer", ["orderedBy"]),
+
+  vendors: defineTable({
+    name: v.string(),
+  }).index("by_name", ["name"]),
 };
 
 export default defineSchema({

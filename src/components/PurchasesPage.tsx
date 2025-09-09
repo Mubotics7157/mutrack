@@ -14,7 +14,9 @@ export function PurchasesPage({ member }: PurchasesPageProps) {
   const [activeView, setActiveView] = useState<ViewType>("requests");
   const [showRequestForm, setShowRequestForm] = useState(false);
   const [showOrderForm, setShowOrderForm] = useState(false);
-  const [selectedRequest, setSelectedRequest] = useState<any>(null);
+  const [selectedRequestIds, setSelectedRequestIds] = useState<Array<string>>(
+    []
+  );
 
   const requests = useQuery(api.purchases.getPurchaseRequests) || [];
   const orders = useQuery(api.purchases.getPurchaseOrders) || [];
@@ -23,14 +25,16 @@ export function PurchasesPage({ member }: PurchasesPageProps) {
   const updateRequestStatus = useMutation(api.purchases.updateRequestStatus);
   const createOrder = useMutation(api.purchases.createPurchaseOrder);
   const generateUploadUrl = useMutation(api.purchases.generateUploadUrl);
-  const updateOrderConfirmation = useMutation(api.purchases.updateOrderConfirmation);
+  const updateOrderConfirmation = useMutation(
+    api.purchases.updateOrderConfirmation
+  );
 
   const canManageOrders = member.role === "admin" || member.role === "lead";
 
   // Calculate stats
   const stats = {
-    pending: requests.filter(r => r.status === "pending").length,
-    approved: requests.filter(r => r.status === "approved").length,
+    pending: requests.filter((r) => r.status === "pending").length,
+    approved: requests.filter((r) => r.status === "approved").length,
     totalOrders: orders.length,
     totalSpent: orders.reduce((sum, order) => sum + order.totalCost, 0),
   };
@@ -40,6 +44,9 @@ export function PurchasesPage({ member }: PurchasesPageProps) {
     description: "",
     estimatedCost: "",
     priority: "medium" as "low" | "medium" | "high",
+    link: "",
+    quantity: "1",
+    vendorName: "",
   });
 
   const [orderForm, setOrderForm] = useState({
@@ -49,14 +56,24 @@ export function PurchasesPage({ member }: PurchasesPageProps) {
     notes: "",
   });
 
+  const vendorResults =
+    useQuery(api.purchases.searchVendors, { q: requestForm.vendorName }) || [];
+  const ensureVendor = useMutation(api.purchases.ensureVendor);
+
   const handleRequestSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      const vendorId = await ensureVendor({
+        name: requestForm.vendorName.trim(),
+      });
       await createRequest({
         title: requestForm.title,
         description: requestForm.description,
         estimatedCost: parseFloat(requestForm.estimatedCost),
         priority: requestForm.priority,
+        link: requestForm.link,
+        quantity: parseInt(requestForm.quantity || "1", 10),
+        vendorId,
       });
       toast.success("purchase request submitted");
       setRequestForm({
@@ -64,6 +81,9 @@ export function PurchasesPage({ member }: PurchasesPageProps) {
         description: "",
         estimatedCost: "",
         priority: "medium",
+        link: "",
+        quantity: "1",
+        vendorName: "",
       });
       setShowRequestForm(false);
     } catch (error) {
@@ -90,11 +110,11 @@ export function PurchasesPage({ member }: PurchasesPageProps) {
 
   const handleOrderSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedRequest) return;
+    if (selectedRequestIds.length === 0) return;
 
     try {
       await createOrder({
-        requestId: selectedRequest._id,
+        requestIds: selectedRequestIds as any,
         vendor: orderForm.vendor,
         cartLink: orderForm.cartLink || undefined,
         totalCost: parseFloat(orderForm.totalCost),
@@ -103,7 +123,7 @@ export function PurchasesPage({ member }: PurchasesPageProps) {
       toast.success("purchase order created");
       setOrderForm({ vendor: "", cartLink: "", totalCost: "", notes: "" });
       setShowOrderForm(false);
-      setSelectedRequest(null);
+      setSelectedRequestIds([]);
     } catch (error) {
       toast.error("failed to create order");
     }
@@ -138,7 +158,9 @@ export function PurchasesPage({ member }: PurchasesPageProps) {
       <div className="glass-panel p-8">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-6">
           <div>
-            <h1 className="text-3xl font-light mb-2 text-gradient">purchase management</h1>
+            <h1 className="text-3xl font-light mb-2 text-gradient">
+              purchase management
+            </h1>
             <p className="text-text-muted">
               track requests and orders for team equipment
             </p>
@@ -148,15 +170,21 @@ export function PurchasesPage({ member }: PurchasesPageProps) {
         {/* Stats Grid */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div className="card-modern text-center">
-            <div className="text-2xl font-light text-yellow-400 mb-1">{stats.pending}</div>
+            <div className="text-2xl font-light text-yellow-400 mb-1">
+              {stats.pending}
+            </div>
             <div className="text-sm text-text-muted">pending</div>
           </div>
           <div className="card-modern text-center">
-            <div className="text-2xl font-light text-accent-green mb-1">{stats.approved}</div>
+            <div className="text-2xl font-light text-accent-green mb-1">
+              {stats.approved}
+            </div>
             <div className="text-sm text-text-muted">approved</div>
           </div>
           <div className="card-modern text-center">
-            <div className="text-2xl font-light text-blue-400 mb-1">{stats.totalOrders}</div>
+            <div className="text-2xl font-light text-blue-400 mb-1">
+              {stats.totalOrders}
+            </div>
             <div className="text-sm text-text-muted">orders</div>
           </div>
           <div className="card-modern text-center">
@@ -204,7 +232,9 @@ export function PurchasesPage({ member }: PurchasesPageProps) {
             {canManageOrders && activeView === "requests" && (
               <button
                 onClick={() => {
-                  const approvedRequests = requests.filter(r => r.status === "approved");
+                  const approvedRequests = requests.filter(
+                    (r) => r.status === "approved"
+                  );
                   if (approvedRequests.length === 0) {
                     toast.error("no approved requests to create orders from");
                     return;
@@ -233,7 +263,9 @@ export function PurchasesPage({ member }: PurchasesPageProps) {
               <input
                 type="text"
                 value={requestForm.title}
-                onChange={(e) => setRequestForm({ ...requestForm, title: e.target.value })}
+                onChange={(e) =>
+                  setRequestForm({ ...requestForm, title: e.target.value })
+                }
                 className="input-modern"
                 required
                 placeholder="e.g., arduino uno r3, workshop tools"
@@ -246,7 +278,12 @@ export function PurchasesPage({ member }: PurchasesPageProps) {
               </label>
               <textarea
                 value={requestForm.description}
-                onChange={(e) => setRequestForm({ ...requestForm, description: e.target.value })}
+                onChange={(e) =>
+                  setRequestForm({
+                    ...requestForm,
+                    description: e.target.value,
+                  })
+                }
                 className="input-modern resize-none"
                 rows={3}
                 required
@@ -263,7 +300,12 @@ export function PurchasesPage({ member }: PurchasesPageProps) {
                   type="number"
                   step="0.01"
                   value={requestForm.estimatedCost}
-                  onChange={(e) => setRequestForm({ ...requestForm, estimatedCost: e.target.value })}
+                  onChange={(e) =>
+                    setRequestForm({
+                      ...requestForm,
+                      estimatedCost: e.target.value,
+                    })
+                  }
                   className="input-modern"
                   required
                   placeholder="0.00"
@@ -276,13 +318,91 @@ export function PurchasesPage({ member }: PurchasesPageProps) {
                 </label>
                 <select
                   value={requestForm.priority}
-                  onChange={(e) => setRequestForm({ ...requestForm, priority: e.target.value as any })}
+                  onChange={(e) =>
+                    setRequestForm({
+                      ...requestForm,
+                      priority: e.target.value as any,
+                    })
+                  }
                   className="input-modern"
                 >
                   <option value="low">low</option>
                   <option value="medium">medium</option>
                   <option value="high">high</option>
                 </select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block mb-2 text-sm text-text-muted">
+                  item link *
+                </label>
+                <input
+                  type="url"
+                  value={requestForm.link}
+                  onChange={(e) =>
+                    setRequestForm({ ...requestForm, link: e.target.value })
+                  }
+                  className="input-modern"
+                  required
+                  placeholder="https://..."
+                />
+              </div>
+
+              <div>
+                <label className="block mb-2 text-sm text-text-muted">
+                  quantity *
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  step={1}
+                  value={requestForm.quantity}
+                  onChange={(e) =>
+                    setRequestForm({ ...requestForm, quantity: e.target.value })
+                  }
+                  className="input-modern"
+                  required
+                  placeholder="1"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block mb-2 text-sm text-text-muted">
+                vendor *
+              </label>
+              <div className="relative">
+                <input
+                  type="text"
+                  value={requestForm.vendorName}
+                  onChange={(e) =>
+                    setRequestForm({
+                      ...requestForm,
+                      vendorName: e.target.value,
+                    })
+                  }
+                  className="input-modern"
+                  required
+                  placeholder="e.g., amazon, mcmaster-carr"
+                />
+                {requestForm.vendorName && vendorResults.length > 0 && (
+                  <div className="absolute z-10 mt-1 w-full bg-void-black/95 border border-border-glass rounded-xl max-h-48 overflow-auto">
+                    {vendorResults.map((v: any) => (
+                      <button
+                        type="button"
+                        key={v._id}
+                        onClick={() =>
+                          setRequestForm({ ...requestForm, vendorName: v.name })
+                        }
+                        className="block w-full text-left px-3 py-2 hover:bg-white/10 text-sm"
+                      >
+                        {v.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -309,29 +429,45 @@ export function PurchasesPage({ member }: PurchasesPageProps) {
 
           <div className="mb-4">
             <label className="block mb-2 text-sm text-text-muted">
-              select approved request *
+              select approved requests *
             </label>
-            <select
-              value={selectedRequest?._id || ""}
-              onChange={(e) => {
-                const request = requests.find(r => r._id === e.target.value);
-                setSelectedRequest(request);
-              }}
-              className="input-modern"
-              required
-            >
-              <option value="">choose a request...</option>
+            <div className="max-h-60 overflow-auto border border-border-glass rounded-xl divide-y divide-border-glass">
               {requests
-                .filter(r => r.status === "approved")
-                .map(request => (
-                  <option key={request._id} value={request._id}>
-                    {request.title} - ${request.estimatedCost}
-                  </option>
-                ))}
-            </select>
+                .filter((r) => r.status === "approved")
+                .map((r) => {
+                  const checked = selectedRequestIds.includes(r._id);
+                  return (
+                    <label
+                      key={r._id}
+                      className="flex items-center gap-3 px-3 py-2 text-sm"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedRequestIds([
+                              ...selectedRequestIds,
+                              r._id,
+                            ]);
+                          } else {
+                            setSelectedRequestIds(
+                              selectedRequestIds.filter((id) => id !== r._id)
+                            );
+                          }
+                        }}
+                      />
+                      <span className="flex-1 truncate">{r.title}</span>
+                      <span className="text-text-muted">
+                        ${r.estimatedCost.toFixed(2)}
+                      </span>
+                    </label>
+                  );
+                })}
+            </div>
           </div>
 
-          {selectedRequest && (
+          {selectedRequestIds.length > 0 && (
             <form onSubmit={handleOrderSubmit} className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
@@ -341,7 +477,9 @@ export function PurchasesPage({ member }: PurchasesPageProps) {
                   <input
                     type="text"
                     value={orderForm.vendor}
-                    onChange={(e) => setOrderForm({ ...orderForm, vendor: e.target.value })}
+                    onChange={(e) =>
+                      setOrderForm({ ...orderForm, vendor: e.target.value })
+                    }
                     className="input-modern"
                     required
                     placeholder="e.g., amazon, mcmaster-carr"
@@ -356,7 +494,9 @@ export function PurchasesPage({ member }: PurchasesPageProps) {
                     type="number"
                     step="0.01"
                     value={orderForm.totalCost}
-                    onChange={(e) => setOrderForm({ ...orderForm, totalCost: e.target.value })}
+                    onChange={(e) =>
+                      setOrderForm({ ...orderForm, totalCost: e.target.value })
+                    }
                     className="input-modern"
                     required
                     placeholder="0.00"
@@ -371,7 +511,9 @@ export function PurchasesPage({ member }: PurchasesPageProps) {
                 <input
                   type="url"
                   value={orderForm.cartLink}
-                  onChange={(e) => setOrderForm({ ...orderForm, cartLink: e.target.value })}
+                  onChange={(e) =>
+                    setOrderForm({ ...orderForm, cartLink: e.target.value })
+                  }
                   className="input-modern"
                   placeholder="https://..."
                 />
@@ -383,7 +525,9 @@ export function PurchasesPage({ member }: PurchasesPageProps) {
                 </label>
                 <textarea
                   value={orderForm.notes}
-                  onChange={(e) => setOrderForm({ ...orderForm, notes: e.target.value })}
+                  onChange={(e) =>
+                    setOrderForm({ ...orderForm, notes: e.target.value })
+                  }
                   className="input-modern resize-none"
                   rows={2}
                   placeholder="additional notes, special instructions..."
@@ -398,7 +542,7 @@ export function PurchasesPage({ member }: PurchasesPageProps) {
                   type="button"
                   onClick={() => {
                     setShowOrderForm(false);
-                    setSelectedRequest(null);
+                    setSelectedRequestIds([]);
                   }}
                   className="btn-modern flex-1"
                 >
@@ -412,14 +556,14 @@ export function PurchasesPage({ member }: PurchasesPageProps) {
 
       {/* Content based on active view */}
       {activeView === "requests" ? (
-        <RequestsList 
-          requests={requests} 
+        <RequestsList
+          requests={requests}
           canManageOrders={canManageOrders}
           onStatusUpdate={handleStatusUpdate}
         />
       ) : (
-        <OrdersList 
-          orders={orders} 
+        <OrdersList
+          orders={orders}
           canManageOrders={canManageOrders}
           onImageUpload={handleImageUpload}
         />
@@ -431,10 +575,18 @@ export function PurchasesPage({ member }: PurchasesPageProps) {
 interface RequestsListProps {
   requests: any[];
   canManageOrders: boolean;
-  onStatusUpdate: (id: string, status: "approved" | "rejected", reason?: string) => void;
+  onStatusUpdate: (
+    id: string,
+    status: "approved" | "rejected",
+    reason?: string
+  ) => void;
 }
 
-function RequestsList({ requests, canManageOrders, onStatusUpdate }: RequestsListProps) {
+function RequestsList({
+  requests,
+  canManageOrders,
+  onStatusUpdate,
+}: RequestsListProps) {
   if (requests.length === 0) {
     return (
       <div className="glass-panel p-8 text-center">
@@ -448,18 +600,24 @@ function RequestsList({ requests, canManageOrders, onStatusUpdate }: RequestsLis
 
   return (
     <div className="space-y-4">
-      {requests.map(request => (
+      {requests.map((request) => (
         <div key={request._id} className="card-modern">
           <div className="flex flex-col md:flex-row justify-between items-start gap-4">
             <div className="flex-1">
               <h4 className="text-lg font-light mb-2">{request.title}</h4>
-              <p className="text-sm text-text-muted mb-3">{request.description}</p>
+              <p className="text-sm text-text-muted mb-3">
+                {request.description}
+              </p>
 
               <div className="flex flex-wrap items-center gap-3">
                 <StatusBadge status={request.status} />
                 <PriorityBadge priority={request.priority} />
-                <span className="text-sm text-text-secondary">${request.estimatedCost.toFixed(2)}</span>
-                <span className="text-sm text-text-dim">by {request.requesterName}</span>
+                <span className="text-sm text-text-secondary">
+                  ${request.estimatedCost.toFixed(2)}
+                </span>
+                <span className="text-sm text-text-dim">
+                  by {request.requesterName}
+                </span>
               </div>
 
               {request.status === "rejected" && request.rejectionReason && (
@@ -482,7 +640,11 @@ function RequestsList({ requests, canManageOrders, onStatusUpdate }: RequestsLis
                 <button
                   onClick={() => {
                     const reason = prompt("rejection reason (optional):");
-                    onStatusUpdate(request._id, "rejected", reason || undefined);
+                    onStatusUpdate(
+                      request._id,
+                      "rejected",
+                      reason || undefined
+                    );
                   }}
                   className="btn-modern btn-danger"
                 >
@@ -503,7 +665,11 @@ interface OrdersListProps {
   onImageUpload: (orderId: string, file: File) => void;
 }
 
-function OrdersList({ orders, canManageOrders, onImageUpload }: OrdersListProps) {
+function OrdersList({
+  orders,
+  canManageOrders,
+  onImageUpload,
+}: OrdersListProps) {
   if (orders.length === 0) {
     return (
       <div className="glass-panel p-8 text-center">
@@ -517,10 +683,13 @@ function OrdersList({ orders, canManageOrders, onImageUpload }: OrdersListProps)
 
   return (
     <div className="space-y-4">
-      {orders.map(order => (
+      {orders.map((order) => (
         <div key={order._id} className="card-modern">
           <h4 className="text-lg font-light mb-3">
-            {order.request?.title || "unknown item"}
+            {order.requests
+              ?.map((r: any) => r?.title)
+              .filter(Boolean)
+              .join(", ") || "unknown items"}
           </h4>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm mb-4">
@@ -530,7 +699,9 @@ function OrdersList({ orders, canManageOrders, onImageUpload }: OrdersListProps)
             </div>
             <div>
               <span className="text-text-dim">total cost:</span>{" "}
-              <span className="text-text-secondary">${order.totalCost.toFixed(2)}</span>
+              <span className="text-text-secondary">
+                ${order.totalCost.toFixed(2)}
+              </span>
             </div>
             <div>
               <span className="text-text-dim">ordered by:</span>{" "}
@@ -576,7 +747,9 @@ function OrdersList({ orders, canManageOrders, onImageUpload }: OrdersListProps)
 
           {canManageOrders && !order.confirmationImageId && (
             <div className="pt-4 border-t border-border-glass">
-              <p className="text-sm text-text-muted mb-2">upload order confirmation:</p>
+              <p className="text-sm text-text-muted mb-2">
+                upload order confirmation:
+              </p>
               <input
                 type="file"
                 accept="image/*"
@@ -599,12 +772,18 @@ function OrdersList({ orders, canManageOrders, onImageUpload }: OrdersListProps)
 function StatusBadge({ status }: { status: string }) {
   const getClass = () => {
     switch (status) {
-      case "pending": return "badge-pending";
-      case "approved": return "badge-approved";
-      case "ordered": return "badge-ordered";
-      case "fulfilled": return "badge-fulfilled";
-      case "rejected": return "badge-rejected";
-      default: return "badge";
+      case "pending":
+        return "badge-pending";
+      case "approved":
+        return "badge-approved";
+      case "ordered":
+        return "badge-ordered";
+      case "fulfilled":
+        return "badge-fulfilled";
+      case "rejected":
+        return "badge-rejected";
+      default:
+        return "badge";
     }
   };
 
@@ -614,10 +793,14 @@ function StatusBadge({ status }: { status: string }) {
 function PriorityBadge({ priority }: { priority: string }) {
   const getClass = () => {
     switch (priority) {
-      case "high": return "badge-rejected";
-      case "medium": return "badge-pending";
-      case "low": return "badge-approved";
-      default: return "badge";
+      case "high":
+        return "badge-rejected";
+      case "medium":
+        return "badge-pending";
+      case "low":
+        return "badge-approved";
+      default:
+        return "badge";
     }
   };
 

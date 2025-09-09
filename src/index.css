@@ -145,16 +145,16 @@
 
   /* Calendar Styles */
   .calendar-day {
-    @apply bg-glass flex flex-col items-center justify-center;
+    @apply bg-glass flex flex-col items-center justify-start pt-2;
     @apply p-1 md:p-2 cursor-pointer transition-all duration-300 ease-smooth;
     @apply hover:bg-glass-hover;
-    min-height: 50px;
+    min-height: 60px;
   }
   
   @media (min-width: 768px) {
     .calendar-day {
       @apply aspect-square;
-      min-height: 80px;
+      min-height: 90px;
     }
   }
 

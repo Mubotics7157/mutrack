@@ -159,3 +159,39 @@ export const getMyRsvpForMeeting = query({
     return existing ? { status: existing.status } : null;
   },
 });
+
+export const getRsvpsForMeeting = query({
+  args: { 
+    meetingId: v.id("meetings") 
+  },
+  returns: v.array(v.object({
+    _id: v.id("meetingRsvps"),
+    memberId: v.id("members"),
+    status: v.union(v.literal("attending"), v.literal("not_attending")),
+    updatedAt: v.number(),
+  })),
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) return [];
+
+    // Check if user is authenticated and has access
+    const member = await ctx.db
+      .query("members")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .unique();
+    if (!member) return [];
+
+    // Get all RSVPs for this meeting
+    const rsvps = await ctx.db
+      .query("meetingRsvps")
+      .withIndex("by_meeting", (q) => q.eq("meetingId", args.meetingId))
+      .collect();
+
+    return rsvps.map(rsvp => ({
+      _id: rsvp._id,
+      memberId: rsvp.memberId,
+      status: rsvp.status,
+      updatedAt: rsvp.updatedAt,
+    }));
+  },
+});
