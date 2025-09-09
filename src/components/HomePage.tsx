@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import ReactDOM from "react-dom";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
@@ -27,10 +27,15 @@ export function HomePage({ member }: HomePageProps) {
   const [showNewMeeting, setShowNewMeeting] = useState(false);
   const [viewMode, setViewMode] = useState<"month" | "week">("month");
   const [showSelectedDate, setShowSelectedDate] = useState(false);
+  const [devicePushEnabled, setDevicePushEnabled] = useState<boolean>();
 
   const meetings = useQuery(api.meetings.getMeetings);
   const allMembers = useQuery(api.members.getAllMembers);
   const rsvpToMeeting = useMutation(api.meetings.rsvpToMeeting);
+  const savePush = useMutation(api.members.savePushSubscription);
+  const setNotificationsEnabled = useMutation(
+    api.members.setNotificationsEnabled
+  );
   const [rsvpSubmitting, setRsvpSubmitting] = useState(false);
   const upcomingMeetings = meetings
     ?.filter((m: any) => new Date(m.date) >= new Date())
@@ -67,8 +72,115 @@ export function HomePage({ member }: HomePageProps) {
     }
   };
 
+  useEffect(() => {
+    const checkDeviceSubscription = async () => {
+      if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
+        setDevicePushEnabled(false);
+        return;
+      }
+      try {
+        const reg = await navigator.serviceWorker.getRegistration();
+        if (!reg) {
+          setDevicePushEnabled(false);
+          return;
+        }
+        const sub = await reg.pushManager.getSubscription();
+        setDevicePushEnabled(Notification.permission === "granted" && !!sub);
+      } catch {
+        setDevicePushEnabled(false);
+      }
+    };
+    void checkDeviceSubscription();
+  }, []);
+
+  const urlBase64ToUint8Array = (base64String: string): Uint8Array => {
+    const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+    const base64 = (base64String + padding)
+      .replace(/-/g, "+")
+      .replace(/_/g, "/");
+    const rawData = atob(base64);
+    const outputArray = new Uint8Array(rawData.length);
+    for (let i = 0; i < rawData.length; ++i)
+      outputArray[i] = rawData.charCodeAt(i);
+    return outputArray;
+  };
+
+  const extractKeys = (sub: PushSubscription) => {
+    const json = sub.toJSON() as {
+      endpoint?: string;
+      keys?: { p256dh?: string; auth?: string };
+    };
+    return {
+      endpoint: json.endpoint ?? "",
+      keys: { p256dh: json.keys?.p256dh ?? "", auth: json.keys?.auth ?? "" },
+    };
+  };
+
+  const enableDeviceNotifications = async () => {
+    try {
+      if (!("serviceWorker" in navigator)) {
+        toast.error("service worker not supported in this browser");
+        return;
+      }
+      const reg =
+        (await navigator.serviceWorker.getRegistration()) ||
+        (await navigator.serviceWorker.register("/sw.js"));
+      if (!reg) {
+        toast.error("failed to register service worker");
+        return;
+      }
+      if (Notification.permission !== "granted") {
+        const permission = await Notification.requestPermission();
+        if (permission !== "granted") {
+          toast.error(
+            "notifications are blocked. enable them in your browser settings."
+          );
+          return;
+        }
+      }
+      const vapid = (import.meta as any).env?.VITE_VAPID_PUBLIC_KEY as
+        | string
+        | undefined;
+      if (!vapid) {
+        toast.error("push not configured (missing VAPID key)");
+        return;
+      }
+      const sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(vapid),
+      });
+      const { endpoint, keys } = extractKeys(sub);
+      await savePush({ endpoint, keys });
+      await setNotificationsEnabled({ enabled: true });
+      setDevicePushEnabled(true);
+      toast.success("notifications enabled on this device");
+    } catch {
+      toast.error("failed to enable notifications");
+    }
+  };
+
   return (
     <>
+      {/* Device notifications banner */}
+      {devicePushEnabled === false && (
+        <div className="glass-panel p-4 border border-border-glass">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <h3 className="text-sm font-medium text-text-primary">
+                enable meeting notifications
+              </h3>
+              <p className="text-xs text-text-muted mt-1">
+                get alerts on this device when meetings are scheduled and before
+                they start.
+              </p>
+            </div>
+            <button className="btn-modern" onClick={enableDeviceNotifications}>
+              enable
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* New Meeting Modal - Outside main content flow */}
       {showNewMeeting && (
         <NewMeetingModal

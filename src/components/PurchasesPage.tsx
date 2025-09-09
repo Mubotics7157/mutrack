@@ -3,6 +3,7 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { Doc } from "../../convex/_generated/dataModel";
 import { toast } from "sonner";
+import { Modal } from "./Modal";
 
 interface PurchasesPageProps {
   member: Doc<"members">;
@@ -236,327 +237,329 @@ export function PurchasesPage({ member }: PurchasesPageProps) {
         </div>
       </div>
 
-      {/* Request Form */}
-      {showRequestForm && (
-        <div className="glass-panel p-8">
-          <h3 className="text-xl font-light mb-6">new purchase request</h3>
+      {/* Request Form Modal */}
+      <Modal
+        isOpen={showRequestForm}
+        onClose={() => setShowRequestForm(false)}
+        title="new purchase request"
+        maxWidthClassName="max-w-2xl"
+      >
+        <form onSubmit={handleRequestSubmit} className="space-y-4">
+          <div>
+            <label className="block mb-2 text-sm text-text-muted">
+              item/service title *
+            </label>
+            <input
+              type="text"
+              value={requestForm.title}
+              onChange={(e) =>
+                setRequestForm({ ...requestForm, title: e.target.value })
+              }
+              className="input-modern"
+              required
+              placeholder="e.g., arduino uno r3, workshop tools"
+            />
+          </div>
 
-          <form onSubmit={handleRequestSubmit} className="space-y-4">
+          <div>
+            <label className="block mb-2 text-sm text-text-muted">
+              description *
+            </label>
+            <textarea
+              value={requestForm.description}
+              onChange={(e) =>
+                setRequestForm({
+                  ...requestForm,
+                  description: e.target.value,
+                })
+              }
+              className="input-modern resize-none"
+              rows={3}
+              required
+              placeholder="detailed description, specifications, intended use..."
+            />
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block mb-2 text-sm text-text-muted">
-                item/service title *
+                estimated cost *
               </label>
               <input
-                type="text"
-                value={requestForm.title}
-                onChange={(e) =>
-                  setRequestForm({ ...requestForm, title: e.target.value })
-                }
-                className="input-modern"
-                required
-                placeholder="e.g., arduino uno r3, workshop tools"
-              />
-            </div>
-
-            <div>
-              <label className="block mb-2 text-sm text-text-muted">
-                description *
-              </label>
-              <textarea
-                value={requestForm.description}
+                type="number"
+                step="0.01"
+                value={requestForm.estimatedCost}
                 onChange={(e) =>
                   setRequestForm({
                     ...requestForm,
-                    description: e.target.value,
+                    estimatedCost: e.target.value,
                   })
                 }
-                className="input-modern resize-none"
-                rows={3}
+                className="input-modern"
                 required
-                placeholder="detailed description, specifications, intended use..."
+                placeholder="0.00"
               />
             </div>
 
+            <div>
+              <label className="block mb-2 text-sm text-text-muted">
+                priority
+              </label>
+              <select
+                value={requestForm.priority}
+                onChange={(e) =>
+                  setRequestForm({
+                    ...requestForm,
+                    priority: e.target.value as any,
+                  })
+                }
+                className="input-modern"
+              >
+                <option value="low">low</option>
+                <option value="medium">medium</option>
+                <option value="high">high</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block mb-2 text-sm text-text-muted">
+                item link *
+              </label>
+              <input
+                type="url"
+                value={requestForm.link}
+                onChange={(e) =>
+                  setRequestForm({ ...requestForm, link: e.target.value })
+                }
+                className="input-modern"
+                required
+                placeholder="https://..."
+              />
+            </div>
+
+            <div>
+              <label className="block mb-2 text-sm text-text-muted">
+                quantity *
+              </label>
+              <input
+                type="number"
+                min={1}
+                step={1}
+                value={requestForm.quantity}
+                onChange={(e) =>
+                  setRequestForm({ ...requestForm, quantity: e.target.value })
+                }
+                className="input-modern"
+                required
+                placeholder="1"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block mb-2 text-sm text-text-muted">
+              vendor *
+            </label>
+            <div className="relative">
+              <input
+                type="text"
+                value={requestForm.vendorName}
+                onChange={(e) =>
+                  setRequestForm({
+                    ...requestForm,
+                    vendorName: e.target.value,
+                  })
+                }
+                className="input-modern"
+                required
+                placeholder="e.g., amazon, mcmaster-carr"
+              />
+              {requestForm.vendorName && vendorResults.length > 0 && (
+                <div className="absolute z-10 mt-1 w-full bg-void-black/95 border border-border-glass rounded-xl max-h-48 overflow-auto">
+                  {vendorResults.map((v: any) => (
+                    <button
+                      type="button"
+                      key={v._id}
+                      onClick={() =>
+                        setRequestForm({ ...requestForm, vendorName: v.name })
+                      }
+                      className="block w-full text-left px-3 py-2 hover:bg-white/10 text-sm"
+                    >
+                      {v.name}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="flex gap-4 pt-4">
+            <button type="submit" className="btn-modern btn-primary flex-1">
+              submit request
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowRequestForm(false)}
+              className="btn-modern flex-1"
+            >
+              cancel
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Order Form Modal */}
+      <Modal
+        isOpen={showOrderForm}
+        onClose={() => {
+          setShowOrderForm(false);
+          setSelectedRequestIds([]);
+        }}
+        title="create purchase order"
+        maxWidthClassName="max-w-2xl"
+      >
+        <div className="mb-4">
+          <label className="block mb-2 text-sm text-text-muted">
+            select approved requests to link to this order
+          </label>
+          <div className="max-h-60 overflow-auto border border-border-glass rounded-xl divide-y divide-border-glass">
+            {requests
+              .filter((r) => r.status === "approved")
+              .map((r) => {
+                const checked = selectedRequestIds.includes(r._id);
+                return (
+                  <label
+                    key={r._id}
+                    className="flex items-center gap-3 px-3 py-2 text-sm"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedRequestIds([...selectedRequestIds, r._id]);
+                        } else {
+                          setSelectedRequestIds(
+                            selectedRequestIds.filter((id) => id !== r._id)
+                          );
+                        }
+                      }}
+                    />
+                    <span className="flex-1 truncate">{r.title}</span>
+                    <span className="text-text-muted">
+                      ${r.estimatedCost.toFixed(2)}
+                    </span>
+                  </label>
+                );
+              })}
+          </div>
+        </div>
+
+        {true && (
+          <form onSubmit={handleOrderSubmit} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block mb-2 text-sm text-text-muted">
-                  estimated cost *
+                  vendor *
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={orderForm.vendor}
+                    onChange={(e) =>
+                      setOrderForm({ ...orderForm, vendor: e.target.value })
+                    }
+                    className="input-modern"
+                    required
+                    placeholder="e.g., amazon, mcmaster-carr"
+                  />
+                  {orderForm.vendor && vendorResultsForOrder.length > 0 && (
+                    <div className="absolute z-10 mt-1 w-full bg-void-black/95 border border-border-glass rounded-xl max-h-48 overflow-auto">
+                      {vendorResultsForOrder.map((v: any) => (
+                        <button
+                          type="button"
+                          key={v._id}
+                          onClick={() =>
+                            setOrderForm({ ...orderForm, vendor: v.name })
+                          }
+                          className="block w-full text-left px-3 py-2 hover:bg-white/10 text-sm"
+                        >
+                          {v.name}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <label className="block mb-2 text-sm text-text-muted">
+                  total cost *
                 </label>
                 <input
                   type="number"
                   step="0.01"
-                  value={requestForm.estimatedCost}
+                  value={orderForm.totalCost}
                   onChange={(e) =>
-                    setRequestForm({
-                      ...requestForm,
-                      estimatedCost: e.target.value,
-                    })
+                    setOrderForm({ ...orderForm, totalCost: e.target.value })
                   }
                   className="input-modern"
                   required
                   placeholder="0.00"
                 />
               </div>
-
-              <div>
-                <label className="block mb-2 text-sm text-text-muted">
-                  priority
-                </label>
-                <select
-                  value={requestForm.priority}
-                  onChange={(e) =>
-                    setRequestForm({
-                      ...requestForm,
-                      priority: e.target.value as any,
-                    })
-                  }
-                  className="input-modern"
-                >
-                  <option value="low">low</option>
-                  <option value="medium">medium</option>
-                  <option value="high">high</option>
-                </select>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block mb-2 text-sm text-text-muted">
-                  item link *
-                </label>
-                <input
-                  type="url"
-                  value={requestForm.link}
-                  onChange={(e) =>
-                    setRequestForm({ ...requestForm, link: e.target.value })
-                  }
-                  className="input-modern"
-                  required
-                  placeholder="https://..."
-                />
-              </div>
-
-              <div>
-                <label className="block mb-2 text-sm text-text-muted">
-                  quantity *
-                </label>
-                <input
-                  type="number"
-                  min={1}
-                  step={1}
-                  value={requestForm.quantity}
-                  onChange={(e) =>
-                    setRequestForm({ ...requestForm, quantity: e.target.value })
-                  }
-                  className="input-modern"
-                  required
-                  placeholder="1"
-                />
-              </div>
             </div>
 
             <div>
               <label className="block mb-2 text-sm text-text-muted">
-                vendor *
+                cart/order link
               </label>
-              <div className="relative">
-                <input
-                  type="text"
-                  value={requestForm.vendorName}
-                  onChange={(e) =>
-                    setRequestForm({
-                      ...requestForm,
-                      vendorName: e.target.value,
-                    })
-                  }
-                  className="input-modern"
-                  required
-                  placeholder="e.g., amazon, mcmaster-carr"
-                />
-                {requestForm.vendorName && vendorResults.length > 0 && (
-                  <div className="absolute z-10 mt-1 w-full bg-void-black/95 border border-border-glass rounded-xl max-h-48 overflow-auto">
-                    {vendorResults.map((v: any) => (
-                      <button
-                        type="button"
-                        key={v._id}
-                        onClick={() =>
-                          setRequestForm({ ...requestForm, vendorName: v.name })
-                        }
-                        className="block w-full text-left px-3 py-2 hover:bg-white/10 text-sm"
-                      >
-                        {v.name}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
+              <input
+                type="url"
+                value={orderForm.cartLink}
+                onChange={(e) =>
+                  setOrderForm({ ...orderForm, cartLink: e.target.value })
+                }
+                className="input-modern"
+                placeholder="https://..."
+              />
+            </div>
+
+            <div>
+              <label className="block mb-2 text-sm text-text-muted">
+                notes
+              </label>
+              <textarea
+                value={orderForm.notes}
+                onChange={(e) =>
+                  setOrderForm({ ...orderForm, notes: e.target.value })
+                }
+                className="input-modern resize-none"
+                rows={2}
+                placeholder="additional notes, special instructions..."
+              />
             </div>
 
             <div className="flex gap-4 pt-4">
               <button type="submit" className="btn-modern btn-primary flex-1">
-                submit request
+                create order
               </button>
               <button
                 type="button"
-                onClick={() => setShowRequestForm(false)}
+                onClick={() => {
+                  setShowOrderForm(false);
+                  setSelectedRequestIds([]);
+                }}
                 className="btn-modern flex-1"
               >
                 cancel
               </button>
             </div>
           </form>
-        </div>
-      )}
-
-      {/* Order Form */}
-      {showOrderForm && (
-        <div className="glass-panel p-8">
-          <h3 className="text-xl font-light mb-6">create purchase order</h3>
-
-          <div className="mb-4">
-            <label className="block mb-2 text-sm text-text-muted">
-              select approved requests to link to this order
-            </label>
-            <div className="max-h-60 overflow-auto border border-border-glass rounded-xl divide-y divide-border-glass">
-              {requests
-                .filter((r) => r.status === "approved")
-                .map((r) => {
-                  const checked = selectedRequestIds.includes(r._id);
-                  return (
-                    <label
-                      key={r._id}
-                      className="flex items-center gap-3 px-3 py-2 text-sm"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setSelectedRequestIds([
-                              ...selectedRequestIds,
-                              r._id,
-                            ]);
-                          } else {
-                            setSelectedRequestIds(
-                              selectedRequestIds.filter((id) => id !== r._id)
-                            );
-                          }
-                        }}
-                      />
-                      <span className="flex-1 truncate">{r.title}</span>
-                      <span className="text-text-muted">
-                        ${r.estimatedCost.toFixed(2)}
-                      </span>
-                    </label>
-                  );
-                })}
-            </div>
-          </div>
-
-          {true && (
-            <form onSubmit={handleOrderSubmit} className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block mb-2 text-sm text-text-muted">
-                    vendor *
-                  </label>
-                  <div className="relative">
-                    <input
-                      type="text"
-                      value={orderForm.vendor}
-                      onChange={(e) =>
-                        setOrderForm({ ...orderForm, vendor: e.target.value })
-                      }
-                      className="input-modern"
-                      required
-                      placeholder="e.g., amazon, mcmaster-carr"
-                    />
-                    {orderForm.vendor && vendorResultsForOrder.length > 0 && (
-                      <div className="absolute z-10 mt-1 w-full bg-void-black/95 border border-border-glass rounded-xl max-h-48 overflow-auto">
-                        {vendorResultsForOrder.map((v: any) => (
-                          <button
-                            type="button"
-                            key={v._id}
-                            onClick={() =>
-                              setOrderForm({ ...orderForm, vendor: v.name })
-                            }
-                            className="block w-full text-left px-3 py-2 hover:bg-white/10 text-sm"
-                          >
-                            {v.name}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block mb-2 text-sm text-text-muted">
-                    total cost *
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={orderForm.totalCost}
-                    onChange={(e) =>
-                      setOrderForm({ ...orderForm, totalCost: e.target.value })
-                    }
-                    className="input-modern"
-                    required
-                    placeholder="0.00"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block mb-2 text-sm text-text-muted">
-                  cart/order link
-                </label>
-                <input
-                  type="url"
-                  value={orderForm.cartLink}
-                  onChange={(e) =>
-                    setOrderForm({ ...orderForm, cartLink: e.target.value })
-                  }
-                  className="input-modern"
-                  placeholder="https://..."
-                />
-              </div>
-
-              <div>
-                <label className="block mb-2 text-sm text-text-muted">
-                  notes
-                </label>
-                <textarea
-                  value={orderForm.notes}
-                  onChange={(e) =>
-                    setOrderForm({ ...orderForm, notes: e.target.value })
-                  }
-                  className="input-modern resize-none"
-                  rows={2}
-                  placeholder="additional notes, special instructions..."
-                />
-              </div>
-
-              <div className="flex gap-4 pt-4">
-                <button type="submit" className="btn-modern btn-primary flex-1">
-                  create order
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowOrderForm(false);
-                    setSelectedRequestIds([]);
-                  }}
-                  className="btn-modern flex-1"
-                >
-                  cancel
-                </button>
-              </div>
-            </form>
-          )}
-        </div>
-      )}
+        )}
+      </Modal>
 
       {/* Content based on active view */}
       {activeView === "requests" ? (
