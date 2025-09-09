@@ -3,7 +3,7 @@ import { api } from "../../convex/_generated/api";
 import { Doc } from "../../convex/_generated/dataModel";
 import { toast } from "sonner";
 import { useState } from "react";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, Trash2 } from "lucide-react";
 
 interface MembersPageProps {
   member: Doc<"members">;
@@ -12,9 +12,10 @@ interface MembersPageProps {
 export function MembersPage({ member }: MembersPageProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterRole, setFilterRole] = useState<string>("all");
-  
+
   const members = useQuery(api.members.getAllMembers) || [];
   const updateMemberRole = useMutation(api.members.updateMemberRole);
+  const deleteMember = useMutation(api.members.deleteMember);
 
   const canManageRoles = member.role === "admin";
 
@@ -31,41 +32,32 @@ export function MembersPage({ member }: MembersPageProps) {
   };
 
   const formatJoinDate = (timestamp: number) => {
-    return new Date(timestamp).toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    }).toLowerCase();
+    return new Date(timestamp)
+      .toLocaleDateString("en-US", {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+      })
+      .toLowerCase();
   };
 
   // Filter members based on search and role
-  const filteredMembers = members.filter(m => {
-    const matchesSearch = m.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          m.email.toLowerCase().includes(searchTerm.toLowerCase());
+  const filteredMembers = members.filter((m) => {
+    const matchesSearch =
+      m.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      m.email.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesRole = filterRole === "all" || m.role === filterRole;
     return matchesSearch && matchesRole;
   });
 
   // Group members by role for stats
   const roleStats = {
-    admin: members.filter(m => m.role === "admin").length,
-    lead: members.filter(m => m.role === "lead").length,
-    member: members.filter(m => m.role === "member").length,
+    admin: members.filter((m) => m.role === "admin").length,
+    lead: members.filter((m) => m.role === "lead").length,
+    member: members.filter((m) => m.role === "member").length,
   };
 
-  if (!canManageRoles && member.role !== "lead") {
-    return (
-      <div className="glass-panel p-8 text-center">
-        <h3 className="text-2xl font-light mb-4">team members</h3>
-        <p className="text-text-muted">
-          you don't have permission to view the full member list
-        </p>
-        <p className="text-sm text-text-dim mt-2">
-          contact an admin or lead for access
-        </p>
-      </div>
-    );
-  }
+  // All members can view the list now
 
   return (
     <div className="space-y-6">
@@ -73,14 +65,18 @@ export function MembersPage({ member }: MembersPageProps) {
       <div className="glass-panel p-8">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-6">
           <div>
-            <h1 className="text-3xl font-light mb-2 text-gradient">team members</h1>
+            <h1 className="text-3xl font-light mb-2 text-gradient">
+              team members
+            </h1>
             <p className="text-text-muted">
               manage roles and permissions for frc team 7157
             </p>
           </div>
           <div className="flex gap-4">
             <div className="text-center">
-              <p className="text-3xl font-light text-sunset-orange">{members.length}</p>
+              <p className="text-3xl font-light text-sunset-orange">
+                {members.length}
+              </p>
               <p className="text-sm text-text-dim">total</p>
             </div>
           </div>
@@ -89,15 +85,21 @@ export function MembersPage({ member }: MembersPageProps) {
         {/* Role Stats */}
         <div className="grid grid-cols-3 gap-4">
           <div className="card-modern text-center">
-            <div className="text-2xl font-light text-error-red mb-1">{roleStats.admin}</div>
+            <div className="text-2xl font-light text-error-red mb-1">
+              {roleStats.admin}
+            </div>
             <div className="text-sm text-text-muted">admins</div>
           </div>
           <div className="card-modern text-center">
-            <div className="text-2xl font-light text-yellow-400 mb-1">{roleStats.lead}</div>
+            <div className="text-2xl font-light text-yellow-400 mb-1">
+              {roleStats.lead}
+            </div>
             <div className="text-sm text-text-muted">leads</div>
           </div>
           <div className="card-modern text-center">
-            <div className="text-2xl font-light text-blue-400 mb-1">{roleStats.member}</div>
+            <div className="text-2xl font-light text-blue-400 mb-1">
+              {roleStats.member}
+            </div>
             <div className="text-sm text-text-muted">members</div>
           </div>
         </div>
@@ -128,7 +130,9 @@ export function MembersPage({ member }: MembersPageProps) {
 
       {/* Role Permissions Info */}
       <div className="glass-panel p-6">
-        <h4 className="text-sm font-mono text-text-secondary mb-4">role permissions</h4>
+        <h4 className="text-sm font-mono text-text-secondary mb-4">
+          role permissions
+        </h4>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
           <div className="flex items-start gap-3">
             <span className="badge badge-rejected">admin</span>
@@ -150,8 +154,8 @@ export function MembersPage({ member }: MembersPageProps) {
         {filteredMembers.length === 0 ? (
           <div className="glass-panel p-8 text-center">
             <p className="text-text-muted">
-              {searchTerm || filterRole !== "all" 
-                ? "no members found matching your criteria" 
+              {searchTerm || filterRole !== "all"
+                ? "no members found matching your criteria"
                 : "no members found"}
             </p>
           </div>
@@ -173,7 +177,9 @@ export function MembersPage({ member }: MembersPageProps) {
                         </span>
                       )}
                     </h4>
-                    <p className="text-sm text-text-muted">{teamMember.email}</p>
+                    <p className="text-sm text-text-muted">
+                      {teamMember.email}
+                    </p>
                     <p className="text-xs text-text-dim mt-1">
                       joined {formatJoinDate(teamMember.joinedAt)}
                     </p>
@@ -199,6 +205,25 @@ export function MembersPage({ member }: MembersPageProps) {
                   ) : (
                     <RoleBadge role={teamMember.role} />
                   )}
+                  {canManageRoles && teamMember._id !== member._id && (
+                    <button
+                      className="btn-modern btn-danger p-2"
+                      title="Remove member"
+                      onClick={async () => {
+                        if (!confirm(`Remove ${teamMember.name}?`)) return;
+                        try {
+                          await deleteMember({
+                            memberId: teamMember._id as any,
+                          });
+                          toast.success("member removed");
+                        } catch (e) {
+                          toast.error("failed to remove member");
+                        }
+                      }}
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -210,9 +235,14 @@ export function MembersPage({ member }: MembersPageProps) {
       {canManageRoles && (
         <div className="glass-panel p-6 border border-yellow-500/30">
           <div className="flex items-start gap-3">
-            <AlertTriangle size={20} className="text-yellow-400 flex-shrink-0 mt-0.5" />
+            <AlertTriangle
+              size={20}
+              className="text-yellow-400 flex-shrink-0 mt-0.5"
+            />
             <div>
-              <h4 className="text-sm font-mono text-yellow-400 mb-2">admin note</h4>
+              <h4 className="text-sm font-mono text-yellow-400 mb-2">
+                admin note
+              </h4>
               <p className="text-sm text-text-muted">
                 be careful when changing member roles. admins have full access
                 to all system features. you cannot change your own role for
@@ -238,9 +268,5 @@ function RoleBadge({ role }: { role: string }) {
     }
   };
 
-  return (
-    <span className={`badge ${getBadgeClass()}`}>
-      {role}
-    </span>
-  );
+  return <span className={`badge ${getBadgeClass()}`}>{role}</span>;
 }

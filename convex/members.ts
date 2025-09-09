@@ -25,19 +25,7 @@ export const getAllMembers = query({
   handler: async (ctx) => {
     const userId = await getAuthUserId(ctx);
     if (!userId) return [];
-
-    const currentMember = await ctx.db
-      .query("members")
-      .withIndex("by_user", (q) => q.eq("userId", userId))
-      .unique();
-
-    if (
-      !currentMember ||
-      (currentMember.role !== "admin" && currentMember.role !== "lead")
-    ) {
-      return [];
-    }
-
+    // Allow all authenticated members to view list
     return await ctx.db.query("members").collect();
   },
 });
@@ -215,5 +203,41 @@ export const updateMemberRole = mutation({
     }
 
     await ctx.db.patch(args.memberId, { role: args.newRole });
+  },
+});
+
+export const deleteMember = mutation({
+  args: { memberId: v.id("members") },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+
+    const currentMember = await ctx.db
+      .query("members")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .unique();
+
+    if (!currentMember || currentMember.role !== "admin") {
+      throw new Error("Only admins can delete members");
+    }
+
+    // Clean up subscriptions
+    const subs = await ctx.db
+      .query("pushSubscriptions")
+      .withIndex("by_member", (q) => q.eq("memberId", args.memberId))
+      .collect();
+    for (const s of subs) await ctx.db.delete(s._id);
+
+    // Clean up RSVPs
+    const rsvps = await ctx.db
+      .query("meetingRsvps")
+      .withIndex("by_member", (q) => q.eq("memberId", args.memberId))
+      .collect();
+    for (const r of rsvps) await ctx.db.delete(r._id);
+
+    // Finally delete member
+    await ctx.db.delete(args.memberId);
+    return null;
   },
 });
