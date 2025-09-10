@@ -93,6 +93,13 @@
     @apply focus:shadow-[0_0_0_1px_rgba(136,58,234,0.5),0_0_20px_rgba(136,58,234,0.2)];
   }
 
+  /* Select dropdown options */
+  .input-modern option {
+    @apply bg-void-black text-text-primary;
+    color: rgba(255, 255, 255, 1) !important;
+    background-color: #000000 !important;
+  }
+
   /* Card Component */
   .card-modern {
     @apply bg-glass backdrop-blur-md border border-border-glass rounded-2xl p-6;
