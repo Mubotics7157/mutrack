@@ -24,6 +24,11 @@ export function TimeTrackingPage({ member }: TimeTrackingPageProps) {
     api.attendance.getActiveSessionsForMeeting,
     selectedMeetingId ? { meetingId: selectedMeetingId } : "skip"
   );
+  const durations =
+    useQuery(
+      api.attendance.getMeetingDurationsSimple,
+      selectedMeetingId ? { meetingId: selectedMeetingId } : "skip"
+    ) || [];
   const handleSighting = useMutation(api.attendance.handleIbeaconSighting);
   const closeExpired = useMutation(api.attendance.closeExpiredSessions);
   const adminPair = useMutation(api.beacons.adminPairIbeaconToMember);
@@ -36,6 +41,9 @@ export function TimeTrackingPage({ member }: TimeTrackingPageProps) {
   >([]);
   const assignSeen = useRef<Set<string>>(new Set());
   const stopAssignRef = useRef<() => void | undefined>(undefined);
+  const lastAdvRef = useRef<number>(0);
+  const scanKeepAliveRef = useRef<number | undefined>(undefined);
+  const prewarmedRef = useRef<boolean>(false);
 
   const canScan =
     typeof navigator !== "undefined" &&
@@ -43,13 +51,14 @@ export function TimeTrackingPage({ member }: TimeTrackingPageProps) {
     (navigator as any).bluetooth?.requestLEScan;
 
   // Periodic cleanup of expired sessions while page is open
-  useEffect(() => {
-    if (!selectedMeetingId) return;
-    const id = setInterval(() => {
-      void closeExpired({ meetingId: selectedMeetingId as Id<"meetings"> });
-    }, 60 * 1000);
-    return () => clearInterval(id);
-  }, [selectedMeetingId, closeExpired]);
+  // Disabled: we now keep sessions open and compute duration from earliest start to latest seen.
+  // useEffect(() => {
+  //   if (!selectedMeetingId) return;
+  //   const id = setInterval(() => {
+  //     void closeExpired({ meetingId: selectedMeetingId as Id<"meetings"> });
+  //   }, 60 * 1000);
+  //   return () => clearInterval(id);
+  // }, [selectedMeetingId, closeExpired]);
 
   const startScan = async () => {
     if (!selectedMeetingId) {
@@ -66,69 +75,132 @@ export function TimeTrackingPage({ member }: TimeTrackingPageProps) {
       setErrorText(null);
       console.log("Starting BLE scan...");
 
-      // Workaround: requestDevice seems to initialize Web Bluetooth properly
-      // This makes requestLEScan work reliably afterwards
-      try {
-        await (navigator as any).bluetooth.requestDevice({
-          acceptAllDevices: true,
-          optionalServices: [],
-        });
-      } catch (e) {
-        // User might cancel, that's OK - it still initializes the API
-      }
-
-      // Now requestLEScan should work
-      const scan = await (navigator as any).bluetooth.requestLEScan({
-        acceptAllAdvertisements: true,
-        keepRepeatedDevices: true,
-      });
-
-      console.log("Scan started successfully, listening for advertisements...");
-
-      const onAdv = async (event: any) => {
-        try {
-          const ibeacon = parseIbeaconFromAdvertisement(event);
-          if (!ibeacon) return;
-
-          console.log("iBeacon detected:", {
-            uuid: ibeacon.uuid,
-            major: ibeacon.major,
-            minor: ibeacon.minor,
-          });
-
-          await handleSighting({
-            meetingId: selectedMeetingId as Id<"meetings">,
-            uuid: ibeacon.uuid,
-            major: ibeacon.major,
-            minor: ibeacon.minor,
-          });
-        } catch (e) {
-          console.error("Error processing iBeacon:", e);
+      const doStart = async (allowPrewarm: boolean): Promise<() => void> => {
+        if (allowPrewarm && !prewarmedRef.current) {
+          try {
+            await (navigator as any).permissions?.query?.({
+              name: "bluetooth-le" as any,
+            });
+          } catch {}
+          try {
+            await (navigator as any).bluetooth.requestDevice({
+              acceptAllDevices: true,
+              optionalServices: [],
+            });
+            prewarmedRef.current = true;
+          } catch {}
         }
+
+        const scan = await (navigator as any).bluetooth.requestLEScan({
+          acceptAllAdvertisements: true,
+          keepRepeatedDevices: true,
+        });
+
+        console.log(
+          "Scan started successfully, listening for advertisements..."
+        );
+        lastAdvRef.current = Date.now();
+
+        const onAdv = async (event: any) => {
+          try {
+            lastAdvRef.current = Date.now();
+            const ibeacon = parseIbeaconFromAdvertisement(event);
+            if (!ibeacon) return;
+            await handleSighting({
+              meetingId: selectedMeetingId as Id<"meetings">,
+              uuid: ibeacon.uuid,
+              major: ibeacon.major,
+              minor: ibeacon.minor,
+            });
+          } catch (e) {
+            console.error("Error processing iBeacon:", e);
+          }
+        };
+
+        (navigator as any).bluetooth.addEventListener(
+          "advertisementreceived",
+          onAdv
+        );
+
+        const stop = () => {
+          try {
+            (navigator as any).bluetooth.removeEventListener(
+              "advertisementreceived",
+              onAdv
+            );
+            (scan as any).stop?.();
+          } catch {}
+        };
+        return stop;
       };
 
-      (navigator as any).bluetooth.addEventListener(
-        "advertisementreceived",
-        onAdv
-      );
-
-      // Stop scanning when user navigates away or toggles off
-      const stop = () => {
+      const stop = await doStart(true);
+      (window as any).__tt_stopScan = () => {
         try {
-          (navigator as any).bluetooth.removeEventListener(
-            "advertisementreceived",
-            onAdv
-          );
-          (scan as any).stop?.();
+          if (scanKeepAliveRef.current !== undefined) {
+            clearInterval(scanKeepAliveRef.current);
+            scanKeepAliveRef.current = undefined;
+          }
+          stop();
         } catch {}
       };
-      (window as any).__tt_stopScan = stop;
+
+      if (scanKeepAliveRef.current !== undefined)
+        clearInterval(scanKeepAliveRef.current);
+      scanKeepAliveRef.current = window.setInterval(async () => {
+        const staleMs = Date.now() - lastAdvRef.current;
+        if (staleMs > 120000 && scanState === "scanning") {
+          console.log("Restarting BLE scan due to inactivity");
+          try {
+            stop();
+          } catch {}
+          try {
+            const newStop = await doStart(false);
+            (window as any).__tt_stopScan = () => {
+              try {
+                if (scanKeepAliveRef.current !== undefined) {
+                  clearInterval(scanKeepAliveRef.current);
+                  scanKeepAliveRef.current = undefined;
+                }
+                newStop();
+              } catch {}
+            };
+          } catch (err) {
+            console.warn("Failed to restart scan", err);
+          }
+        }
+      }, 45000);
+
+      const onVis = async () => {
+        if (
+          document.visibilityState === "visible" &&
+          scanState === "scanning"
+        ) {
+          lastAdvRef.current = Date.now();
+        }
+      };
+      document.addEventListener("visibilitychange", onVis);
+      const prevStop = (window as any).__tt_stopScan;
+      (window as any).__tt_stopScan = () => {
+        try {
+          document.removeEventListener("visibilitychange", onVis);
+        } catch {}
+        prevStop?.();
+      };
+
       toast.success("scanning started");
     } catch (e) {
       console.error("Failed to start scan:", e);
       setScanState("error");
-      const errorMessage =
+      let errorMessage =
         e instanceof Error ? e.message : "failed to start scan";
+      if (
+        typeof errorMessage === "string" &&
+        /experimental|not supported|not implemented/i.test(errorMessage)
+      ) {
+        errorMessage +=
+          " — enable Web Bluetooth scanning (HTTPS/localhost, Bluetooth on, and Experimental Web Platform features if required).";
+      }
       setErrorText(errorMessage);
     }
   };
@@ -221,7 +293,10 @@ export function TimeTrackingPage({ member }: TimeTrackingPageProps) {
 
       <div className="glass-panel p-6">
         <h3 className="text-xl font-light mb-4">active attendees</h3>
-        <ActiveAttendeesList meetingId={selectedMeetingId as any} />
+        <ActiveAttendeesList
+          meetingId={selectedMeetingId as any}
+          durations={durations as any}
+        />
         {(member.role === "admin" || member.role === "lead") && (
           <div className="mt-4">
             <button
@@ -445,8 +520,15 @@ function startAssignScanWrapper(
 
 function ActiveAttendeesList({
   meetingId,
+  durations,
 }: {
   meetingId: Id<"meetings"> | "";
+  durations: Array<{
+    memberId: string;
+    earliestStart: number;
+    latestEnd: number;
+    durationMs: number;
+  }>;
 }) {
   const sessions = useQuery(
     api.attendance.getActiveSessionsForMeeting,
@@ -474,6 +556,7 @@ function ActiveAttendeesList({
     <div className="space-y-2">
       {sessions.map((s: any) => {
         const m = membersById[s.memberId];
+        const d = durations.find((x) => x.memberId === s.memberId);
         return (
           <div
             key={s._id}
@@ -486,6 +569,11 @@ function ActiveAttendeesList({
               <div className="text-xs text-text-muted">
                 since {new Date(s.startTime).toLocaleTimeString()}
               </div>
+              {d && (
+                <div className="text-xs text-accent-green mt-1">
+                  total: {(d.durationMs / (1000 * 60)).toFixed(0)} mins
+                </div>
+              )}
             </div>
             <div className="text-xs text-text-dim">
               last seen {Math.round((Date.now() - s.lastSeenAt) / 1000)}s ago

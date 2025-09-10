@@ -86,15 +86,14 @@ export const getActiveSessionsForMeeting = query({
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
     if (!userId) return [];
-    const now = Date.now();
     const sessions = await ctx.db
       .query("attendanceSessions")
       .withIndex("by_meeting_and_endTime", (q) =>
         q.eq("meetingId", args.meetingId).eq("endTime", null)
       )
       .collect();
-    // Filter out sessions that are stale (optional; they will be closed by cleanup)
-    return sessions.filter((s) => now - s.lastSeenAt <= ACTIVE_TIMEOUT_MS);
+    // Return all open sessions regardless of last seen; durations use lastSeenAt/endTime
+    return sessions;
   },
 });
 
@@ -120,6 +119,64 @@ export const getSessionsForMeeting = query({
       .withIndex("by_meeting", (q) => q.eq("meetingId", args.meetingId))
       .collect();
     return sessions;
+  },
+});
+
+// Simple duration model: For each member in a meeting, take earliest start and latest end
+// (where latest end is endTime if closed, otherwise lastSeenAt), and compute durationMs.
+export const getMeetingDurationsSimple = query({
+  args: { meetingId: v.id("meetings") },
+  returns: v.array(
+    v.object({
+      memberId: v.id("members"),
+      earliestStart: v.number(),
+      latestEnd: v.number(),
+      durationMs: v.number(),
+    })
+  ),
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) return [];
+    const sessions = await ctx.db
+      .query("attendanceSessions")
+      .withIndex("by_meeting", (q) => q.eq("meetingId", args.meetingId))
+      .collect();
+
+    const byMember = new Map<
+      string,
+      { earliestStart: number; latestEnd: number }
+    >();
+    for (const s of sessions) {
+      const latest = s.endTime ?? s.lastSeenAt;
+      const current = byMember.get(s.memberId);
+      if (!current) {
+        byMember.set(s.memberId, {
+          earliestStart: s.startTime,
+          latestEnd: latest,
+        });
+      } else {
+        if (s.startTime < current.earliestStart)
+          current.earliestStart = s.startTime;
+        if (latest > current.latestEnd) current.latestEnd = latest;
+      }
+    }
+
+    const result: Array<{
+      memberId: any;
+      earliestStart: number;
+      latestEnd: number;
+      durationMs: number;
+    }> = [];
+    for (const [memberId, span] of byMember.entries()) {
+      const duration = Math.max(0, span.latestEnd - span.earliestStart);
+      result.push({
+        memberId: memberId as any,
+        earliestStart: span.earliestStart,
+        latestEnd: span.latestEnd,
+        durationMs: duration,
+      });
+    }
+    return result;
   },
 });
 
