@@ -208,3 +208,21 @@ export const buildKeyForIbeacon = internalQuery({
     return buildIbeaconKey(args.uuid, args.major, args.minor);
   },
 });
+
+export const listAllForAdmin = query({
+  args: {},
+  returns: v.array(
+    v.object({ key: v.string(), ownerMemberId: v.id("members") })
+  ),
+  handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) return [];
+    const actor = await ctx.db
+      .query("members")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .unique();
+    if (!actor || (actor.role !== "admin" && actor.role !== "lead")) return [];
+    const all = await ctx.db.query("beacons").collect();
+    return all.map((b) => ({ key: b.key, ownerMemberId: b.ownerMemberId }));
+  },
+});

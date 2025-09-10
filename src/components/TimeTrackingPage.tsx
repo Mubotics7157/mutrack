@@ -29,6 +29,7 @@ export function TimeTrackingPage({ member }: TimeTrackingPageProps) {
       api.attendance.getMeetingDurationsSimple,
       selectedMeetingId ? { meetingId: selectedMeetingId } : "skip"
     ) || [];
+  const beaconsAdmin = useQuery(api.beacons.listAllForAdmin) || [];
   const handleSighting = useMutation(api.attendance.handleIbeaconSighting);
   const closeExpired = useMutation(api.attendance.closeExpiredSessions);
   const adminPair = useMutation(api.beacons.adminPairIbeaconToMember);
@@ -44,6 +45,8 @@ export function TimeTrackingPage({ member }: TimeTrackingPageProps) {
   const lastAdvRef = useRef<number>(0);
   const scanKeepAliveRef = useRef<number | undefined>(undefined);
   const prewarmedRef = useRef<boolean>(false);
+  const wakeLockRef = useRef<any>(null);
+  const ephemeralLastSeenRef = useRef<Record<string, number>>({});
 
   const canScan =
     typeof navigator !== "undefined" &&
@@ -74,6 +77,25 @@ export function TimeTrackingPage({ member }: TimeTrackingPageProps) {
       setScanState("scanning");
       setErrorText(null);
       console.log("Starting BLE scan...");
+
+      const acquireWakeLock = async () => {
+        try {
+          if ((navigator as any).wakeLock && !wakeLockRef.current) {
+            wakeLockRef.current = await (navigator as any).wakeLock.request(
+              "screen"
+            );
+            wakeLockRef.current?.addEventListener?.("release", () => {
+              wakeLockRef.current = null;
+            });
+          }
+        } catch {}
+      };
+      const releaseWakeLock = async () => {
+        try {
+          await wakeLockRef.current?.release?.();
+        } catch {}
+        wakeLockRef.current = null;
+      };
 
       const doStart = async (allowPrewarm: boolean): Promise<() => void> => {
         if (allowPrewarm && !prewarmedRef.current) {
@@ -106,12 +128,29 @@ export function TimeTrackingPage({ member }: TimeTrackingPageProps) {
             lastAdvRef.current = Date.now();
             const ibeacon = parseIbeaconFromAdvertisement(event);
             if (!ibeacon) return;
-            await handleSighting({
-              meetingId: selectedMeetingId as Id<"meetings">,
-              uuid: ibeacon.uuid,
-              major: ibeacon.major,
-              minor: ibeacon.minor,
-            });
+            // client-side throttle per beacon key (uuid:major:minor)
+            const key = `${ibeacon.uuid}:${ibeacon.major}:${ibeacon.minor}`;
+            (window as any).__tt_lastPush = (window as any).__tt_lastPush || {};
+            const last: Record<string, number> = (window as any).__tt_lastPush;
+            const nowMs = Date.now();
+            // Update ephemeral last seen for local display for the matched member
+            const owner = beaconsAdmin.find((b: any) =>
+              b.key.endsWith(
+                `${ibeacon.uuid.toLowerCase()}:${ibeacon.major}:${ibeacon.minor}`
+              )
+            );
+            if (owner) {
+              ephemeralLastSeenRef.current[owner.ownerMemberId] = nowMs;
+            }
+            if (!last[key] || nowMs - last[key] >= 60000) {
+              last[key] = nowMs;
+              await handleSighting({
+                meetingId: selectedMeetingId as Id<"meetings">,
+                uuid: ibeacon.uuid,
+                major: ibeacon.major,
+                minor: ibeacon.minor,
+              });
+            }
           } catch (e) {
             console.error("Error processing iBeacon:", e);
           }
@@ -134,6 +173,7 @@ export function TimeTrackingPage({ member }: TimeTrackingPageProps) {
         return stop;
       };
 
+      await acquireWakeLock();
       const stop = await doStart(true);
       (window as any).__tt_stopScan = () => {
         try {
@@ -142,6 +182,7 @@ export function TimeTrackingPage({ member }: TimeTrackingPageProps) {
             scanKeepAliveRef.current = undefined;
           }
           stop();
+          void releaseWakeLock();
         } catch {}
       };
 
@@ -177,6 +218,9 @@ export function TimeTrackingPage({ member }: TimeTrackingPageProps) {
           scanState === "scanning"
         ) {
           lastAdvRef.current = Date.now();
+          if (!wakeLockRef.current) {
+            await acquireWakeLock();
+          }
         }
       };
       document.addEventListener("visibilitychange", onVis);
@@ -296,6 +340,7 @@ export function TimeTrackingPage({ member }: TimeTrackingPageProps) {
         <ActiveAttendeesList
           meetingId={selectedMeetingId as any}
           durations={durations as any}
+          ephemeralLastSeen={ephemeralLastSeenRef.current}
         />
         {(member.role === "admin" || member.role === "lead") && (
           <div className="mt-4">
@@ -521,6 +566,7 @@ function startAssignScanWrapper(
 function ActiveAttendeesList({
   meetingId,
   durations,
+  ephemeralLastSeen,
 }: {
   meetingId: Id<"meetings"> | "";
   durations: Array<{
@@ -529,6 +575,7 @@ function ActiveAttendeesList({
     latestEnd: number;
     durationMs: number;
   }>;
+  ephemeralLastSeen: Record<string, number>;
 }) {
   const sessions = useQuery(
     api.attendance.getActiveSessionsForMeeting,
@@ -538,12 +585,18 @@ function ActiveAttendeesList({
     Record<string, Doc<"members">>
   >({});
   const members = useQuery(api.members.getAllMembers) || [];
+  const [now, setNow] = useState<number>(Date.now());
 
   useEffect(() => {
     const map: Record<string, Doc<"members">> = {};
     for (const m of members) map[m._id] = m;
     setMembersById(map);
   }, [members]);
+
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
 
   if (!meetingId)
     return <p className="text-text-muted text-sm">select a meeting</p>;
@@ -576,7 +629,10 @@ function ActiveAttendeesList({
               )}
             </div>
             <div className="text-xs text-text-dim">
-              last seen {Math.round((Date.now() - s.lastSeenAt) / 1000)}s ago
+              {(() => {
+                const ls = ephemeralLastSeen[s.memberId] || s.lastSeenAt;
+                return <>last seen {Math.round((now - ls) / 1000)}s ago</>;
+              })()}
             </div>
           </div>
         );

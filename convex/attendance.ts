@@ -4,6 +4,7 @@ import { getAuthUserId } from "@convex-dev/auth/server";
 import { internal } from "./_generated/api";
 
 const ACTIVE_TIMEOUT_MS = 5 * 60 * 1000; // consider inactive if not seen for 5 minutes
+const MIN_UPDATE_MS = 60 * 1000; // throttle session updates to at most once every minute
 
 export const handleIbeaconSighting = mutation({
   args: {
@@ -52,7 +53,9 @@ export const handleIbeaconSighting = mutation({
     const now = Date.now();
     const active = existing.find((s) => s.endTime === null);
     if (active) {
-      await ctx.db.patch(active._id, { lastSeenAt: now });
+      if (now - active.lastSeenAt >= MIN_UPDATE_MS) {
+        await ctx.db.patch(active._id, { lastSeenAt: now });
+      }
       return null;
     }
 
