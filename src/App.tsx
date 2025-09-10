@@ -13,10 +13,11 @@ import { MembersPage } from "./components/MembersPage";
 import { PurchasesPage } from "./components/PurchasesPage";
 import { ProfilePage } from "./components/ProfilePage";
 import { Onboarding } from "./components/Onboarding";
+import { TimeTrackingPage } from "./components/TimeTrackingPage";
 import { Home, Users, ShoppingCart, User, LogOut } from "lucide-react";
 import { useAuthActions } from "@convex-dev/auth/react";
 
-type PageType = "home" | "members" | "purchases" | "profile";
+type PageType = "home" | "members" | "purchases" | "profile" | "time";
 
 export default function App() {
   const [currentPage, setCurrentPage] = useState<PageType>("home");
@@ -119,6 +120,16 @@ function NavigationBar({ currentPage, onPageChange }: NavigationBarProps) {
             >
               purchases
             </button>
+            {currentMember &&
+              (currentMember.role === "admin" ||
+                currentMember.role === "lead") && (
+                <button
+                  className={`nav-link ${currentPage === "time" ? "active" : ""}`}
+                  onClick={() => onPageChange("time")}
+                >
+                  time tracking
+                </button>
+              )}
             <button
               className={`nav-link ${currentPage === "profile" ? "active" : ""}`}
               onClick={() => onPageChange("profile")}
@@ -233,6 +244,10 @@ function MainContent({ currentPage }: MainContentProps) {
           <PurchasesPage member={currentMember} />
         )}
         {currentPage === "profile" && <ProfilePage member={currentMember} />}
+        {currentPage === "time" &&
+          (currentMember.role === "admin" || currentMember.role === "lead") && (
+            <TimeTrackingPage member={currentMember} />
+          )}
       </div>
     </main>
   );

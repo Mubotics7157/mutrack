@@ -39,6 +39,33 @@ const applicationTables = {
     .index("by_member", ["memberId"])
     .index("by_meeting_and_member", ["meetingId", "memberId"]),
 
+  beacons: defineTable({
+    key: v.string(), // canonical beacon identifier (e.g., ibeacon:uuid:major:minor)
+    type: v.union(
+      v.literal("ibeacon"),
+      v.literal("eddystone"),
+      v.literal("other")
+    ),
+    label: v.optional(v.string()),
+    ownerMemberId: v.id("members"),
+    createdAt: v.number(),
+  })
+    .index("by_key", ["key"]) // unique key per physical beacon
+    .index("by_owner", ["ownerMemberId"]),
+
+  attendanceSessions: defineTable({
+    meetingId: v.id("meetings"),
+    memberId: v.id("members"),
+    startTime: v.number(),
+    lastSeenAt: v.number(),
+    endTime: v.union(v.null(), v.number()), // null while active, number when ended
+    scannerMemberId: v.id("members"), // admin/lead operating the scanner
+  })
+    .index("by_meeting", ["meetingId"])
+    .index("by_member", ["memberId"])
+    .index("by_meeting_and_member", ["meetingId", "memberId"]) // one active session per meeting/member
+    .index("by_meeting_and_endTime", ["meetingId", "endTime"]),
+
   purchaseRequests: defineTable({
     title: v.string(),
     description: v.string(),

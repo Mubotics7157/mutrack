@@ -4,7 +4,15 @@ import { api } from "../../convex/_generated/api";
 import { Doc } from "../../convex/_generated/dataModel";
 import { toast } from "sonner";
 import { useAuthActions } from "@convex-dev/auth/react";
-import { MapPin, Clock, ChevronLeft, ChevronRight } from "lucide-react";
+import {
+  MapPin,
+  Clock,
+  ChevronLeft,
+  ChevronRight,
+  RefreshCw,
+  Bluetooth,
+} from "lucide-react";
+import { Modal } from "./Modal";
 
 interface ProfilePageProps {
   member: Doc<"members">;
@@ -18,6 +26,10 @@ export function ProfilePage({ member }: ProfilePageProps) {
   );
 
   const { signOut } = useAuthActions();
+  const myBeacons = useQuery(api.beacons.listMyBeacons);
+  const pairIbeacon = useMutation(api.beacons.pairIbeacon);
+  const unpairBeacon = useMutation(api.beacons.unpairBeacon);
+  const setBeaconLabel = useMutation(api.beacons.setBeaconLabel);
 
   const [profileForm, setProfileForm] = useState({
     name: member.name,
@@ -25,6 +37,21 @@ export function ProfilePage({ member }: ProfilePageProps) {
     phone: "",
     bio: "",
   });
+
+  const [pairModalOpen, setPairModalOpen] = useState(false);
+  const [isScanning, setIsScanning] = useState(false);
+  const [scanError, setScanError] = useState<string | null>(null);
+  const [foundBeacons, setFoundBeacons] = useState<
+    Array<{
+      uuid: string;
+      major: number;
+      minor: number;
+      key: string;
+      lastSeen: number;
+    }>
+  >([]);
+  const seenKeysRef = useState<Set<string>>(new Set())[0];
+  const stopScanRef = useState<{ stop?: () => void }>({})[0];
 
   const handleProfileUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -40,6 +67,115 @@ export function ProfilePage({ member }: ProfilePageProps) {
   const handleSignOut = async () => {
     await signOut();
     toast.success("signed out successfully");
+  };
+
+  const scanAndPair = async () => {
+    const bluetooth: any = (navigator as any).bluetooth;
+    if (!bluetooth || !bluetooth.requestLEScan) {
+      toast.error("web bluetooth scanning not supported in this browser");
+      return;
+    }
+    setPairModalOpen(true);
+    void startScan(true);
+  };
+
+  const startScan = async (firstAttempt: boolean) => {
+    const bluetooth: any = (navigator as any).bluetooth;
+    setIsScanning(true);
+    setScanError(null);
+    setFoundBeacons([]);
+    seenKeysRef.clear();
+    try {
+      // Best-effort: nudge permissions without a second visible flow
+      try {
+        const perms: any = (navigator as any).permissions;
+        if (perms && typeof perms.query === "function") {
+          await perms.query({ name: "bluetooth-le" as any });
+        }
+      } catch {}
+      try {
+        // One chooser (can be canceled) tends to unlock scanning on many builds
+        await bluetooth.requestDevice({
+          acceptAllDevices: true,
+          optionalServices: [],
+        });
+      } catch {}
+
+      const scan = await bluetooth.requestLEScan({
+        acceptAllAdvertisements: true,
+        keepRepeatedDevices: true,
+      });
+      const onAdv = (event: any) => {
+        const ib = parseIbeaconFromAdvertisement(event);
+        if (!ib) return;
+        const key = `${ib.uuid}:${ib.major}:${ib.minor}`;
+        if (seenKeysRef.has(key)) return;
+        seenKeysRef.add(key);
+        setFoundBeacons((prev) => {
+          const now = Date.now();
+          const next = [...prev];
+          next.push({ ...ib, key, lastSeen: now });
+          return next;
+        });
+      };
+      bluetooth.addEventListener("advertisementreceived", onAdv);
+      stopScanRef.stop = () => {
+        try {
+          bluetooth.removeEventListener("advertisementreceived", onAdv);
+          scan.stop?.();
+        } catch {}
+      };
+    } catch (e) {
+      setScanError("failed to start BLE scan");
+      setIsScanning(false);
+    }
+  };
+
+  const stopScan = () => {
+    try {
+      stopScanRef.stop?.();
+    } catch {}
+    setIsScanning(false);
+  };
+
+  const parseIbeaconFromAdvertisement = (
+    event: any
+  ): { uuid: string; major: number; minor: number } | null => {
+    try {
+      const md: Map<number, DataView> | undefined = event.manufacturerData;
+      if (!md || typeof (md as any).get !== "function") return null;
+      const apple = (md as any).get(0x004c) as DataView | undefined;
+      if (!apple) return null;
+      const bytes = new Uint8Array(
+        apple.buffer,
+        apple.byteOffset,
+        apple.byteLength
+      );
+      if (bytes.length < 23) return null;
+      if (!(bytes[0] === 0x02 && bytes[1] === 0x15)) return null;
+      const uuidBytes = bytes.slice(2, 18);
+      const major = (bytes[18] << 8) + bytes[19];
+      const minor = (bytes[20] << 8) + bytes[21];
+      const uuid = (() => {
+        const hex = [...uuidBytes]
+          .map((x) => x.toString(16).padStart(2, "0"))
+          .join("");
+        return (
+          hex.substring(0, 8) +
+          "-" +
+          hex.substring(8, 12) +
+          "-" +
+          hex.substring(12, 16) +
+          "-" +
+          hex.substring(16, 20) +
+          "-" +
+          hex.substring(20)
+        );
+      })();
+      return { uuid, major, minor };
+    } catch {
+      return null;
+    }
   };
 
   const registerServiceWorker =
@@ -267,6 +403,62 @@ export function ProfilePage({ member }: ProfilePageProps) {
             </button>
           </div>
 
+          <div className="p-4 bg-glass border border-border-glass rounded-xl">
+            <div className="flex items-center justify-between mb-2">
+              <div>
+                <h3 className="text-sm font-medium text-text-primary">
+                  beacon pairing
+                </h3>
+                <p className="text-xs text-text-muted mt-1">
+                  pair your iBeacon tag to your account
+                </p>
+              </div>
+              <button className="btn-modern" onClick={scanAndPair}>
+                pair new beacon
+              </button>
+            </div>
+            <div className="space-y-2">
+              {myBeacons?.length ? (
+                myBeacons.map((b: any) => (
+                  <div
+                    key={b._id}
+                    className="flex items-center justify-between p-3 bg-glass border border-border-glass rounded-lg"
+                  >
+                    <div>
+                      <div className="font-medium">{b.label || b.key}</div>
+                      <div className="text-xs text-text-dim">{b.key}</div>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        className="btn-modern"
+                        onClick={async () => {
+                          const label = prompt("rename beacon", b.label || "");
+                          if (label === null) return;
+                          await setBeaconLabel({ beaconId: b._id, label });
+                          toast.success("beacon renamed");
+                        }}
+                      >
+                        rename
+                      </button>
+                      <button
+                        className="btn-modern btn-danger"
+                        onClick={async () => {
+                          if (!confirm("unpair this beacon?")) return;
+                          await unpairBeacon({ beaconId: b._id });
+                          toast.success("beacon unpaired");
+                        }}
+                      >
+                        unpair
+                      </button>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="text-sm text-text-muted">no beacons paired</div>
+              )}
+            </div>
+          </div>
+
           <div className="flex justify-between items-center p-4 bg-glass border border-border-glass rounded-xl">
             <div>
               <h3 className="text-sm font-medium text-text-primary">
@@ -294,6 +486,77 @@ export function ProfilePage({ member }: ProfilePageProps) {
         <h2 className="text-xl font-light mb-6">your past meetings</h2>
         <PastMeetingsCalendar meetings={pastMeetings || []} />
       </div>
+
+      {/* Pairing Modal */}
+      <Modal
+        isOpen={pairModalOpen}
+        onClose={() => {
+          stopScan();
+          setPairModalOpen(false);
+        }}
+        title="pair iBeacon"
+        maxWidthClassName="max-w-2xl"
+      >
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="text-text-muted text-sm">
+              {isScanning
+                ? "scanning for beacons..."
+                : scanError
+                  ? scanError
+                  : "stopped"}
+            </div>
+            <div className="flex gap-2">
+              <button
+                className="btn-modern"
+                onClick={() => (isScanning ? stopScan() : startScan(true))}
+              >
+                {isScanning ? "stop" : "rescan"}
+              </button>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            {foundBeacons.length === 0 && (
+              <div className="text-sm text-text-muted">
+                no beacons yet — keep the tag close or rescan
+              </div>
+            )}
+            {foundBeacons.map((b) => (
+              <div
+                key={b.key}
+                className="flex items-center justify-between p-3 bg-glass border border-border-glass rounded-lg"
+              >
+                <div>
+                  <div className="font-medium">{b.uuid}</div>
+                  <div className="text-xs text-text-dim">
+                    major: {b.major} · minor: {b.minor}
+                  </div>
+                </div>
+                <button
+                  className="btn-modern btn-primary"
+                  onClick={async () => {
+                    try {
+                      await pairIbeacon({
+                        uuid: b.uuid,
+                        major: b.major,
+                        minor: b.minor,
+                      });
+                      toast.success("beacon paired");
+                      stopScan();
+                      setPairModalOpen(false);
+                    } catch {
+                      toast.error("failed to pair beacon");
+                    }
+                  }}
+                >
+                  pair
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }
