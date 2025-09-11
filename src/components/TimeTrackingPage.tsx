@@ -47,6 +47,9 @@ export function TimeTrackingPage({ member }: TimeTrackingPageProps) {
   const prewarmedRef = useRef<boolean>(false);
   const wakeLockRef = useRef<any>(null);
   const ephemeralLastSeenRef = useRef<Record<string, number>>({});
+  const [wakeLockActive, setWakeLockActive] = useState<boolean>(false);
+  const [nowMs, setNowMs] = useState<number>(Date.now());
+  const currentScanRef = useRef<any>(null);
 
   const canScan =
     typeof navigator !== "undefined" &&
@@ -62,6 +65,25 @@ export function TimeTrackingPage({ member }: TimeTrackingPageProps) {
   //   }, 60 * 1000);
   //   return () => clearInterval(id);
   // }, [selectedMeetingId, closeExpired]);
+
+  useEffect(() => {
+    const id = setInterval(() => setNowMs(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  const isRunning = useMemo(() => {
+    if (scanState !== "scanning") return false;
+    const handleActive = !!(
+      currentScanRef.current &&
+      (currentScanRef.current.active === undefined
+        ? true
+        : currentScanRef.current.active === true)
+    );
+    const hasRecentAdv = lastAdvRef.current
+      ? nowMs - lastAdvRef.current < 120000
+      : false;
+    return handleActive && hasRecentAdv;
+  }, [scanState, nowMs]);
 
   const startScan = async () => {
     if (!selectedMeetingId) {
@@ -84,8 +106,10 @@ export function TimeTrackingPage({ member }: TimeTrackingPageProps) {
             wakeLockRef.current = await (navigator as any).wakeLock.request(
               "screen"
             );
+            setWakeLockActive(true);
             wakeLockRef.current?.addEventListener?.("release", () => {
               wakeLockRef.current = null;
+              setWakeLockActive(false);
             });
           }
         } catch {}
@@ -95,6 +119,7 @@ export function TimeTrackingPage({ member }: TimeTrackingPageProps) {
           await wakeLockRef.current?.release?.();
         } catch {}
         wakeLockRef.current = null;
+        setWakeLockActive(false);
       };
 
       const doStart = async (allowPrewarm: boolean): Promise<() => void> => {
@@ -117,6 +142,7 @@ export function TimeTrackingPage({ member }: TimeTrackingPageProps) {
           acceptAllAdvertisements: true,
           keepRepeatedDevices: true,
         });
+        currentScanRef.current = scan;
 
         console.log(
           "Scan started successfully, listening for advertisements..."
@@ -169,6 +195,7 @@ export function TimeTrackingPage({ member }: TimeTrackingPageProps) {
             );
             (scan as any).stop?.();
           } catch {}
+          currentScanRef.current = null;
         };
         return stop;
       };
@@ -328,6 +355,30 @@ export function TimeTrackingPage({ member }: TimeTrackingPageProps) {
               web bluetooth scanning not supported in this browser
             </div>
           )}
+        </div>
+
+        <div className="flex flex-wrap items-center gap-4 text-sm text-text-muted">
+          <div>
+            status:{" "}
+            {isRunning ? (
+              <span className="text-accent-green">running</span>
+            ) : scanState === "scanning" ? (
+              <span className="text-yellow-400">cancelled</span>
+            ) : scanState === "error" ? (
+              <span className="text-error-red">error</span>
+            ) : (
+              <span>stopped</span>
+            )}
+          </div>
+          <div>
+            last adv:{" "}
+            {lastAdvRef.current
+              ? `${Math.round((nowMs - lastAdvRef.current) / 1000)}s`
+              : "none yet"}
+          </div>
+          <div>active attendees: {activeSessions?.length ?? 0}</div>
+          <div>wake lock: {wakeLockActive ? "on" : "off"}</div>
+          <div>writes: 1/min per beacon</div>
         </div>
 
         {scanState === "error" && (
