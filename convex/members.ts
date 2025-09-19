@@ -2,6 +2,7 @@ import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { internalQuery } from "./_generated/server";
+import { Id } from "./_generated/dataModel";
 
 export const getCurrentMember = query({
   args: {},
@@ -203,6 +204,185 @@ export const updateMemberRole = mutation({
     }
 
     await ctx.db.patch(args.memberId, { role: args.newRole });
+  },
+});
+
+export const awardMuPoint = mutation({
+  args: {
+    memberId: v.id("members"),
+    points: v.number(),
+    reason: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+
+    const awardingMember = await ctx.db
+      .query("members")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .unique();
+    if (!awardingMember) throw new Error("Member not found");
+
+    if (awardingMember.role !== "admin" && awardingMember.role !== "lead") {
+      throw new Error("Only admins and leads can award μpoints");
+    }
+
+    const targetMember = await ctx.db.get(args.memberId);
+    if (!targetMember) throw new Error("Target member not found");
+
+    const trimmedReason = args.reason.trim();
+    if (!trimmedReason) {
+      throw new Error("A reason is required to award μpoints");
+    }
+
+    if (!Number.isFinite(args.points) || args.points <= 0) {
+      throw new Error("Points must be a positive number");
+    }
+
+    await ctx.db.insert("muPoints", {
+      memberId: args.memberId,
+      assignedByMemberId: awardingMember._id,
+      points: args.points,
+      reason: trimmedReason,
+      createdAt: Date.now(),
+    });
+
+    return null;
+  },
+});
+
+export const getLeaderboard = query({
+  args: {},
+  returns: v.array(
+    v.object({
+      memberId: v.id("members"),
+      name: v.string(),
+      email: v.string(),
+      role: v.union(
+        v.literal("admin"),
+        v.literal("lead"),
+        v.literal("member")
+      ),
+      totalPoints: v.number(),
+      awardsCount: v.number(),
+      lastAwardedAt: v.union(v.number(), v.null()),
+    })
+  ),
+  handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) return [];
+
+    const members = await ctx.db.query("members").collect();
+    const awards = await ctx.db.query("muPoints").collect();
+
+    const totals = new Map<Id<"members">, {
+      total: number;
+      count: number;
+      lastAwarded: number | null;
+    }>();
+
+    for (const member of members) {
+      totals.set(member._id, { total: 0, count: 0, lastAwarded: null });
+    }
+
+    for (const award of awards) {
+      const current = totals.get(award.memberId);
+      if (!current) continue;
+      current.total += award.points;
+      current.count += 1;
+      current.lastAwarded = current.lastAwarded
+        ? Math.max(current.lastAwarded, award.createdAt)
+        : award.createdAt;
+    }
+
+    const leaderboard = members.map((member) => {
+      const summary = totals.get(member._id)!;
+      return {
+        memberId: member._id,
+        name: member.name,
+        email: member.email,
+        role: member.role,
+        totalPoints: summary.total,
+        awardsCount: summary.count,
+        lastAwardedAt: summary.lastAwarded,
+      };
+    });
+
+    leaderboard.sort((a, b) => {
+      if (b.totalPoints !== a.totalPoints) {
+        return b.totalPoints - a.totalPoints;
+      }
+      const lastAwardedDiff = (b.lastAwardedAt ?? 0) - (a.lastAwardedAt ?? 0);
+      if (lastAwardedDiff !== 0) {
+        return lastAwardedDiff;
+      }
+      return a.name.localeCompare(b.name);
+    });
+
+    return leaderboard;
+  },
+});
+
+export const getMemberMuPoints = query({
+  args: { memberId: v.id("members") },
+  returns: v.array(
+    v.object({
+      _id: v.id("muPoints"),
+      points: v.number(),
+      reason: v.string(),
+      createdAt: v.number(),
+      assignedBy: v.object({
+        memberId: v.id("members"),
+        name: v.string(),
+        role: v.union(
+          v.literal("admin"),
+          v.literal("lead"),
+          v.literal("member")
+        ),
+      }),
+    })
+  ),
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) return [];
+
+    const awards = await ctx.db
+      .query("muPoints")
+      .withIndex("by_member", (q) => q.eq("memberId", args.memberId))
+      .collect();
+
+    awards.sort((a, b) => b.createdAt - a.createdAt);
+
+    const assignerIds = Array.from(
+      new Set(awards.map((award) => award.assignedByMemberId))
+    );
+
+    const assigners = await Promise.all(
+      assignerIds.map((assignerId) => ctx.db.get(assignerId))
+    );
+
+    const assignerMap = new Map<Id<"members">, typeof assigners[number]>();
+    for (const assigner of assigners) {
+      if (assigner) {
+        assignerMap.set(assigner._id, assigner);
+      }
+    }
+
+    return awards.map((award) => {
+      const assigner = assignerMap.get(award.assignedByMemberId);
+      return {
+        _id: award._id,
+        points: award.points,
+        reason: award.reason,
+        createdAt: award.createdAt,
+        assignedBy: {
+          memberId: award.assignedByMemberId,
+          name: assigner?.name ?? "Unknown", 
+          role: assigner?.role ?? "member",
+        },
+      };
+    });
   },
 });
 
