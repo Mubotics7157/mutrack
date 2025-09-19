@@ -123,6 +123,25 @@ const applicationTables = {
     .index("by_member", ["memberId"])
     .index("by_assigned_by", ["assignedByMemberId"]),
 
+  bounties: defineTable({
+    title: v.string(),
+    description: v.optional(v.string()),
+    points: v.number(),
+    status: v.union(
+      v.literal("open"),
+      v.literal("completed"),
+      v.literal("cancelled")
+    ),
+    createdByMemberId: v.id("members"),
+    createdAt: v.number(),
+    completedByMemberId: v.optional(v.id("members")),
+    completedAt: v.optional(v.number()),
+    completionNotes: v.optional(v.string()),
+  })
+    .index("by_status", ["status"])
+    .index("by_created_by", ["createdByMemberId"])
+    .index("by_status_and_createdAt", ["status", "createdAt"]),
+
   vendors: defineTable({
     name: v.string(),
   }).index("by_name", ["name"]),
