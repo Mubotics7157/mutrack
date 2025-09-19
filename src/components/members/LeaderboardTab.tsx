@@ -239,7 +239,7 @@ export function LeaderboardTab(props: LeaderboardTabProps) {
                     onClick={() => onSelectMember(entry.memberId)}
                     className="w-full text-left"
                   >
-                    <div className="card-modern hover:-translate-y-1 transition-transform bg-glass/80 border border-border-glass">
+                    <div className="card-modern hover:-translate-y-1 transition-transform">
                       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                         <div className="flex items-start gap-4">
                           <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-glass via-white/10 to-transparent border border-white/10 flex items-center justify-center text-sm font-semibold text-text-secondary">
