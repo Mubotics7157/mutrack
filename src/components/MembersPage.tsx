@@ -1,20 +1,48 @@
-import { useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import clsx from "clsx";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { type Doc, type Id } from "../../convex/_generated/dataModel";
 import { toast } from "sonner";
-import { AlertTriangle, Trash2, Trophy, PlusCircle } from "lucide-react";
+import {
+  AlertTriangle,
+  Trash2,
+  Trophy,
+  PlusCircle,
+  Users,
+  ShieldCheck,
+  Sparkles,
+  Crown,
+  Medal,
+  Star,
+} from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { Modal } from "./Modal";
+
+type Role = Doc<"members">["role"];
+type RoleFilter = "all" | Role;
+type MembersTab = "leaderboard" | "directory" | "management";
+
+interface LeaderboardEntry {
+  memberId: Id<"members">;
+  name: string;
+  email: string;
+  role: Role;
+  totalPoints: number;
+  awardsCount: number;
+  lastAwardedAt: number | null;
+}
 
 interface MembersPageProps {
   member: Doc<"members">;
 }
 
 export function MembersPage({ member }: MembersPageProps) {
-  const [searchTerm, setSearchTerm] = useState("");
-  const [filterRole, setFilterRole] = useState<string>("all");
-  const [activeTab, setActiveTab] = useState<"directory" | "leaderboard">("directory");
+  const [activeTab, setActiveTab] = useState<MembersTab>("leaderboard");
+  const [directorySearchTerm, setDirectorySearchTerm] = useState("");
+  const [directoryRoleFilter, setDirectoryRoleFilter] = useState<RoleFilter>("all");
+  const [managementSearchTerm, setManagementSearchTerm] = useState("");
+  const [managementRoleFilter, setManagementRoleFilter] = useState<RoleFilter>("all");
   const [selectedMemberId, setSelectedMemberId] = useState<Id<"members"> | null>(null);
   const [awardPoints, setAwardPoints] = useState("1");
   const [awardReason, setAwardReason] = useState("");
@@ -34,15 +62,15 @@ export function MembersPage({ member }: MembersPageProps) {
   const canManageRoles = member.role === "admin";
   const canAwardPoints = member.role === "admin" || member.role === "lead";
 
-  const filteredMembers = useMemo(() => {
-    const term = searchTerm.toLowerCase();
-    return members.filter((m) => {
-      const matchesSearch =
-        m.name.toLowerCase().includes(term) || m.email.toLowerCase().includes(term);
-      const matchesRole = filterRole === "all" || m.role === filterRole;
-      return matchesSearch && matchesRole;
-    });
-  }, [members, searchTerm, filterRole]);
+  const filteredDirectoryMembers = useMemo(
+    () => filterMembersList(members, directorySearchTerm, directoryRoleFilter),
+    [members, directorySearchTerm, directoryRoleFilter]
+  );
+
+  const filteredManagementMembers = useMemo(
+    () => filterMembersList(members, managementSearchTerm, managementRoleFilter),
+    [members, managementSearchTerm, managementRoleFilter]
+  );
 
   const roleStats = useMemo(
     () => ({
@@ -59,9 +87,16 @@ export function MembersPage({ member }: MembersPageProps) {
     }
     const totalPoints = leaderboard.reduce((sum, entry) => sum + entry.totalPoints, 0);
     const totalAwards = leaderboard.reduce((sum, entry) => sum + entry.awardsCount, 0);
-    const topMemberName =
-      totalAwards > 0 && leaderboard[0] ? leaderboard[0].name : null;
+    const topMemberName = totalAwards > 0 && leaderboard[0] ? leaderboard[0].name : null;
     return { totalPoints, totalAwards, topMemberName };
+  }, [leaderboard]);
+
+  const leaderboardMap = useMemo(() => {
+    const map = new Map<Id<"members">, LeaderboardEntry>();
+    for (const entry of leaderboard) {
+      map.set(entry.memberId, entry);
+    }
+    return map;
   }, [leaderboard]);
 
   const selectedMember = selectedMemberId
@@ -69,26 +104,51 @@ export function MembersPage({ member }: MembersPageProps) {
     : null;
 
   const selectedMemberLeaderboardEntry = selectedMemberId
-    ? leaderboard.find((entry) => entry.memberId === selectedMemberId)
+    ? leaderboardMap.get(selectedMemberId)
     : undefined;
 
   const selectedMemberAwardsCount = selectedMemberLeaderboardEntry?.awardsCount ?? 0;
   const selectedMemberTotalPoints = selectedMemberLeaderboardEntry?.totalPoints ?? 0;
-  const selectedMemberAwardsLabel =
-    selectedMemberAwardsCount === 1 ? "award" : "awards";
+  const selectedMemberAwardsLabel = selectedMemberAwardsCount === 1 ? "award" : "awards";
 
   const isHistoryLoading = selectedMemberId !== null && selectedMemberPoints === undefined;
   const memberHistory = selectedMemberPoints ?? [];
 
-  const handleRoleChange = async (
-    memberId: string,
-    newRole: "admin" | "lead" | "member"
-  ) => {
+  useEffect(() => {
+    if (!canManageRoles && activeTab === "management") {
+      setActiveTab("leaderboard");
+    }
+  }, [canManageRoles, activeTab]);
+
+  const tabs = useMemo(() => {
+    const base: Array<{ id: MembersTab; label: string; icon: LucideIcon }> = [
+      { id: "leaderboard", label: "leaderboard", icon: Trophy },
+      { id: "directory", label: "directory", icon: Users },
+    ];
+
+    if (canManageRoles) {
+      base.push({ id: "management", label: "management", icon: ShieldCheck });
+    }
+
+    return base;
+  }, [canManageRoles]);
+
+  const handleRoleChange = async (memberId: Id<"members">, newRole: Role) => {
     try {
-      await updateMemberRole({ memberId: memberId as any, newRole });
+      await updateMemberRole({ memberId, newRole });
       toast.success("member role updated successfully");
     } catch (error) {
       toast.error("failed to update member role");
+    }
+  };
+
+  const handleDeleteMember = async (memberToRemove: Doc<"members">) => {
+    if (!confirm(`Remove ${memberToRemove.name}?`)) return;
+    try {
+      await deleteMember({ memberId: memberToRemove._id });
+      toast.success("member removed");
+    } catch (error) {
+      toast.error("failed to remove member");
     }
   };
 
@@ -176,321 +236,153 @@ export function MembersPage({ member }: MembersPageProps) {
     }
   };
 
-  const getRankBadgeClass = (index: number) => {
-    if (index === 0) {
-      return "badge bg-gradient-orange-red text-void-black border-transparent";
-    }
-    if (index === 1) {
-      return "badge bg-white/15 text-white border-white/20";
-    }
-    if (index === 2) {
-      return "badge bg-white/10 text-text-primary border-white/15";
-    }
-    return "badge bg-glass text-text-muted border-border-glass";
-  };
-
-  const getTabButtonClass = (tab: "directory" | "leaderboard") =>
+  const getTabButtonClass = (tabId: MembersTab) =>
     clsx(
       "px-4 py-2 rounded-xl text-xs font-mono tracking-widest uppercase transition",
       "border flex items-center gap-2",
-      tab === activeTab
+      tabId === activeTab
         ? "bg-gradient-orange-red text-void-black border-transparent shadow-[0_8px_24px_rgba(249,115,22,0.3)]"
         : "bg-glass border-border-glass text-text-muted hover:text-text-primary"
     );
-
   return (
     <div className="space-y-6">
-      <div className="glass-panel p-8">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-6">
+      <div className="glass-panel relative overflow-hidden p-8">
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-sunset-orange/10 via-transparent to-accent-purple/20" />
+        <div className="pointer-events-none absolute -top-16 -right-12 h-48 w-48 rounded-full bg-sunset-orange/30 blur-3xl" />
+        <div className="pointer-events-none absolute -bottom-20 -left-10 h-52 w-52 rounded-full bg-accent-purple/20 blur-3xl" />
+        <div className="relative flex flex-col gap-8 md:flex-row md:items-center md:justify-between">
           <div>
-            <h1 className="text-3xl font-light mb-2">team members</h1>
-            <p className="text-text-muted">
-              manage roles, permissions, and celebrate wins for frc team 7157
+            <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs uppercase tracking-widest text-white/70">
+              <Sparkles size={14} />
+              <span>team energy</span>
+            </div>
+            <h1 className="mt-4 text-3xl font-light md:text-4xl">team members</h1>
+            <p className="mt-2 max-w-xl text-text-muted">
+              celebrate μpoints, keep the hype rolling, and stay on top of everyone in frc team 7157.
             </p>
+            <div className="mt-4 flex flex-wrap gap-3 text-xs uppercase tracking-widest">
+              <span className="badge bg-white/10 text-white/70">
+                your role: {member.role}
+              </span>
+              {leaderboardStats.topMemberName && (
+                <span className="badge bg-sunset-orange/20 text-sunset-orange">
+                  leading: {leaderboardStats.topMemberName}
+                </span>
+              )}
+            </div>
           </div>
-          <div className="flex gap-4">
-            <div className="text-center">
-              <p className="text-3xl font-light text-sunset-orange">{members.length}</p>
-              <p className="text-sm text-text-dim">total</p>
+          <div className="grid grid-cols-2 gap-4 text-center">
+            <div className="rounded-2xl bg-void-black/40 px-6 py-4">
+              <p className="text-3xl font-light text-white">{members.length}</p>
+              <p className="text-xs text-text-dim">members</p>
+            </div>
+            <div className="rounded-2xl bg-void-black/40 px-6 py-4">
+              <p className="text-3xl font-light text-sunset-orange">
+                {formatPoints(leaderboardStats.totalPoints)}
+              </p>
+              <p className="text-xs text-text-dim">μpoints shared</p>
+            </div>
+            <div className="rounded-2xl bg-void-black/40 px-6 py-4">
+              <p className="text-3xl font-light text-accent-purple">
+                {leaderboardStats.totalAwards}
+              </p>
+              <p className="text-xs text-text-dim">recognitions</p>
+            </div>
+            <div className="rounded-2xl bg-void-black/40 px-6 py-4">
+              <p className="text-3xl font-light text-white">
+                {formatPoints(leaderboardMap.get(member._id)?.totalPoints ?? 0)}
+              </p>
+              <p className="text-xs text-text-dim">your μpoints</p>
             </div>
           </div>
         </div>
+      </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="card-modern text-center">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <div className="card-modern relative overflow-hidden text-center">
+          <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-error-red/20 via-transparent to-transparent" />
+          <div className="relative">
             <div className="text-2xl font-light text-error-red mb-1">{roleStats.admin}</div>
             <div className="text-sm text-text-muted">admins</div>
           </div>
-          <div className="card-modern text-center">
+        </div>
+        <div className="card-modern relative overflow-hidden text-center">
+          <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-yellow-400/20 via-transparent to-transparent" />
+          <div className="relative">
             <div className="text-2xl font-light text-yellow-400 mb-1">{roleStats.lead}</div>
             <div className="text-sm text-text-muted">leads</div>
           </div>
-          <div className="card-modern text-center">
+        </div>
+        <div className="card-modern relative overflow-hidden text-center">
+          <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-blue-400/15 via-transparent to-transparent" />
+          <div className="relative">
             <div className="text-2xl font-light text-blue-400 mb-1">{roleStats.member}</div>
             <div className="text-sm text-text-muted">members</div>
           </div>
         </div>
+      </div>
 
-        <div className="mt-6 flex flex-wrap gap-3">
-          <button
-            className={getTabButtonClass("directory")}
-            onClick={() => setActiveTab("directory")}
-          >
-            directory
-          </button>
-          <button
-            className={getTabButtonClass("leaderboard")}
-            onClick={() => setActiveTab("leaderboard")}
-          >
-            <Trophy size={16} />
-            leaderboard
-          </button>
+      <div className="glass-panel p-4">
+        <div className="flex flex-wrap gap-3">
+          {tabs.map(({ id, label, icon: Icon }) => (
+            <button
+              key={id}
+              type="button"
+              className={getTabButtonClass(id)}
+              onClick={() => setActiveTab(id)}
+            >
+              <Icon size={16} />
+              {label}
+            </button>
+          ))}
         </div>
       </div>
 
-      {activeTab === "directory" ? (
-        <>
-          <div className="glass-panel p-6">
-            <div className="flex flex-col md:flex-row gap-4">
-              <input
-                type="text"
-                placeholder="search by name or email..."
-                className="input-modern flex-1"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
-              <select
-                className="input-modern md:w-48"
-                value={filterRole}
-                onChange={(e) => setFilterRole(e.target.value)}
-              >
-                <option value="all">all roles</option>
-                <option value="admin">admins only</option>
-                <option value="lead">leads only</option>
-                <option value="member">members only</option>
-              </select>
-            </div>
-          </div>
-
-          <div className="glass-panel p-6">
-            <h4 className="text-sm font-mono text-text-secondary mb-4">role permissions</h4>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-              <div className="flex items-start gap-3">
-                <span className="badge badge-rejected">admin</span>
-                <span className="text-text-muted">full access to all features</span>
-              </div>
-              <div className="flex items-start gap-3">
-                <span className="badge badge-pending">lead</span>
-                <span className="text-text-muted">manage meetings & purchases</span>
-              </div>
-              <div className="flex items-start gap-3">
-                <span className="badge badge-ordered">member</span>
-                <span className="text-text-muted">submit purchase requests</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="space-y-4">
-            {filteredMembers.length === 0 ? (
-              <div className="glass-panel p-8 text-center">
-                <p className="text-text-muted">
-                  {searchTerm || filterRole !== "all"
-                    ? "no members found matching your criteria"
-                    : "no members found"}
-                </p>
-              </div>
-            ) : (
-              filteredMembers.map((teamMember) => (
-                <div key={teamMember._id} className="card-modern">
-                  <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                    <div className="flex items-center gap-4">
-                      <div className="avatar">
-                        {teamMember.name.charAt(0).toUpperCase()}
-                      </div>
-
-                      <div>
-                        <h4 className="font-light text-lg text-text-primary flex items-center gap-2">
-                          {teamMember.name}
-                          {teamMember._id === member._id && (
-                            <span className="text-xs text-sunset-orange bg-sunset-orange-dim px-2 py-0.5 rounded-full">
-                              you
-                            </span>
-                          )}
-                        </h4>
-                        <p className="text-sm text-text-muted">{teamMember.email}</p>
-                        <p className="text-xs text-text-dim mt-1">
-                          joined {formatJoinDate(teamMember.joinedAt)}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-3">
-                      {canManageRoles && teamMember._id !== member._id ? (
-                        <select
-                          value={teamMember.role}
-                          onChange={(e) =>
-                            handleRoleChange(
-                              teamMember._id,
-                              e.target.value as "admin" | "lead" | "member"
-                            )
-                          }
-                          className="input-modern py-2 px-4 text-sm"
-                        >
-                          <option value="member">member</option>
-                          <option value="lead">lead</option>
-                          <option value="admin">admin</option>
-                        </select>
-                      ) : (
-                        <RoleBadge role={teamMember.role} />
-                      )}
-                      {canManageRoles && teamMember._id !== member._id && (
-                        <button
-                          className="btn-modern btn-danger p-2"
-                          title="Remove member"
-                          onClick={async () => {
-                            if (!confirm(`Remove ${teamMember.name}?`)) return;
-                            try {
-                              await deleteMember({
-                                memberId: teamMember._id as any,
-                              });
-                              toast.success("member removed");
-                            } catch (e) {
-                              toast.error("failed to remove member");
-                            }
-                          }}
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-
-          {canManageRoles && (
-            <div className="glass-panel p-6 border border-yellow-500/30">
-              <div className="flex items-start gap-3">
-                <AlertTriangle
-                  size={20}
-                  className="text-yellow-400 flex-shrink-0 mt-0.5"
-                />
-                <div>
-                  <h4 className="text-sm font-mono text-yellow-400 mb-2">admin note</h4>
-                  <p className="text-sm text-text-muted">
-                    be careful when changing member roles. admins have full access to all
-                    system features. you cannot change your own role for security reasons.
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
-        </>
-      ) : (
-        <>
-          <div className="glass-panel p-6">
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
-              <div>
-                <div className="flex items-center gap-3 text-text-primary">
-                  <Trophy size={24} className="text-sunset-orange" />
-                  <h2 className="text-2xl font-light">μpoint leaderboard</h2>
-                </div>
-                <p className="text-sm text-text-muted mt-2">
-                  {canAwardPoints
-                    ? "click a member to recognize them with μpoints and view their history."
-                    : "click a member to view their μpoint history."}
-                </p>
-              </div>
-              <div className="grid grid-cols-2 gap-4 text-center md:text-right">
-                <div>
-                  <p className="text-2xl font-light text-sunset-orange">
-                    {formatPoints(leaderboardStats.totalPoints)}
-                  </p>
-                  <p className="text-xs text-text-dim">μpoints awarded</p>
-                </div>
-                <div>
-                  <p className="text-2xl font-light text-accent-purple">
-                    {leaderboardStats.totalAwards}
-                  </p>
-                  <p className="text-xs text-text-dim">recognitions logged</p>
-                </div>
-              </div>
-            </div>
-            {leaderboardStats.topMemberName && (
-              <div className="mt-6 text-sm text-text-muted">
-                🏆 leading: <span className="text-text-primary">{leaderboardStats.topMemberName}</span>
-              </div>
-            )}
-          </div>
-
-          <div className="space-y-4">
-            {leaderboard.length === 0 ? (
-              <div className="glass-panel p-8 text-center">
-                <p className="text-text-muted">
-                  no μpoints have been awarded yet. once recognitions are logged,
-                  leaderboard standings will appear here.
-                </p>
-              </div>
-            ) : (
-              leaderboard.map((entry, index) => {
-                const awardsSummary =
-                  entry.awardsCount === 0
-                    ? "no μpoints yet"
-                    : `${entry.awardsCount} ${
-                        entry.awardsCount === 1 ? "award" : "awards"
-                      } • last awarded ${formatAwardDate(entry.lastAwardedAt)}`;
-
-                return (
-                  <div
-                    key={entry.memberId}
-                    className="card-modern cursor-pointer"
-                    onClick={() => openMemberDetails(entry.memberId)}
-                  >
-                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                      <div className="flex items-start gap-4">
-                        <div className="avatar">
-                          {entry.name.charAt(0).toUpperCase()}
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-2 flex-wrap text-text-primary">
-                            <h4 className="font-light text-lg">{entry.name}</h4>
-                            <span className={getRankBadgeClass(index)}>#{index + 1}</span>
-                            {entry.memberId === member._id && (
-                              <span className="text-xs text-sunset-orange bg-sunset-orange-dim px-2 py-0.5 rounded-full">
-                                you
-                              </span>
-                            )}
-                          </div>
-                          <p className="text-sm text-text-muted">{entry.email}</p>
-                          <p className="text-xs text-text-dim mt-1">{awardsSummary}</p>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <div className="flex items-center justify-end gap-2 text-sunset-orange">
-                          <Trophy size={18} />
-                          <p className="text-3xl font-light">
-                            +{formatPoints(entry.totalPoints)}
-                          </p>
-                        </div>
-                        <p className="text-xs text-text-dim mt-1">total μpoints</p>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })
-            )}
-          </div>
-        </>
+      {activeTab === "leaderboard" && (
+        <LeaderboardTab
+          entries={leaderboard}
+          currentMemberId={member._id}
+          onSelectMember={openMemberDetails}
+          formatPoints={formatPoints}
+          formatAwardDate={formatAwardDate}
+          stats={leaderboardStats}
+          canAwardPoints={canAwardPoints}
+        />
       )}
 
-      {selectedMemberId && (
-        <Modal
-          isOpen={selectedMemberId !== null}
-          onClose={closeMemberDetails}
-          title="μpoint details"
-          maxWidthClassName="max-w-3xl"
-        >
+      {activeTab === "directory" && (
+        <DirectoryTab
+          members={filteredDirectoryMembers}
+          searchTerm={directorySearchTerm}
+          onSearchTermChange={setDirectorySearchTerm}
+          roleFilter={directoryRoleFilter}
+          onRoleFilterChange={setDirectoryRoleFilter}
+          formatJoinDate={formatJoinDate}
+          currentMemberId={member._id}
+          onSelectMember={openMemberDetails}
+          leaderboardByMember={leaderboardMap}
+          formatPoints={formatPoints}
+        />
+      )}
+
+      {activeTab === "management" && canManageRoles && (
+        <ManagementTab
+          members={filteredManagementMembers}
+          searchTerm={managementSearchTerm}
+          onSearchTermChange={setManagementSearchTerm}
+          roleFilter={managementRoleFilter}
+          onRoleFilterChange={setManagementRoleFilter}
+          formatJoinDate={formatJoinDate}
+          currentMemberId={member._id}
+          onRoleChange={handleRoleChange}
+          onDeleteMember={handleDeleteMember}
+          leaderboardByMember={leaderboardMap}
+          formatPoints={formatPoints}
+        />
+      )}
+
+      {selectedMember && (
+        <Modal onClose={closeMemberDetails} isOpen title="μpoint details" maxWidthClassName="max-w-3xl">
           <div className="space-y-6">
             <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-6">
               <div>
@@ -597,7 +489,511 @@ export function MembersPage({ member }: MembersPageProps) {
   );
 }
 
-function RoleBadge({ role }: { role: string }) {
+interface LeaderboardTabProps {
+  entries: LeaderboardEntry[];
+  onSelectMember: (id: Id<"members">) => void;
+  currentMemberId: Id<"members">;
+  formatPoints: (value: number) => string;
+  formatAwardDate: (timestamp: number | null) => string;
+  stats: {
+    totalPoints: number;
+    totalAwards: number;
+    topMemberName: string | null;
+  };
+  canAwardPoints: boolean;
+}
+
+function LeaderboardTab({
+  entries,
+  onSelectMember,
+  currentMemberId,
+  formatPoints,
+  formatAwardDate,
+  stats,
+  canAwardPoints,
+}: LeaderboardTabProps) {
+  const leaderPoints = entries[0]?.totalPoints ?? 0;
+
+  return (
+    <div className="space-y-4">
+      <div className="glass-panel relative overflow-hidden p-6 md:p-8">
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-sunset-orange/15 via-transparent to-amber-400/10" />
+        <div className="pointer-events-none absolute -bottom-16 right-0 h-56 w-56 rounded-full bg-sunset-orange/20 blur-3xl" />
+        <div className="pointer-events-none absolute -top-20 left-0 h-40 w-40 rounded-full bg-accent-purple/20 blur-3xl" />
+        <div className="relative flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
+          <div>
+            <div className="flex items-center gap-3 text-text-primary">
+              <Trophy size={28} className="text-sunset-orange" />
+              <h2 className="text-2xl font-light md:text-3xl">μpoint leaderboard</h2>
+            </div>
+            <p className="mt-2 text-sm text-text-muted">
+              {canAwardPoints
+                ? "tap anyone to celebrate them with even more μpoints or relive every shoutout."
+                : "tap anyone to relive their μpoint shoutouts and see how the team is glowing."}
+            </p>
+          </div>
+          <div className="grid grid-cols-2 gap-4 text-center text-xs uppercase tracking-widest text-text-dim">
+            <div>
+              <p className="text-3xl font-light text-sunset-orange">
+                +{formatPoints(stats.totalPoints)}
+              </p>
+              <p>μpoints</p>
+            </div>
+            <div>
+              <p className="text-3xl font-light text-accent-purple">{stats.totalAwards}</p>
+              <p>shoutouts</p>
+            </div>
+          </div>
+        </div>
+        {stats.topMemberName && (
+          <div className="relative mt-6 text-sm text-text-muted">
+            🏆 leading the charge: <span className="text-text-primary">{stats.topMemberName}</span>
+          </div>
+        )}
+      </div>
+
+      {entries.length === 0 ? (
+        <div className="glass-panel p-8 text-center text-text-muted">
+          no μpoints have been awarded yet. start celebrating teammates to fill this space with fireworks.
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {entries.map((entry, index) => {
+            const isCurrent = entry.memberId === currentMemberId;
+            const decoration = getRankDecorations(index);
+            const IconComponent = decoration.icon;
+            const progressRaw =
+              leaderPoints > 0
+                ? (entry.totalPoints / leaderPoints) * 100
+                : entry.totalPoints > 0
+                ? 100
+                : 0;
+            const progressWidth =
+              entry.totalPoints > 0
+                ? Math.max(8, Math.min(progressRaw, 100))
+                : Math.min(progressRaw, 100);
+            const awardsSummary =
+              entry.awardsCount === 0
+                ? "ready for their first shoutout"
+                : `${entry.awardsCount} ${entry.awardsCount === 1 ? "shoutout" : "shoutouts"} logged`;
+            const lastAwardedText =
+              entry.lastAwardedAt !== null
+                ? `last boost ${formatAwardDate(entry.lastAwardedAt)}`
+                : "awaiting first μpoint";
+
+            return (
+              <button
+                key={entry.memberId}
+                type="button"
+                onClick={() => onSelectMember(entry.memberId)}
+                className={clsx(
+                  "group relative w-full overflow-hidden rounded-3xl border px-6 py-6 text-left transition duration-300 ease-out hover:-translate-y-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sunset-orange/60",
+                  decoration.containerClass,
+                  isCurrent && "shadow-lg shadow-sunset-orange/25 ring-2 ring-sunset-orange/60"
+                )}
+              >
+                <div
+                  className={clsx(
+                    "pointer-events-none absolute inset-0 bg-gradient-to-br opacity-80 transition duration-300 group-hover:opacity-100",
+                    decoration.glowClass
+                  )}
+                />
+                <div className="relative flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
+                  <div className="flex items-center gap-5">
+                    <div
+                      className={clsx(
+                        "relative flex h-14 w-14 items-center justify-center rounded-2xl text-xl font-semibold",
+                        decoration.rankClass
+                      )}
+                    >
+                      #{index + 1}
+                      {IconComponent && (
+                        <IconComponent
+                          size={20}
+                          className={clsx("absolute -top-2 -right-2", decoration.iconClass)}
+                        />
+                      )}
+                    </div>
+                    <div>
+                      <div className="flex flex-wrap items-center gap-3 text-lg font-medium text-white">
+                        <span>{entry.name}</span>
+                        {isCurrent && (
+                          <span className="badge bg-sunset-orange text-void-black">that's you!</span>
+                        )}
+                        <RoleBadge role={entry.role} />
+                      </div>
+                      <p className="text-sm text-text-muted">{awardsSummary}</p>
+                      <p className="mt-1 text-xs uppercase tracking-widest text-text-dim">{lastAwardedText}</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-3xl font-light text-sunset-orange">
+                      +{formatPoints(entry.totalPoints)}
+                    </p>
+                    <p className="text-xs uppercase tracking-[0.3em] text-text-dim">μpoints</p>
+                  </div>
+                </div>
+                <div className="relative mt-4 h-2 overflow-hidden rounded-full bg-void-black/40">
+                  <div
+                    className="absolute inset-y-0 left-0 rounded-full bg-gradient-orange-red transition-all duration-700 ease-out"
+                    style={{ width: `${progressWidth}%` }}
+                  />
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+interface DirectoryTabProps {
+  members: Doc<"members">[];
+  searchTerm: string;
+  onSearchTermChange: (value: string) => void;
+  roleFilter: RoleFilter;
+  onRoleFilterChange: (value: RoleFilter) => void;
+  formatJoinDate: (timestamp: number) => string;
+  currentMemberId: Id<"members">;
+  onSelectMember: (id: Id<"members">) => void;
+  leaderboardByMember: Map<Id<"members">, LeaderboardEntry>;
+  formatPoints: (value: number) => string;
+}
+
+function DirectoryTab({
+  members,
+  searchTerm,
+  onSearchTermChange,
+  roleFilter,
+  onRoleFilterChange,
+  formatJoinDate,
+  currentMemberId,
+  onSelectMember,
+  leaderboardByMember,
+  formatPoints,
+}: DirectoryTabProps) {
+  return (
+    <div className="space-y-4">
+      <MembersFilters
+        searchTerm={searchTerm}
+        onSearchTermChange={onSearchTermChange}
+        roleFilter={roleFilter}
+        onRoleFilterChange={onRoleFilterChange}
+        placeholder="search by name or email..."
+      />
+
+      <div className="space-y-4">
+        {members.length === 0 ? (
+          <div className="glass-panel p-8 text-center text-text-muted">
+            {searchTerm || roleFilter !== "all"
+              ? "no members found matching your filters."
+              : "no members found just yet."}
+          </div>
+        ) : (
+          members.map((teamMember) => {
+            const leaderboardEntry = leaderboardByMember.get(teamMember._id);
+            const awardsSummary =
+              leaderboardEntry && leaderboardEntry.awardsCount > 0
+                ? `${leaderboardEntry.awardsCount} ${leaderboardEntry.awardsCount === 1 ? "shoutout" : "shoutouts"}`
+                : "no μpoints yet";
+
+            return (
+              <button
+                key={teamMember._id}
+                type="button"
+                className="group w-full text-left"
+                onClick={() => onSelectMember(teamMember._id)}
+              >
+                <div className="card-modern transition duration-200 group-hover:-translate-y-0.5">
+                  <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                    <div className="flex items-center gap-4">
+                      <div className="avatar">
+                        {teamMember.name.charAt(0).toUpperCase()}
+                      </div>
+                      <div>
+                        <div className="flex flex-wrap items-center gap-3 text-lg font-light text-text-primary">
+                          <span>{teamMember.name}</span>
+                          {teamMember._id === currentMemberId && (
+                            <span className="text-xs text-sunset-orange bg-sunset-orange-dim px-2 py-0.5 rounded-full">
+                              you
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-sm text-text-muted">{teamMember.email}</p>
+                        <p className="text-xs text-text-dim mt-1">
+                          joined {formatJoinDate(teamMember.joinedAt)}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex flex-col items-start gap-2 text-right md:items-end">
+                      <RoleBadge role={teamMember.role} />
+                      <p className="text-xs text-text-muted">
+                        +{formatPoints(leaderboardEntry?.totalPoints ?? 0)} μpoints · {awardsSummary}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </button>
+            );
+          })
+        )}
+      </div>
+    </div>
+  );
+}
+interface ManagementTabProps {
+  members: Doc<"members">[];
+  searchTerm: string;
+  onSearchTermChange: (value: string) => void;
+  roleFilter: RoleFilter;
+  onRoleFilterChange: (value: RoleFilter) => void;
+  formatJoinDate: (timestamp: number) => string;
+  currentMemberId: Id<"members">;
+  onRoleChange: (memberId: Id<"members">, newRole: Role) => void;
+  onDeleteMember: (member: Doc<"members">) => void;
+  leaderboardByMember: Map<Id<"members">, LeaderboardEntry>;
+  formatPoints: (value: number) => string;
+}
+
+function ManagementTab({
+  members,
+  searchTerm,
+  onSearchTermChange,
+  roleFilter,
+  onRoleFilterChange,
+  formatJoinDate,
+  currentMemberId,
+  onRoleChange,
+  onDeleteMember,
+  leaderboardByMember,
+  formatPoints,
+}: ManagementTabProps) {
+  return (
+    <div className="space-y-4">
+      <MembersFilters
+        searchTerm={searchTerm}
+        onSearchTermChange={onSearchTermChange}
+        roleFilter={roleFilter}
+        onRoleFilterChange={onRoleFilterChange}
+        placeholder="search and manage teammates..."
+      />
+
+      <div className="glass-panel p-6">
+        <h4 className="text-sm font-mono text-text-secondary mb-4 uppercase tracking-widest">
+          role permissions
+        </h4>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+          <div className="flex items-start gap-3">
+            <span className="badge badge-rejected">admin</span>
+            <span className="text-text-muted">full access to every system</span>
+          </div>
+          <div className="flex items-start gap-3">
+            <span className="badge badge-pending">lead</span>
+            <span className="text-text-muted">manage meetings & purchases</span>
+          </div>
+          <div className="flex items-start gap-3">
+            <span className="badge badge-ordered">member</span>
+            <span className="text-text-muted">submit purchase requests</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="space-y-4">
+        {members.length === 0 ? (
+          <div className="glass-panel p-8 text-center text-text-muted">
+            {searchTerm || roleFilter !== "all"
+              ? "no teammates match your filters."
+              : "no teammates to manage just yet."}
+          </div>
+        ) : (
+          members.map((teamMember) => {
+            const leaderboardEntry = leaderboardByMember.get(teamMember._id);
+            const awardsSummary =
+              leaderboardEntry && leaderboardEntry.awardsCount > 0
+                ? `${leaderboardEntry.awardsCount} ${leaderboardEntry.awardsCount === 1 ? "shoutout" : "shoutouts"}`
+                : "no μpoints yet";
+            const isSelf = teamMember._id === currentMemberId;
+
+            return (
+              <div key={teamMember._id} className="card-modern">
+                <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="avatar">
+                      {teamMember.name.charAt(0).toUpperCase()}
+                    </div>
+                    <div>
+                      <div className="flex flex-wrap items-center gap-3 text-lg font-light text-text-primary">
+                        <span>{teamMember.name}</span>
+                        {isSelf && (
+                          <span className="text-xs text-sunset-orange bg-sunset-orange-dim px-2 py-0.5 rounded-full">
+                            you
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-sm text-text-muted">{teamMember.email}</p>
+                      <p className="text-xs text-text-dim mt-1">
+                        joined {formatJoinDate(teamMember.joinedAt)}
+                      </p>
+                      <p className="text-xs text-text-muted mt-1">
+                        +{formatPoints(leaderboardEntry?.totalPoints ?? 0)} μpoints · {awardsSummary}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex flex-col items-stretch gap-3 md:flex-row md:items-center md:gap-4">
+                    {isSelf ? (
+                      <div className="rounded-xl border border-border-glass px-3 py-2 text-xs text-text-muted">
+                        you can't change your own role
+                      </div>
+                    ) : (
+                      <select
+                        value={teamMember.role}
+                        onChange={(e) => onRoleChange(teamMember._id, e.target.value as Role)}
+                        className="input-modern py-2 px-4 text-sm"
+                      >
+                        <option value="member">member</option>
+                        <option value="lead">lead</option>
+                        <option value="admin">admin</option>
+                      </select>
+                    )}
+                    {!isSelf && (
+                      <button
+                        type="button"
+                        className="btn-modern btn-danger flex items-center gap-2 px-4 py-2"
+                        onClick={() => onDeleteMember(teamMember)}
+                        title="Remove member"
+                      >
+                        <Trash2 size={16} />
+                        remove
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      <div className="glass-panel p-6 border border-yellow-500/30">
+        <div className="flex items-start gap-3">
+          <AlertTriangle size={20} className="text-yellow-400 flex-shrink-0 mt-0.5" />
+          <div>
+            <h4 className="text-sm font-mono uppercase tracking-widest text-yellow-400 mb-2">admin note</h4>
+            <p className="text-sm text-text-muted">
+              roles control access across the entire system. double-check before promoting or removing a teammate. you still can't change your own role for safety.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+interface MembersFiltersProps {
+  searchTerm: string;
+  onSearchTermChange: (value: string) => void;
+  roleFilter: RoleFilter;
+  onRoleFilterChange: (value: RoleFilter) => void;
+  placeholder: string;
+}
+
+function MembersFilters({
+  searchTerm,
+  onSearchTermChange,
+  roleFilter,
+  onRoleFilterChange,
+  placeholder,
+}: MembersFiltersProps) {
+  return (
+    <div className="glass-panel p-6">
+      <div className="flex flex-col gap-4 md:flex-row">
+        <input
+          type="text"
+          placeholder={placeholder}
+          className="input-modern flex-1"
+          value={searchTerm}
+          onChange={(event) => onSearchTermChange(event.target.value)}
+        />
+        <select
+          className="input-modern md:w-48"
+          value={roleFilter}
+          onChange={(event) => onRoleFilterChange(event.target.value as RoleFilter)}
+        >
+          <option value="all">all roles</option>
+          <option value="admin">admins only</option>
+          <option value="lead">leads only</option>
+          <option value="member">members only</option>
+        </select>
+      </div>
+    </div>
+  );
+}
+
+function filterMembersList(
+  members: Doc<"members">[],
+  searchTerm: string,
+  roleFilter: RoleFilter
+) {
+  const term = searchTerm.trim().toLowerCase();
+  return members.filter((member) => {
+    const matchesSearch =
+      term.length === 0 ||
+      member.name.toLowerCase().includes(term) ||
+      member.email.toLowerCase().includes(term);
+    const matchesRole = roleFilter === "all" || member.role === roleFilter;
+    return matchesSearch && matchesRole;
+  });
+}
+
+interface RankDecoration {
+  containerClass: string;
+  rankClass: string;
+  glowClass: string;
+  icon?: LucideIcon;
+  iconClass?: string;
+}
+
+function getRankDecorations(index: number): RankDecoration {
+  if (index === 0) {
+    return {
+      containerClass:
+        "border-transparent bg-gradient-to-r from-amber-500/25 via-sunset-orange/15 to-red-500/15 shadow-[0_20px_60px_rgba(249,115,22,0.25)]",
+      rankClass: "bg-gradient-orange-red text-void-black shadow-[0_10px_30px_rgba(249,115,22,0.45)]",
+      glowClass: "from-sunset-orange/30 via-amber-500/20 to-red-500/20",
+      icon: Crown,
+      iconClass: "text-amber-200 drop-shadow-[0_0_12px_rgba(249,115,22,0.6)]",
+    };
+  }
+
+  if (index === 1) {
+    return {
+      containerClass: "border-white/20 bg-white/10 backdrop-blur",
+      rankClass: "bg-white/30 text-white",
+      glowClass: "from-white/25 via-white/10 to-transparent",
+      icon: Medal,
+      iconClass: "text-white/80 drop-shadow-[0_0_8px_rgba(255,255,255,0.4)]",
+    };
+  }
+
+  if (index === 2) {
+    return {
+      containerClass: "border-accent-purple/30 bg-accent-purple/15",
+      rankClass: "bg-accent-purple text-white/90",
+      glowClass: "from-accent-purple/25 via-indigo-500/20 to-transparent",
+      icon: Star,
+      iconClass: "text-indigo-200 drop-shadow-[0_0_8px_rgba(165,180,252,0.6)]",
+    };
+  }
+
+  return {
+    containerClass: "border-border-glass bg-glass",
+    rankClass: "bg-white/5 text-text-muted",
+    glowClass: "from-white/10 via-transparent to-transparent",
+  };
+}
+
+function RoleBadge({ role }: { role: Role }) {
   const getBadgeClass = () => {
     switch (role) {
       case "admin":
@@ -609,6 +1005,5 @@ function RoleBadge({ role }: { role: string }) {
     }
   };
 
-  return <span className={`badge ${getBadgeClass()}`}>{role}</span>;
+  return <span className={clsx("badge", getBadgeClass())}>{role}</span>;
 }
-
