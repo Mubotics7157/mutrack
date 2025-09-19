@@ -37,8 +37,18 @@ export function HomePage({ member }: HomePageProps) {
     api.members.setNotificationsEnabled
   );
   const [rsvpSubmitting, setRsvpSubmitting] = useState(false);
-  const upcomingMeetings = meetings
-    ?.filter((m: any) => new Date(m.date) >= new Date())
+  const getMeetingStartMs = (m: any): number => {
+    const start = new Date(m.date);
+    const [hours, minutes] = (m.startTime ?? "00:00")
+      .split(":")
+      .map((x: string) => parseInt(x, 10) || 0);
+    start.setHours(hours, minutes, 0, 0);
+    return start.getTime();
+  };
+
+  const upcomingMeetings = (meetings || [])
+    .filter((m: any) => getMeetingStartMs(m) >= Date.now())
+    .sort((a: any, b: any) => getMeetingStartMs(a) - getMeetingStartMs(b))
     .slice(0, 5);
 
   // Quick meeting creation with smart defaults
@@ -217,7 +227,9 @@ export function HomePage({ member }: HomePageProps) {
                     .toLowerCase()}{" "}
                   at {nextMeeting.startTime}
                   <span className="text-accent-green ml-2">
-                    {getTimeUntilMeeting(new Date(nextMeeting.date))}
+                    {getTimeUntilMeeting(
+                      new Date(getMeetingStartMs(nextMeeting))
+                    )}
                   </span>
                 </p>
                 {nextMeeting.location && (
