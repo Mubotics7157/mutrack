@@ -29,6 +29,9 @@ export function HomePage({ member }: HomePageProps) {
   const [showSelectedDate, setShowSelectedDate] = useState(false);
   const [devicePushEnabled, setDevicePushEnabled] = useState<boolean>();
 
+  const canManageMeetings =
+    member.role === "admin" || member.role === "lead";
+
   const meetings = useQuery(api.meetings.getMeetings);
   const allMembers = useQuery(api.members.getAllMembers);
   const rsvpToMeeting = useMutation(api.meetings.rsvpToMeeting);
@@ -55,6 +58,7 @@ export function HomePage({ member }: HomePageProps) {
   const [quickMeetingDate, setQuickMeetingDate] = useState<Date | null>(null);
 
   const handleQuickMeeting = (date: Date) => {
+    if (!canManageMeetings) return;
     setQuickMeetingDate(date);
     setShowNewMeeting(true);
   };
@@ -192,7 +196,7 @@ export function HomePage({ member }: HomePageProps) {
       )}
 
       {/* New Meeting Modal - Outside main content flow */}
-      {showNewMeeting && (
+      {showNewMeeting && canManageMeetings && (
         <NewMeetingModal
           onClose={() => {
             setShowNewMeeting(false);
@@ -305,7 +309,7 @@ export function HomePage({ member }: HomePageProps) {
         </div>
 
         {/* Quick Actions Bar - Only for admins/leads */}
-        {(member.role === "admin" || member.role === "lead") && (
+        {canManageMeetings && (
           <div className="flex gap-2 flex-wrap">
             <button
               className="btn-modern btn-primary flex items-center gap-2"
@@ -362,7 +366,9 @@ export function HomePage({ member }: HomePageProps) {
               setSelectedDate(date);
               setShowSelectedDate(true);
             }}
-            onDateDoubleClick={handleQuickMeeting}
+            onDateDoubleClick={
+              canManageMeetings ? handleQuickMeeting : undefined
+            }
             viewMode={viewMode}
           />
 
@@ -402,7 +408,7 @@ interface CalendarViewProps {
   meetings: any[];
   selectedDate: Date;
   onDateSelect: (date: Date) => void;
-  onDateDoubleClick: (date: Date) => void;
+  onDateDoubleClick?: (date: Date) => void;
   viewMode: "month" | "week";
 }
 
@@ -535,13 +541,13 @@ function CalendarView({
                 ${dayMeetings.length > 0 ? "has-event" : ""}
               `}
               onClick={() => date && onDateSelect(date)}
-              onDoubleClick={() => date && onDateDoubleClick(date)}
+              onDoubleClick={() => date && onDateDoubleClick?.(date)}
               style={{
                 cursor: date ? "pointer" : "default",
                 opacity: date ? 1 : 0.3,
               }}
               title={
-                date
+                date && onDateDoubleClick
                   ? `Double-click to add meeting on ${date.toLocaleDateString()}`
                   : undefined
               }
@@ -722,17 +728,25 @@ function NewMeetingModal({
     // Create date at midnight local time (not UTC)
     const meetingDate = new Date(date + "T00:00:00");
 
-    await createMeeting({
-      title,
-      date: meetingDate.getTime(),
-      startTime,
-      endTime,
-      location,
-      description,
-    });
+    try {
+      await createMeeting({
+        title,
+        date: meetingDate.getTime(),
+        startTime,
+        endTime,
+        location,
+        description,
+      });
 
-    toast.success("meeting scheduled successfully");
-    onClose();
+      toast.success("meeting scheduled successfully");
+      onClose();
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "failed to schedule meeting";
+      toast.error(message);
+    }
   };
 
   // Use React Portal to render modal at document body level
