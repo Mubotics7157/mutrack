@@ -16,6 +16,7 @@ import type {
 import type * as attendance from "../attendance.js";
 import type * as auth from "../auth.js";
 import type * as beacons from "../beacons.js";
+import type * as bounties from "../bounties.js";
 import type * as http from "../http.js";
 import type * as meetings from "../meetings.js";
 import type * as members from "../members.js";
@@ -35,6 +36,7 @@ declare const fullApi: ApiFromModules<{
   attendance: typeof attendance;
   auth: typeof auth;
   beacons: typeof beacons;
+  bounties: typeof bounties;
   http: typeof http;
   meetings: typeof meetings;
   members: typeof members;

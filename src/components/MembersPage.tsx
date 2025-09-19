@@ -13,6 +13,9 @@ import {
   ShieldCheck,
   Sparkles,
   Crown,
+  ClipboardList,
+  CheckCircle2,
+  Target,
 } from "lucide-react";
 import { Modal } from "./Modal";
 
@@ -26,6 +29,24 @@ type LeaderboardEntry = {
   totalPoints: number;
   awardsCount: number;
   lastAwardedAt: number | null;
+};
+
+type BountyEntry = {
+  _id: Id<"bounties">;
+  title: string;
+  description: string | null;
+  points: number;
+  status: "open" | "completed" | "cancelled";
+  createdAt: number;
+  createdBy: { memberId: Id<"members">; name: string };
+  completedAt: number | null;
+  completedBy: { memberId: Id<"members">; name: string } | null;
+  completionNotes: string | null;
+};
+
+type BountyBoardData = {
+  openBounties: BountyEntry[];
+  recentlyCompleted: BountyEntry[];
 };
 
 interface MembersPageProps {
@@ -43,9 +64,20 @@ export function MembersPage({ member }: MembersPageProps) {
   const [directoryRoleFilter, setDirectoryRoleFilter] = useState<string>("all");
   const [managementSearchTerm, setManagementSearchTerm] = useState("");
   const [managementRoleFilter, setManagementRoleFilter] = useState<string>("all");
+  const [isCreatingBounty, setIsCreatingBounty] = useState(false);
+  const [completingBountyId, setCompletingBountyId] =
+    useState<Id<"bounties"> | null>(null);
 
   const members = useQuery(api.members.getAllMembers) || [];
   const leaderboard = (useQuery(api.members.getLeaderboard) || []) as LeaderboardEntry[];
+  const bountyBoardQuery = useQuery(api.bounties.getBounties) as
+    | BountyBoardData
+    | undefined;
+  const bountyBoard =
+    bountyBoardQuery ?? ({
+      openBounties: [],
+      recentlyCompleted: [],
+    } as BountyBoardData);
   const selectedMemberPoints = useQuery(
     api.members.getMemberMuPoints,
     selectedMemberId ? { memberId: selectedMemberId } : "skip"
@@ -54,9 +86,12 @@ export function MembersPage({ member }: MembersPageProps) {
   const updateMemberRole = useMutation(api.members.updateMemberRole);
   const deleteMember = useMutation(api.members.deleteMember);
   const awardMuPoint = useMutation(api.members.awardMuPoint);
+  const createBounty = useMutation(api.bounties.createBounty);
+  const completeBounty = useMutation(api.bounties.completeBounty);
 
   const canManageRoles = member.role === "admin";
   const canAwardPoints = member.role === "admin" || member.role === "lead";
+  const canManageBounties = canAwardPoints;
 
   useEffect(() => {
     if (activeTab === "management" && !canManageRoles) {
@@ -215,6 +250,59 @@ export function MembersPage({ member }: MembersPageProps) {
     }
   };
 
+  const handleCreateBounty = async (input: {
+    title: string;
+    description: string | null;
+    points: number;
+  }) => {
+    try {
+      setIsCreatingBounty(true);
+      const trimmedTitle = input.title.trim();
+      const trimmedDescription = input.description?.trim();
+      await createBounty({
+        title: trimmedTitle,
+        description: trimmedDescription ? trimmedDescription : undefined,
+        points: input.points,
+      });
+      toast.success("bounty posted!");
+      return true;
+    } catch (error) {
+      console.error(error);
+      const message =
+        error instanceof Error ? error.message : "failed to create bounty";
+      toast.error(message);
+      return false;
+    } finally {
+      setIsCreatingBounty(false);
+    }
+  };
+
+  const handleCompleteBounty = async (input: {
+    bountyId: Id<"bounties">;
+    memberId: Id<"members">;
+    notes: string | null;
+  }) => {
+    try {
+      setCompletingBountyId(input.bountyId);
+      const trimmedNotes = input.notes?.trim();
+      await completeBounty({
+        bountyId: input.bountyId,
+        completedByMemberId: input.memberId,
+        completionNotes: trimmedNotes ? trimmedNotes : undefined,
+      });
+      toast.success("bounty completed and μpoints awarded!");
+      return true;
+    } catch (error) {
+      console.error(error);
+      const message =
+        error instanceof Error ? error.message : "failed to complete bounty";
+      toast.error(message);
+      return false;
+    } finally {
+      setCompletingBountyId(null);
+    }
+  };
+
   const visibleTabs = useMemo(
     () =>
       [
@@ -303,6 +391,13 @@ export function MembersPage({ member }: MembersPageProps) {
           formatPoints={formatPoints}
           formatAwardDate={formatAwardDate}
           canAwardPoints={canAwardPoints}
+          bountyBoard={bountyBoard}
+          members={members}
+          canManageBounties={canManageBounties}
+          onCreateBounty={handleCreateBounty}
+          onCompleteBounty={handleCompleteBounty}
+          isCreatingBounty={isCreatingBounty}
+          completingBountyId={completingBountyId}
         />
       )}
 
@@ -448,6 +543,17 @@ export function MembersPage({ member }: MembersPageProps) {
           </div>
         </Modal>
       )}
+      <BountyBoard
+        bountyBoard={bountyBoard}
+        members={members}
+        canManageBounties={canManageBounties}
+        onCreateBounty={onCreateBounty}
+        onCompleteBounty={onCompleteBounty}
+        formatPoints={formatPoints}
+        formatAwardDate={formatAwardDate}
+        isCreatingBounty={isCreatingBounty}
+        completingBountyId={completingBountyId}
+      />
     </div>
   );
 }
@@ -464,6 +570,21 @@ interface LeaderboardTabProps {
   formatPoints: (value: number) => string;
   formatAwardDate: (timestamp: number | null) => string;
   canAwardPoints: boolean;
+  bountyBoard: BountyBoardData;
+  members: Doc<"members">[];
+  canManageBounties: boolean;
+  onCreateBounty: (input: {
+    title: string;
+    description: string | null;
+    points: number;
+  }) => Promise<boolean>;
+  onCompleteBounty: (input: {
+    bountyId: Id<"bounties">;
+    memberId: Id<"members">;
+    notes: string | null;
+  }) => Promise<boolean>;
+  isCreatingBounty: boolean;
+  completingBountyId: Id<"bounties"> | null;
 }
 
 function LeaderboardTab({
@@ -474,6 +595,13 @@ function LeaderboardTab({
   formatPoints,
   formatAwardDate,
   canAwardPoints,
+  bountyBoard,
+  members,
+  canManageBounties,
+  onCreateBounty,
+  onCompleteBounty,
+  isCreatingBounty,
+  completingBountyId,
 }: LeaderboardTabProps) {
   const topThree = leaderboard.slice(0, 3);
   const rest = leaderboard.slice(3);
@@ -609,6 +737,353 @@ function LeaderboardTab({
           )}
         </>
       )}
+    </div>
+  );
+}
+
+interface BountyBoardProps {
+  bountyBoard: BountyBoardData;
+  members: Doc<"members">[];
+  canManageBounties: boolean;
+  onCreateBounty: (input: {
+    title: string;
+    description: string | null;
+    points: number;
+  }) => Promise<boolean>;
+  onCompleteBounty: (input: {
+    bountyId: Id<"bounties">;
+    memberId: Id<"members">;
+    notes: string | null;
+  }) => Promise<boolean>;
+  formatPoints: (value: number) => string;
+  formatAwardDate: (timestamp: number | null) => string;
+  isCreatingBounty: boolean;
+  completingBountyId: Id<"bounties"> | null;
+}
+
+function BountyBoard({
+  bountyBoard,
+  members,
+  canManageBounties,
+  onCreateBounty,
+  onCompleteBounty,
+  formatPoints,
+  formatAwardDate,
+  isCreatingBounty,
+  completingBountyId,
+}: BountyBoardProps) {
+  const { openBounties, recentlyCompleted } = bountyBoard;
+  const [newTitle, setNewTitle] = useState("");
+  const [newDescription, setNewDescription] = useState("");
+  const [newPoints, setNewPoints] = useState("5");
+  const [selectedBounty, setSelectedBounty] = useState<BountyEntry | null>(null);
+  const [selectedMemberId, setSelectedMemberId] =
+    useState<Id<"members"> | null>(null);
+  const [completionNotes, setCompletionNotes] = useState("");
+
+  const sortedMembers = useMemo(
+    () => [...members].sort((a, b) => a.name.localeCompare(b.name)),
+    [members]
+  );
+
+  const totalOpenPoints = openBounties.reduce((sum, bounty) => sum + bounty.points, 0);
+
+  const formatTimestamp = (timestamp: number) =>
+    new Date(timestamp).toLocaleString("en-US", {
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    });
+
+  const closeModal = () => {
+    setSelectedBounty(null);
+    setSelectedMemberId(null);
+    setCompletionNotes("");
+  };
+
+  const handleCreateSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const trimmedTitle = newTitle.trim();
+    if (!trimmedTitle) {
+      toast.error("enter a bounty title");
+      return;
+    }
+
+    const parsedPoints = Number(newPoints);
+    if (!Number.isFinite(parsedPoints) || parsedPoints <= 0) {
+      toast.error("enter a positive μpoint value");
+      return;
+    }
+
+    const trimmedDescription = newDescription.trim();
+    const wasCreated = await onCreateBounty({
+      title: trimmedTitle,
+      description: trimmedDescription ? trimmedDescription : null,
+      points: parsedPoints,
+    });
+
+    if (wasCreated) {
+      setNewTitle("");
+      setNewDescription("");
+      setNewPoints("5");
+    }
+  };
+
+  const handleCompleteSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!selectedBounty) return;
+    if (!selectedMemberId) {
+      toast.error("select a member to reward");
+      return;
+    }
+
+    const trimmedNotes = completionNotes.trim();
+    const wasCompleted = await onCompleteBounty({
+      bountyId: selectedBounty._id,
+      memberId: selectedMemberId,
+      notes: trimmedNotes ? trimmedNotes : null,
+    });
+
+    if (wasCompleted) {
+      closeModal();
+    }
+  };
+
+  return (
+    <div className="glass-panel p-6 space-y-6">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+        <div>
+          <div className="flex items-center gap-2 text-text-primary">
+            <ClipboardList size={20} className="text-accent-purple" />
+            <h3 className="text-xl font-light">bounty board</h3>
+          </div>
+          <p className="text-sm text-text-muted mt-2">
+            rally the team with high-impact tasks and reward the finishers with μpoints.
+          </p>
+        </div>
+        <div className="flex items-center gap-6 text-right">
+          <div>
+            <p className="text-2xl font-light text-accent-purple">
+              {openBounties.length}
+            </p>
+            <p className="text-xs text-text-dim uppercase tracking-widest">open bounties</p>
+          </div>
+          <div>
+            <p className="text-2xl font-light text-sunset-orange">
+              +{formatPoints(totalOpenPoints)}
+            </p>
+            <p className="text-xs text-text-dim uppercase tracking-widest">μpoints available</p>
+          </div>
+        </div>
+      </div>
+
+      {canManageBounties && (
+        <form onSubmit={handleCreateSubmit} className="space-y-4">
+          <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_160px]">
+            <div>
+              <label className="text-xs font-mono uppercase tracking-widest text-text-secondary mb-2 block">
+                bounty title
+              </label>
+              <input
+                type="text"
+                className="input-modern"
+                value={newTitle}
+                onChange={(event) => setNewTitle(event.target.value)}
+                placeholder="e.g. design new pit display"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-mono uppercase tracking-widest text-text-secondary mb-2 block">
+                μpoints reward
+              </label>
+              <input
+                type="number"
+                min="0"
+                step="0.5"
+                className="input-modern"
+                value={newPoints}
+                onChange={(event) => setNewPoints(event.target.value)}
+              />
+            </div>
+          </div>
+          <div>
+            <label className="text-xs font-mono uppercase tracking-widest text-text-secondary mb-2 block">
+              description
+            </label>
+            <textarea
+              className="input-modern min-h-[100px]"
+              value={newDescription}
+              onChange={(event) => setNewDescription(event.target.value)}
+              placeholder="share context, deliverables, or links..."
+            />
+          </div>
+          <div className="flex justify-end">
+            <button
+              type="submit"
+              className="btn-modern btn-secondary flex items-center gap-2 px-5 py-2.5"
+              disabled={isCreatingBounty}
+            >
+              <Target size={18} />
+              {isCreatingBounty ? "posting..." : "post bounty"}
+            </button>
+          </div>
+        </form>
+      )}
+
+      <div className="space-y-3">
+        <div className="flex items-center gap-2">
+          <h4 className="text-sm font-mono uppercase tracking-widest text-text-secondary">
+            open bounties
+          </h4>
+          {openBounties.length === 0 && (
+            <span className="text-xs text-text-dim">none yet — post one to get things rolling.</span>
+          )}
+        </div>
+        {openBounties.length > 0 && (
+          <div className="space-y-3">
+            {openBounties.map((bounty) => (
+              <div key={bounty._id} className="card-modern">
+                <div className="flex flex-col gap-4">
+                  <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+                    <div>
+                      <p className="text-lg font-light text-text-primary">{bounty.title}</p>
+                      {bounty.description && (
+                        <p className="text-sm text-text-muted mt-2">{bounty.description}</p>
+                      )}
+                      <p className="text-xs text-text-dim mt-2">
+                        posted by {bounty.createdBy.name} · {formatTimestamp(bounty.createdAt)}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-2xl font-light text-accent-purple">
+                        +{formatPoints(bounty.points)}
+                      </p>
+                      <p className="text-xs text-text-dim uppercase tracking-widest">μpoints</p>
+                    </div>
+                  </div>
+                  {canManageBounties && (
+                    <div className="flex justify-end">
+                      <button
+                        type="button"
+                        className="btn-modern btn-primary flex items-center gap-2 px-4 py-2"
+                        onClick={() => {
+                          setSelectedBounty(bounty);
+                          setSelectedMemberId(null);
+                          setCompletionNotes("");
+                        }}
+                      >
+                        <CheckCircle2 size={18} />
+                        mark complete
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="space-y-3">
+        <h4 className="text-sm font-mono uppercase tracking-widest text-text-secondary">
+          recently completed
+        </h4>
+        {recentlyCompleted.length === 0 ? (
+          <div className="border border-border-glass/70 bg-glass rounded-2xl p-4 text-sm text-text-muted">
+            no bounties have been completed yet.
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {recentlyCompleted.map((bounty) => (
+              <div
+                key={bounty._id}
+                className="border border-border-glass/60 bg-glass rounded-2xl p-4 flex flex-col gap-3"
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-text-primary font-light">{bounty.title}</p>
+                    <p className="text-xs text-text-dim mt-1">
+                      completed by {bounty.completedBy?.name ?? "unknown"} on {formatAwardDate(bounty.completedAt)}
+                    </p>
+                    {bounty.completionNotes && (
+                      <p className="text-sm text-text-muted mt-2 italic">
+                        “{bounty.completionNotes}”
+                      </p>
+                    )}
+                  </div>
+                  <div className="text-right">
+                    <p className="text-lg font-light text-sunset-orange">
+                      +{formatPoints(bounty.points)}
+                    </p>
+                    <p className="text-xs text-text-dim uppercase tracking-widest">awarded</p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <Modal
+        isOpen={selectedBounty !== null}
+        onClose={closeModal}
+        title={selectedBounty ? `complete “${selectedBounty.title}”` : "complete bounty"}
+        maxWidthClassName="max-w-lg"
+      >
+        {selectedBounty && (
+          <form onSubmit={handleCompleteSubmit} className="space-y-4">
+            <div>
+              <label className="text-xs font-mono uppercase tracking-widest text-text-secondary mb-2 block">
+                credit μpoints to
+              </label>
+              <select
+                className="input-modern"
+                value={selectedMemberId ?? ""}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  setSelectedMemberId(value ? (value as Id<"members">) : null);
+                }}
+              >
+                <option value="" disabled>
+                  select a member
+                </option>
+                {sortedMembers.map((teamMember) => (
+                  <option key={teamMember._id} value={teamMember._id}>
+                    {teamMember.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs font-mono uppercase tracking-widest text-text-secondary mb-2 block">
+                completion notes
+              </label>
+              <textarea
+                className="input-modern min-h-[120px]"
+                value={completionNotes}
+                onChange={(event) => setCompletionNotes(event.target.value)}
+                placeholder="celebrate what made this bounty complete"
+              />
+            </div>
+            <div className="flex justify-end gap-3">
+              <button type="button" className="btn-modern" onClick={closeModal}>
+                cancel
+              </button>
+              <button
+                type="submit"
+                className="btn-modern btn-primary flex items-center gap-2 px-5 py-2.5"
+                disabled={completingBountyId === selectedBounty._id}
+              >
+                <CheckCircle2 size={18} />
+                {completingBountyId === selectedBounty._id
+                  ? "completing..."
+                  : `award ${formatPoints(selectedBounty.points)} μpoints`}
+              </button>
+            </div>
+          </form>
+        )}
+      </Modal>
     </div>
   );
 }
