@@ -113,6 +113,16 @@ const applicationTables = {
     .index("by_member", ["memberId"])
     .index("by_endpoint", ["endpoint"]),
 
+  muPoints: defineTable({
+    memberId: v.id("members"),
+    assignedByMemberId: v.id("members"),
+    points: v.number(),
+    reason: v.string(),
+    createdAt: v.number(),
+  })
+    .index("by_member", ["memberId"])
+    .index("by_assigned_by", ["assignedByMemberId"]),
+
   vendors: defineTable({
     name: v.string(),
   }).index("by_name", ["name"]),
