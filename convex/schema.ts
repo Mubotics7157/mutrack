@@ -74,6 +74,7 @@ const applicationTables = {
     link: v.string(),
     quantity: v.number(),
     vendorId: v.id("vendors"),
+    productId: v.optional(v.id("products")),
     status: v.union(
       v.literal("pending"),
       v.literal("approved"),
@@ -83,8 +84,12 @@ const applicationTables = {
     ),
     requestedBy: v.id("users"),
     requestedAt: v.number(),
-    approvedBy: v.optional(v.id("users")),
-    approvedAt: v.optional(v.number()),
+    approvals: v.array(
+      v.object({
+        memberId: v.id("members"),
+        approvedAt: v.number(),
+      })
+    ),
     rejectionReason: v.optional(v.string()),
   })
     .index("by_status", ["status"])
@@ -145,6 +150,22 @@ const applicationTables = {
   vendors: defineTable({
     name: v.string(),
   }).index("by_name", ["name"]),
+
+  products: defineTable({
+    name: v.string(),
+    normalizedName: v.string(),
+    description: v.string(),
+    link: v.string(),
+    estimatedCost: v.number(),
+    quantity: v.number(),
+    vendorId: v.id("vendors"),
+    createdBy: v.id("users"),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_normalized_name", ["normalizedName"])
+    .index("by_vendor", ["vendorId"])
+    .index("by_updated_at", ["updatedAt"]),
 };
 
 export default defineSchema({

@@ -14,6 +14,15 @@ export const getPurchaseRequests = query({
       .order("desc")
       .collect();
 
+    const memberCache = new Map<string, Awaited<ReturnType<typeof ctx.db.get>> | null>();
+
+    const loadMemberById = async (memberId: string) => {
+      if (!memberCache.has(memberId)) {
+        memberCache.set(memberId, await ctx.db.get(memberId as any));
+      }
+      return memberCache.get(memberId);
+    };
+
     // Get member info for each request
     const requestsWithMembers = await Promise.all(
       requests.map(async (request) => {
@@ -22,20 +31,22 @@ export const getPurchaseRequests = query({
           .withIndex("by_user", (q) => q.eq("userId", request.requestedBy))
           .unique();
 
-        let approver = null;
-        if (request.approvedBy) {
-          approver = await ctx.db
-            .query("members")
-            .withIndex("by_user", (q) => q.eq("userId", request.approvedBy!))
-            .unique();
-        }
-
         const vendor = await ctx.db.get(request.vendorId);
+
+        const approvalsWithNames = await Promise.all(
+          (request.approvals ?? []).map(async (approval) => {
+            const member = await loadMemberById(approval.memberId);
+            return {
+              ...approval,
+              memberName: member?.name || "Unknown",
+            };
+          })
+        );
 
         return {
           ...request,
+          approvals: approvalsWithNames,
           requesterName: requester?.name || "Unknown",
-          approverName: approver?.name || null,
           vendorName: vendor?.name || "Unknown",
         };
       })
@@ -54,6 +65,7 @@ export const createPurchaseRequest = mutation({
     link: v.string(),
     quantity: v.number(),
     vendorId: v.id("vendors"),
+    productId: v.optional(v.id("products")),
   },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
@@ -64,6 +76,7 @@ export const createPurchaseRequest = mutation({
       status: "pending",
       requestedBy: userId,
       requestedAt: Date.now(),
+      approvals: [],
     });
   },
 });
@@ -87,10 +100,41 @@ export const updateRequestStatus = mutation({
       throw new Error("Only admins and leads can approve/reject requests");
     }
 
+    const request = await ctx.db.get(args.requestId);
+    if (!request) {
+      throw new Error("Request not found");
+    }
+
+    if (args.status === "approved") {
+      if (request.status === "rejected") {
+        throw new Error("Cannot approve a rejected request");
+      }
+
+      const existingApprovals = request.approvals ?? [];
+      const alreadyApproved = existingApprovals.some(
+        (approval) => approval.memberId === member._id
+      );
+
+      if (alreadyApproved) {
+        if (request.status !== "approved") {
+          await ctx.db.patch(args.requestId, { status: "approved" });
+        }
+        return;
+      }
+
+      await ctx.db.patch(args.requestId, {
+        status: "approved",
+        approvals: [
+          ...existingApprovals,
+          { memberId: member._id, approvedAt: Date.now() },
+        ],
+        rejectionReason: undefined,
+      });
+      return;
+    }
+
     await ctx.db.patch(args.requestId, {
-      status: args.status,
-      approvedBy: userId,
-      approvedAt: Date.now(),
+      status: "rejected",
       rejectionReason: args.rejectionReason,
     });
   },
