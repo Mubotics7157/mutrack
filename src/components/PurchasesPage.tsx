@@ -11,6 +11,8 @@ interface PurchasesPageProps {
 
 type ViewType = "requests" | "orders";
 
+type ProductSuggestion = Doc<"products"> & { vendorName: string };
+
 export function PurchasesPage({ member }: PurchasesPageProps) {
   const [activeView, setActiveView] = useState<ViewType>("requests");
   const [showRequestForm, setShowRequestForm] = useState(false);
@@ -49,6 +51,10 @@ export function PurchasesPage({ member }: PurchasesPageProps) {
     vendorName: "",
   });
 
+  const [selectedProduct, setSelectedProduct] = useState<ProductSuggestion | null>(
+    null
+  );
+
   const [orderForm, setOrderForm] = useState({
     vendor: "",
     cartLink: "",
@@ -56,26 +62,62 @@ export function PurchasesPage({ member }: PurchasesPageProps) {
     notes: "",
   });
 
+  const productResults =
+    (useQuery(api.purchases.searchProducts, { q: requestForm.title }) as
+      | ProductSuggestion[]
+      | undefined) || [];
   const vendorResults =
     useQuery(api.purchases.searchVendors, { q: requestForm.vendorName }) || [];
   const ensureVendor = useMutation(api.purchases.ensureVendor);
+  const ensureProduct = useMutation(api.purchases.ensureProduct);
   const vendorResultsForOrder =
     useQuery(api.purchases.searchVendors, { q: orderForm.vendor }) || [];
+
+  const handleSelectProduct = (product: ProductSuggestion) => {
+    setSelectedProduct(product);
+    setRequestForm((prev) => ({
+      ...prev,
+      title: product.name,
+      description: product.description,
+      estimatedCost: product.estimatedCost.toString(),
+      link: product.link,
+      quantity: product.quantity.toString(),
+      vendorName: product.vendorName,
+    }));
+  };
 
   const handleRequestSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      const estimatedCost = parseFloat(requestForm.estimatedCost || "0");
+      const quantity = parseInt(requestForm.quantity || "1", 10);
+
+      if (Number.isNaN(estimatedCost) || Number.isNaN(quantity)) {
+        toast.error("please provide valid cost and quantity");
+        return;
+      }
+
       const vendorId = await ensureVendor({
         name: requestForm.vendorName.trim(),
+      });
+      const productId = await ensureProduct({
+        productId: selectedProduct?._id,
+        name: requestForm.title,
+        description: requestForm.description,
+        link: requestForm.link,
+        estimatedCost,
+        quantity,
+        vendorId,
       });
       await createRequest({
         title: requestForm.title,
         description: requestForm.description,
-        estimatedCost: parseFloat(requestForm.estimatedCost),
+        estimatedCost,
         priority: requestForm.priority,
         link: requestForm.link,
-        quantity: parseInt(requestForm.quantity || "1", 10),
+        quantity,
         vendorId,
+        productId,
       });
       toast.success("purchase request submitted");
       setRequestForm({
@@ -87,6 +129,7 @@ export function PurchasesPage({ member }: PurchasesPageProps) {
         quantity: "1",
         vendorName: "",
       });
+      setSelectedProduct(null);
       setShowRequestForm(false);
     } catch (error) {
       toast.error("failed to submit request");
@@ -249,16 +292,48 @@ export function PurchasesPage({ member }: PurchasesPageProps) {
             <label className="block mb-2 text-sm text-text-muted">
               item/service title *
             </label>
-            <input
-              type="text"
-              value={requestForm.title}
-              onChange={(e) =>
-                setRequestForm({ ...requestForm, title: e.target.value })
-              }
-              className="input-modern"
-              required
-              placeholder="e.g., arduino uno r3, workshop tools"
-            />
+            <div className="relative">
+              <input
+                type="text"
+                value={requestForm.title}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setRequestForm({ ...requestForm, title: value });
+                  if (selectedProduct && value !== selectedProduct.name) {
+                    setSelectedProduct(null);
+                  }
+                }}
+                className="input-modern"
+                required
+                placeholder="e.g., arduino uno r3, workshop tools"
+              />
+              {requestForm.title &&
+                productResults.length > 0 &&
+                (!selectedProduct || selectedProduct.name !== requestForm.title) && (
+                <div className="absolute z-10 mt-1 w-full bg-void-black/95 border border-border-glass rounded-xl max-h-60 overflow-auto shadow-lg">
+                  {productResults.map((product) => (
+                    <button
+                      type="button"
+                      key={product._id}
+                      onClick={() => handleSelectProduct(product)}
+                      className="w-full px-3 py-2 text-left hover:bg-white/10 transition"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-sm text-text-primary">
+                          {product.name}
+                        </span>
+                        <span className="text-xs text-text-muted">
+                          ${product.estimatedCost.toFixed(2)}
+                        </span>
+                      </div>
+                      <div className="mt-1 text-[11px] text-text-dim">
+                        {product.vendorName} • qty {product.quantity}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
 
           <div>
@@ -567,6 +642,7 @@ export function PurchasesPage({ member }: PurchasesPageProps) {
           requests={requests}
           canManageOrders={canManageOrders}
           onStatusUpdate={handleStatusUpdate}
+          currentMemberId={member._id}
         />
       ) : (
         <OrdersList
@@ -587,12 +663,14 @@ interface RequestsListProps {
     status: "approved" | "rejected",
     reason?: string
   ) => void;
+  currentMemberId: string;
 }
 
 function RequestsList({
   requests,
   canManageOrders,
   onStatusUpdate,
+  currentMemberId,
 }: RequestsListProps) {
   if (requests.length === 0) {
     return (
@@ -607,61 +685,108 @@ function RequestsList({
 
   return (
     <div className="space-y-4">
-      {requests.map((request) => (
-        <div key={request._id} className="card-modern">
-          <div className="flex flex-col md:flex-row justify-between items-start gap-4">
-            <div className="flex-1">
-              <h4 className="text-lg font-light mb-2">{request.title}</h4>
-              <p className="text-sm text-text-muted mb-3">
-                {request.description}
-              </p>
+      {requests.map((request) => {
+        const approvals: any[] = request.approvals || [];
+        const hasApproved = approvals.some(
+          (approval) => approval.memberId === currentMemberId
+        );
+        const statusAllowsApproval =
+          request.status === "pending" || request.status === "approved";
+        const canApprove =
+          canManageOrders &&
+          statusAllowsApproval &&
+          !hasApproved &&
+          request.status !== "ordered" &&
+          request.status !== "fulfilled" &&
+          request.status !== "rejected";
+        const canReject = canManageOrders && request.status === "pending";
+        const showActions = canApprove || canReject || hasApproved;
 
-              <div className="flex flex-wrap items-center gap-3">
-                <StatusBadge status={request.status} />
-                <PriorityBadge priority={request.priority} />
-                <span className="text-sm text-text-secondary">
-                  ${request.estimatedCost.toFixed(2)}
-                </span>
-                <span className="text-sm text-text-dim">
-                  by {request.requesterName}
-                </span>
+        return (
+          <div key={request._id} className="card-modern">
+            <div className="flex flex-col md:flex-row justify-between items-start gap-4">
+              <div className="flex-1">
+                <h4 className="text-lg font-light mb-2">{request.title}</h4>
+                <p className="text-sm text-text-muted mb-3">
+                  {request.description}
+                </p>
+
+                <div className="flex flex-wrap items-center gap-3">
+                  <StatusBadge status={request.status} />
+                  <PriorityBadge priority={request.priority} />
+                  <span className="text-sm text-text-secondary">
+                    ${request.estimatedCost.toFixed(2)}
+                  </span>
+                  <span className="text-sm text-text-dim">
+                    by {request.requesterName}
+                  </span>
+                </div>
+
+                {approvals.length > 0 && (
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <span className="text-[11px] uppercase tracking-wide text-text-dim">
+                      approvals
+                    </span>
+                    {approvals.map((approval: any) => (
+                      <span
+                        key={approval.memberId}
+                        className={`px-2 py-1 rounded-full text-[11px] ${
+                          approval.memberId === currentMemberId
+                            ? "bg-sunset-orange/20 text-sunset-orange"
+                            : "bg-white/5 text-text-muted"
+                        }`}
+                      >
+                        {approval.memberName}
+                      </span>
+                    ))}
+                  </div>
+                )}
+
+                {request.status === "rejected" && request.rejectionReason && (
+                  <div className="mt-3 p-3 bg-error-red/10 border border-error-red/30 rounded-xl">
+                    <p className="text-sm text-error-red">
+                      <strong>rejection reason:</strong> {request.rejectionReason}
+                    </p>
+                  </div>
+                )}
               </div>
 
-              {request.status === "rejected" && request.rejectionReason && (
-                <div className="mt-3 p-3 bg-error-red/10 border border-error-red/30 rounded-xl">
-                  <p className="text-sm text-error-red">
-                    <strong>rejection reason:</strong> {request.rejectionReason}
-                  </p>
+              {showActions && (
+                <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+                  {canApprove && (
+                    <button
+                      onClick={() => onStatusUpdate(request._id, "approved")}
+                      className="btn-modern btn-success"
+                    >
+                      approve
+                    </button>
+                  )}
+                  {canReject && (
+                    <button
+                      onClick={() => {
+                        const reason = prompt("rejection reason (optional):");
+                        onStatusUpdate(
+                          request._id,
+                          "rejected",
+                          reason || undefined
+                        );
+                      }}
+                      className="btn-modern btn-danger"
+                    >
+                      reject
+                    </button>
+                  )}
+                  {hasApproved && !canApprove && (
+                    <span className="text-xs text-text-muted">
+                      you approved this
+                    </span>
+                  )}
                 </div>
               )}
             </div>
-
-            {canManageOrders && request.status === "pending" && (
-              <div className="flex gap-2">
-                <button
-                  onClick={() => onStatusUpdate(request._id, "approved")}
-                  className="btn-modern btn-success"
-                >
-                  approve
-                </button>
-                <button
-                  onClick={() => {
-                    const reason = prompt("rejection reason (optional):");
-                    onStatusUpdate(
-                      request._id,
-                      "rejected",
-                      reason || undefined
-                    );
-                  }}
-                  className="btn-modern btn-danger"
-                >
-                  reject
-                </button>
-              </div>
-            )}
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

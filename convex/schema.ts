@@ -84,11 +84,15 @@ const applicationTables = {
     ),
     requestedBy: v.id("users"),
     requestedAt: v.number(),
-    approvals: v.array(
-      v.object({
-        memberId: v.id("members"),
-        approvedAt: v.number(),
-      })
+    approvedBy: v.optional(v.id("users")),
+    approvedAt: v.optional(v.number()),
+    approvals: v.optional(
+      v.array(
+        v.object({
+          memberId: v.id("members"),
+          approvedAt: v.number(),
+        })
+      )
     ),
     rejectionReason: v.optional(v.string()),
   })
