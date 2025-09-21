@@ -2,6 +2,72 @@ import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
 
+async function requireUserId(ctx: any) {
+  const userId = await getAuthUserId(ctx);
+  if (!userId) throw new Error("Not authenticated");
+  return userId;
+}
+
+async function requireOrderManager(ctx: any, userId: string) {
+  const member = await ctx.db
+    .query("members")
+    .withIndex("by_user", (q: any) => q.eq("userId", userId))
+    .unique();
+
+  if (!member || (member.role !== "admin" && member.role !== "lead")) {
+    throw new Error("Only admins and leads can manage purchase orders");
+  }
+
+  return member;
+}
+
+async function upsertOrderPlacement(
+  ctx: any,
+  order: any,
+  userId: string,
+  {
+    confirmationImageId,
+    placementNotes,
+    totalCost,
+  }: {
+    confirmationImageId?: string;
+    placementNotes?: string;
+    totalCost?: number;
+  }
+) {
+  const patch: Record<string, any> = {};
+
+  if (typeof totalCost === "number" && !Number.isNaN(totalCost)) {
+    patch.totalCost = totalCost;
+  }
+
+  if (confirmationImageId !== undefined) {
+    patch.confirmationImageId = confirmationImageId;
+  }
+
+  if (placementNotes !== undefined) {
+    patch.placementNotes = placementNotes.trim() === "" ? undefined : placementNotes;
+  }
+
+  const shouldMarkPlaced = order.status !== "placed";
+  if (shouldMarkPlaced) {
+    patch.status = "placed";
+    patch.placedAt = Date.now();
+    patch.placedBy = userId;
+  } else {
+    // preserve first placer details
+    patch.status = "placed";
+    if (!order.placedAt) {
+      patch.placedAt = Date.now();
+    }
+    if (!order.placedBy) {
+      patch.placedBy = userId;
+    }
+  }
+
+  await ctx.db.patch(order._id, patch);
+}
+
 export const getPurchaseRequests = query({
   args: {},
   handler: async (ctx) => {
@@ -114,6 +180,15 @@ export const getPurchaseOrders = query({
           .withIndex("by_user", (q) => q.eq("userId", order.orderedBy))
           .unique();
 
+        let placerName: string | null = null;
+        if (order.placedBy) {
+          const placer = await ctx.db
+            .query("members")
+            .withIndex("by_user", (q) => q.eq("userId", order.placedBy!))
+            .unique();
+          placerName = placer?.name || null;
+        }
+
         let confirmationImageUrl = null;
         if (order.confirmationImageId) {
           confirmationImageUrl = await ctx.storage.getUrl(
@@ -125,6 +200,8 @@ export const getPurchaseOrders = query({
           ...order,
           requests: requests.filter(Boolean),
           ordererName: orderer?.name || "Unknown",
+          placedByName: placerName,
+          status: order.status || "placed",
           confirmationImageUrl,
         };
       })
@@ -143,17 +220,8 @@ export const createPurchaseOrder = mutation({
     notes: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
-
-    const member = await ctx.db
-      .query("members")
-      .withIndex("by_user", (q) => q.eq("userId", userId))
-      .unique();
-
-    if (!member || (member.role !== "admin" && member.role !== "lead")) {
-      throw new Error("Only admins and leads can create purchase orders");
-    }
+    const userId = await requireUserId(ctx);
+    await requireOrderManager(ctx, userId);
 
     // Update requests status to ordered
     for (const requestId of args.requestIds) {
@@ -164,6 +232,7 @@ export const createPurchaseOrder = mutation({
       ...args,
       orderedBy: userId,
       orderedAt: Date.now(),
+      status: "pending",
     });
   },
 });
@@ -178,35 +247,43 @@ export const generateUploadUrl = mutation({
   },
 });
 
+export const markPurchaseOrderPlaced = mutation({
+  args: {
+    orderId: v.id("purchaseOrders"),
+    confirmationImageId: v.optional(v.id("_storage")),
+    placementNotes: v.optional(v.string()),
+    totalCost: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const userId = await requireUserId(ctx);
+    await requireOrderManager(ctx, userId);
+
+    const order = await ctx.db.get(args.orderId);
+    if (!order) throw new Error("Order not found");
+
+    await upsertOrderPlacement(ctx, order, userId, {
+      confirmationImageId: args.confirmationImageId,
+      placementNotes: args.placementNotes,
+      totalCost: args.totalCost,
+    });
+  },
+});
+
 export const updateOrderConfirmation = mutation({
   args: {
     orderId: v.id("purchaseOrders"),
     confirmationImageId: v.id("_storage"),
   },
   handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
+    const userId = await requireUserId(ctx);
+    await requireOrderManager(ctx, userId);
 
-    const member = await ctx.db
-      .query("members")
-      .withIndex("by_user", (q) => q.eq("userId", userId))
-      .unique();
+    const order = await ctx.db.get(args.orderId);
+    if (!order) throw new Error("Order not found");
 
-    if (!member || (member.role !== "admin" && member.role !== "lead")) {
-      throw new Error("Only admins and leads can update order confirmations");
-    }
-
-    await ctx.db.patch(args.orderId, {
+    await upsertOrderPlacement(ctx, order, userId, {
       confirmationImageId: args.confirmationImageId,
     });
-
-    // Update the related requests to fulfilled
-    const order = await ctx.db.get(args.orderId);
-    if (order) {
-      for (const requestId of order.requestIds) {
-        await ctx.db.patch(requestId, { status: "fulfilled" });
-      }
-    }
   },
 });
 

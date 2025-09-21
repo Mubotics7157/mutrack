@@ -95,10 +95,14 @@ const applicationTables = {
     vendor: v.string(),
     cartLink: v.optional(v.string()),
     totalCost: v.number(),
+    status: v.union(v.literal("pending"), v.literal("placed")),
     orderedBy: v.id("users"),
     orderedAt: v.number(),
+    placedBy: v.optional(v.id("users")),
+    placedAt: v.optional(v.number()),
     confirmationImageId: v.optional(v.id("_storage")),
     notes: v.optional(v.string()),
+    placementNotes: v.optional(v.string()),
   }).index("by_orderer", ["orderedBy"]),
 
   pushSubscriptions: defineTable({
