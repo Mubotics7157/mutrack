@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { Doc } from "../../convex/_generated/dataModel";
@@ -13,6 +13,7 @@ import ProductAutocomplete, {
   ProductSuggestion,
 } from "./purchases/ProductAutocomplete";
 import { VendorAutocomplete } from "./purchases/VendorAutocomplete";
+import { BulkRequestForm } from "./purchases/BulkRequestForm";
 
 interface PurchasesPageProps {
   member: Doc<"members">;
@@ -51,9 +52,42 @@ export function PurchasesPage({ member }: PurchasesPageProps) {
     useState<RequestFormState>(INITIAL_REQUEST_FORM);
   const [selectedProduct, setSelectedProduct] =
     useState<ProductSuggestion | null>(null);
+  const [showGuide, setShowGuide] = useState(false);
+  const [requestFormMode, setRequestFormMode] =
+    useState<"single" | "bulk">("single");
+
+  const workflowGuide = [
+    {
+      title: "submit a purchase request (any member)",
+      body: "Requests should cover a single item or cart, like a McMaster cart submission or a heat gun off Amazon.",
+    },
+    {
+      title: "use saved vendors and products",
+      body: "Pick the vendor you plan to buy from - vendors are the companies we order from - and the product field will auto-fill from anything we've bought before. Reusing these saves time and keeps details consistent.",
+    },
+    {
+      title: "open an order when you're ready to buy (lindsey/admin)",
+      body: "Once the needed requests are approved, bundle them into a purchase order. Orders almost always map to one vendor (for example, a single Amazon checkout) and capture the total cost, cart link, and any notes the buyer needs.",
+    },
+    {
+      title:
+        "mark the order as placed and close the loop (almost always Eichinger)",
+      body: "Every new order starts in the pending state until you confirm the checkout happened. You can upload the confirmation email or receipt and add notes or the final total so everyone knows it's handled.",
+      points: [
+        "Pending -> waiting for the purchaser to check out.",
+        "Placed -> confirmation uploaded or notes added, with the final total recorded when you have it.",
+      ],
+    },
+  ];
 
   const requests = useQuery(api.purchases.getPurchaseRequests) || [];
   const orders = useQuery(api.purchases.getPurchaseOrders) || [];
+
+  useEffect(() => {
+    if (showRequestForm) {
+      setRequestFormMode("single");
+    }
+  }, [showRequestForm]);
 
   const createRequest = useMutation(api.purchases.createPurchaseRequest);
   const updateRequestStatus = useMutation(api.purchases.updateRequestStatus);
@@ -69,10 +103,34 @@ export function PurchasesPage({ member }: PurchasesPageProps) {
     () => ({
       pending: requests.filter((r) => r.status === "pending").length,
       approved: requests.filter((r) => r.status === "approved").length,
-      totalOrders: orders.length,
+      placed: orders.filter((o) => o.status === "placed").length,
+      awaitingPlacement: orders.filter((o) => o.status !== "placed").length,
     }),
     [requests, orders]
   );
+
+  const heroStats = [
+    {
+      label: "pending requests",
+      value: stats.pending,
+      color: "text-amber-300",
+    },
+    {
+      label: "approved queue",
+      value: stats.approved,
+      color: "text-emerald-300",
+    },
+    {
+      label: "awaiting placement",
+      value: stats.awaitingPlacement,
+      color: "text-sky-300",
+    },
+    {
+      label: "orders placed",
+      value: stats.placed,
+      color: "text-rose-300",
+    },
+  ];
 
   const sortedRequests = useMemo(() => {
     const copy = [...requests];
@@ -180,7 +238,6 @@ export function PurchasesPage({ member }: PurchasesPageProps) {
       toast.success("purchase request submitted");
       setRequestForm(INITIAL_REQUEST_FORM);
       setSelectedProduct(null);
-      setProductSearch("");
       setShowRequestForm(false);
     } catch (error) {
       toast.error("failed to submit request");
@@ -281,47 +338,93 @@ export function PurchasesPage({ member }: PurchasesPageProps) {
 
   return (
     <div className="space-y-6">
-      {/* Header with Stats */}
-      <div className="glass-panel p-8">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-6">
-          <div>
-            <h1 className="text-3xl font-light mb-2">purchase management</h1>
-            <p className="text-text-muted">
-              track requests and orders for team equipment
-            </p>
+      {/* Hero header and workflow overview */}
+      <div className="glass-panel p-8 space-y-6">
+        <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
+          <div className="space-y-3">
+            <div>
+              <h1 className="text-3xl font-light">purchase management</h1>
+              <p className="text-text-muted">
+                keep the team supplied and every order transparent
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowGuide((prev) => !prev)}
+              className="inline-flex items-center gap-2 text-xs font-mono uppercase tracking-wide text-sunset-orange hover:text-sunset-orange/80 transition-colors"
+              aria-expanded={showGuide}
+            >
+              <span>how does purchasing work</span>
+              <svg
+                className={`h-3 w-3 transition-transform ${showGuide ? "rotate-180" : ""}`}
+                viewBox="0 0 12 12"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M3 5L6 8L9 5"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </button>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4 md:gap-6 w-full md:w-auto">
+            {heroStats.map((stat) => (
+              <div key={stat.label} className="card-modern p-4 text-left">
+                <div className={`text-2xl font-light ${stat.color}`}>
+                  {stat.value}
+                </div>
+                <div className="text-xs uppercase tracking-wide text-text-muted mt-1">
+                  {stat.label}
+                </div>
+              </div>
+            ))}
           </div>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-          <div className="card-modern text-center">
-            <div className="text-2xl font-light text-yellow-400 mb-1">
-              {stats.pending}
+        {showGuide && (
+          <div className="card-modern p-6 md:p-8 space-y-6 leading-relaxed">
+            <div className="space-y-2">
+              <h2 className="text-xl font-semibold text-text-primary">
+                how the purchasing flow works
+              </h2>
+              <p className="text-sm text-text-muted">
+                Keep this checklist in mind so requests move smoothly from an
+                idea to a confirmed order.
+              </p>
             </div>
-            <div className="text-sm text-text-muted">pending</div>
+
+            {workflowGuide.map((section) => (
+              <section key={section.title} className="space-y-3">
+                <h3 className="text-sm font-semibold uppercase tracking-wide text-text-secondary">
+                  {section.title}
+                </h3>
+                <p className="text-sm text-text-muted">{section.body}</p>
+                {section.points && (
+                  <ul className="list-disc pl-5 text-sm text-text-muted space-y-1">
+                    {section.points.map((point) => (
+                      <li key={point}>{point}</li>
+                    ))}
+                  </ul>
+                )}
+              </section>
+            ))}
           </div>
-          <div className="card-modern text-center">
-            <div className="text-2xl font-light text-accent-green mb-1">
-              {stats.approved}
-            </div>
-            <div className="text-sm text-text-muted">approved</div>
-          </div>
-          <div className="card-modern text-center">
-            <div className="text-2xl font-light text-blue-400 mb-1">
-              {stats.totalOrders}
-            </div>
-            <div className="text-sm text-text-muted">orders</div>
-          </div>
-        </div>
+        )}
       </div>
 
       {/* View Toggle and Actions */}
       <div className="glass-panel p-6">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div className="flex flex-col gap-3">
-            <div className="flex gap-1 p-1 bg-glass backdrop-blur-md border border-border-glass rounded-full">
+            <div className="flex flex-nowrap gap-1 p-1 bg-glass backdrop-blur-md border border-border-glass rounded-full w-full">
               <button
                 onClick={() => setActiveView("requests")}
-                className={`px-6 py-2 rounded-full text-sm font-mono transition-all ${
+                className={`flex-1 px-3 md:px-6 py-2 rounded-full text-xs md:text-sm font-mono text-center whitespace-nowrap transition-all ${
                   activeView === "requests"
                     ? "bg-sunset-orange text-void-black"
                     : "text-text-muted hover:text-text-primary"
@@ -331,7 +434,7 @@ export function PurchasesPage({ member }: PurchasesPageProps) {
               </button>
               <button
                 onClick={() => setActiveView("orders")}
-                className={`px-6 py-2 rounded-full text-sm font-mono transition-all ${
+                className={`flex-1 px-3 md:px-6 py-2 rounded-full text-xs md:text-sm font-mono text-center whitespace-nowrap transition-all ${
                   activeView === "orders"
                     ? "bg-sunset-orange text-void-black"
                     : "text-text-muted hover:text-text-primary"
@@ -341,7 +444,7 @@ export function PurchasesPage({ member }: PurchasesPageProps) {
               </button>
               <button
                 onClick={() => setActiveView("summary")}
-                className={`px-6 py-2 rounded-full text-sm font-mono transition-all ${
+                className={`flex-1 px-3 md:px-6 py-2 rounded-full text-xs md:text-sm font-mono text-center whitespace-nowrap transition-all ${
                   activeView === "summary"
                     ? "bg-sunset-orange text-void-black"
                     : "text-text-muted hover:text-text-primary"
@@ -412,148 +515,186 @@ export function PurchasesPage({ member }: PurchasesPageProps) {
           setShowRequestForm(false);
           setRequestForm(INITIAL_REQUEST_FORM);
           setSelectedProduct(null);
+          setRequestFormMode("single");
         }}
-        title="new purchase request"
-        maxWidthClassName="max-w-2xl"
+        title={
+          requestFormMode === "single"
+            ? "new purchase request"
+            : "bulk add requests"
+        }
+        maxWidthClassName={
+          requestFormMode === "single" ? "max-w-2xl" : "max-w-5xl"
+        }
       >
-        <form onSubmit={handleRequestSubmit} className="space-y-4">
-          <ProductAutocomplete
-            label="item/service *"
-            value={requestForm.title}
-            onChange={(value) => {
-              setRequestForm({ ...requestForm, title: value });
-              if (selectedProduct && value !== selectedProduct.name) {
-                setSelectedProduct(null);
-              }
-            }}
-            onProductSelect={handleSelectProduct}
-            vendorFilter={requestForm.vendorName}
-          />
-
-          <div>
-            <label className="block mb-2 text-sm text-text-muted">
-              description *
-            </label>
-            <textarea
-              value={requestForm.description}
-              onChange={(e) =>
-                setRequestForm({
-                  ...requestForm,
-                  description: e.target.value,
-                })
-              }
-              className="input-modern resize-none"
-              rows={3}
-              required
-              placeholder="detailed description, specifications, intended use..."
+        {requestFormMode === "single" ? (
+          <form onSubmit={handleRequestSubmit} className="space-y-4">
+            <ProductAutocomplete
+              label="item/service *"
+              value={requestForm.title}
+              onChange={(value) => {
+                setRequestForm({ ...requestForm, title: value });
+                if (selectedProduct && value !== selectedProduct.name) {
+                  setSelectedProduct(null);
+                }
+              }}
+              onProductSelect={handleSelectProduct}
+              vendorFilter={requestForm.vendorName}
             />
-          </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block mb-2 text-sm text-text-muted">
-                estimated cost *
+                description *
               </label>
-              <input
-                type="number"
-                step="0.01"
-                value={requestForm.estimatedCost}
+              <textarea
+                value={requestForm.description}
                 onChange={(e) =>
                   setRequestForm({
                     ...requestForm,
-                    estimatedCost: e.target.value,
+                    description: e.target.value,
                   })
                 }
-                className="input-modern"
+                className="input-modern resize-none"
+                rows={3}
                 required
-                placeholder="0.00"
+                placeholder="detailed description, specifications, intended use..."
               />
             </div>
 
-            <div>
-              <label className="block mb-2 text-sm text-text-muted">
-                priority
-              </label>
-              <select
-                value={requestForm.priority}
-                onChange={(e) =>
-                  setRequestForm({
-                    ...requestForm,
-                    priority: e.target.value as any,
-                  })
-                }
-                className="input-modern"
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block mb-2 text-sm text-text-muted">
+                  estimated cost *
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={requestForm.estimatedCost}
+                  onChange={(e) =>
+                    setRequestForm({
+                      ...requestForm,
+                      estimatedCost: e.target.value,
+                    })
+                  }
+                  className="input-modern"
+                  required
+                  placeholder="0.00"
+                />
+              </div>
+
+              <div>
+                <label className="block mb-2 text-sm text-text-muted">
+                  priority
+                </label>
+                <select
+                  value={requestForm.priority}
+                  onChange={(e) =>
+                    setRequestForm({
+                      ...requestForm,
+                      priority: e.target.value as any,
+                    })
+                  }
+                  className="input-modern"
+                >
+                  <option value="low">low</option>
+                  <option value="medium">medium</option>
+                  <option value="high">high</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block mb-2 text-sm text-text-muted">
+                  item link *
+                </label>
+                <input
+                  type="url"
+                  value={requestForm.link}
+                  onChange={(e) =>
+                    setRequestForm({ ...requestForm, link: e.target.value })
+                  }
+                  className="input-modern"
+                  required
+                  placeholder="https://..."
+                />
+              </div>
+
+              <div>
+                <label className="block mb-2 text-sm text-text-muted">
+                  quantity *
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  step={1}
+                  value={requestForm.quantity}
+                  onChange={(e) =>
+                    setRequestForm({ ...requestForm, quantity: e.target.value })
+                  }
+                  className="input-modern"
+                  required
+                  placeholder="1"
+                />
+              </div>
+            </div>
+
+            <VendorAutocomplete
+              label="vendor"
+              value={requestForm.vendorName}
+              onChange={(name) => {
+                setSelectedProduct(null);
+                setRequestForm({ ...requestForm, vendorName: name });
+              }}
+              onSelect={(name) =>
+                setRequestForm({ ...requestForm, vendorName: name })
+              }
+              quickPicks={vendorQuickPicks}
+              required
+            />
+
+            <div className="flex flex-col gap-3 pt-4">
+              <div className="flex gap-4">
+                <button type="submit" className="btn-modern btn-primary flex-1">
+                  submit request
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowRequestForm(false)}
+                  className="btn-modern flex-1"
+                >
+                  cancel
+                </button>
+              </div>
+              <button
+                type="button"
+                onClick={() => setRequestFormMode("bulk")}
+                className="text-xs uppercase tracking-wide text-sunset-orange hover:text-sunset-orange/80"
               >
-                <option value="low">low</option>
-                <option value="medium">medium</option>
-                <option value="high">high</option>
-              </select>
+                need to add multiple items? switch to bulk add
+              </button>
             </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block mb-2 text-sm text-text-muted">
-                item link *
-              </label>
-              <input
-                type="url"
-                value={requestForm.link}
-                onChange={(e) =>
-                  setRequestForm({ ...requestForm, link: e.target.value })
-                }
-                className="input-modern"
-                required
-                placeholder="https://..."
-              />
-            </div>
-
-            <div>
-              <label className="block mb-2 text-sm text-text-muted">
-                quantity *
-              </label>
-              <input
-                type="number"
-                min={1}
-                step={1}
-                value={requestForm.quantity}
-                onChange={(e) =>
-                  setRequestForm({ ...requestForm, quantity: e.target.value })
-                }
-                className="input-modern"
-                required
-                placeholder="1"
-              />
-            </div>
-          </div>
-
-          <VendorAutocomplete
-            label="vendor"
-            value={requestForm.vendorName}
-            onChange={(name) => {
-              setSelectedProduct(null);
-              setRequestForm({ ...requestForm, vendorName: name });
-            }}
-            onSelect={(name) =>
-              setRequestForm({ ...requestForm, vendorName: name })
+          </form>
+        ) : (
+          <BulkRequestForm
+            isActive={requestFormMode === "bulk"}
+            ensureVendor={ensureVendor}
+            ensureProduct={ensureProduct}
+            createRequest={async (args) =>
+              createRequest({
+                ...args,
+                productId: args.productId as any,
+              })
             }
-            quickPicks={vendorQuickPicks}
-            required
+            vendorSuggestions={vendorQuickPicks}
+            onCancel={() => setRequestFormMode("single")}
+            onComplete={() => {
+              setShowRequestForm(false);
+              setRequestForm(INITIAL_REQUEST_FORM);
+              setSelectedProduct(null);
+              setRequestFormMode("single");
+            }}
           />
-
-          <div className="flex gap-4 pt-4">
-            <button type="submit" className="btn-modern btn-primary flex-1">
-              submit request
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowRequestForm(false)}
-              className="btn-modern flex-1"
-            >
-              cancel
-            </button>
-          </div>
-        </form>
+        )}
       </Modal>
 
       <PurchaseOrderWizard

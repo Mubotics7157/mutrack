@@ -2,6 +2,7 @@ import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { Doc, Id } from "./_generated/dataModel";
+import Fuse from "fuse.js";
 
 async function requireUserId(ctx: any) {
   const userId = await getAuthUserId(ctx);
@@ -342,24 +343,33 @@ export const searchVendors = query({
   },
   handler: async (ctx, args) => {
     const normalizedQuery = args.q.trim().toLowerCase();
-    const results: Array<Doc<"vendors"> & { normalizedName: string }> = [];
+    const vendors: Array<Doc<"vendors"> & { normalizedName: string }> = [];
     const cursor = ctx.db
       .query("vendors")
       .withIndex("by_name")
       .order("asc");
 
     for await (const vendor of cursor) {
-      const normalized = vendor.normalizedName || vendor.name.toLowerCase();
-      if (
-        normalizedQuery === "" ||
-        normalized.includes(normalizedQuery)
-      ) {
-        results.push({ ...vendor, normalizedName: normalized });
-        if (results.length >= 10) break;
-      }
+      const normalizedName = vendor.normalizedName || vendor.name.toLowerCase();
+      vendors.push({ ...vendor, normalizedName });
+      if (vendors.length >= 400) break;
     }
 
-    return results;
+    if (normalizedQuery === "") {
+      return vendors.slice(0, 10);
+    }
+
+    const fuse = new Fuse(vendors, {
+      keys: [
+        { name: "name", weight: 0.6 },
+        { name: "normalizedName", weight: 0.4 },
+      ],
+      threshold: 0.35,
+      ignoreLocation: true,
+      minMatchCharLength: 1,
+    });
+
+    return fuse.search(normalizedQuery, { limit: 10 }).map((result) => result.item);
   },
 });
 
@@ -402,44 +412,55 @@ export const searchProducts = query({
   },
   handler: async (ctx, args) => {
     const queryText = args.q.trim().toLowerCase();
+    const tokens = queryText
+      .split(/\s+/)
+      .map((token) => token.trim())
+      .filter((token) => token.length > 0);
 
     type ProductResult = Doc<"products"> & { vendorName: string };
 
+    const vendorCache = new Map<Id<"vendors">, Doc<"vendors"> | null>();
+
+    const loadVendor = async (vendorId: Id<"vendors">) => {
+      if (!vendorCache.has(vendorId)) {
+        vendorCache.set(vendorId, await ctx.db.get(vendorId));
+      }
+      return vendorCache.get(vendorId) ?? null;
+    };
+
     const enrichProduct = async (product: Doc<"products">): Promise<ProductResult> => {
-      const vendor = await ctx.db.get(product.vendorId);
+      const vendor = await loadVendor(product.vendorId);
       return {
         ...product,
         vendorName: vendor?.name || "Unknown",
       };
     };
 
-    if (queryText === "") {
-      const recent = await ctx.db
-        .query("products")
-        .withIndex("by_updated_at")
-        .order("desc")
-        .take(10);
-      return Promise.all(recent.map(enrichProduct));
-    }
-
-    const lower = queryText;
-    const upper = `${queryText}\uffff`;
-    const results: ProductResult[] = [];
-    const cursor = ctx.db
+    const sourceProducts = await ctx.db
       .query("products")
-      .withIndex("by_normalized_name", (q) => q.gte("normalizedName", lower))
-      .order("asc");
+      .withIndex("by_updated_at")
+      .order("desc")
+      .take(500);
 
-    for await (const product of cursor) {
-      if (product.normalizedName >= lower && product.normalizedName < upper) {
-        results.push(await enrichProduct(product));
-        if (results.length >= 10) break;
-      } else if (product.normalizedName >= upper) {
-        break;
-      }
+    const enriched = await Promise.all(sourceProducts.map(enrichProduct));
+
+    if (tokens.length === 0) {
+      return enriched.slice(0, 15);
     }
 
-    return results;
+    const fuse = new Fuse(enriched, {
+      keys: [
+        { name: "name", weight: 0.45 },
+        { name: "normalizedName", weight: 0.2 },
+        { name: "description", weight: 0.2 },
+        { name: "vendorName", weight: 0.15 },
+      ],
+      threshold: 0.38,
+      ignoreLocation: true,
+      minMatchCharLength: 1,
+    });
+
+    return fuse.search(queryText, { limit: 20 }).map((result) => result.item);
   },
 });
 
