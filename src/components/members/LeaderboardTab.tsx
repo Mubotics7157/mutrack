@@ -1,6 +1,6 @@
 import { useMemo, useState, type FormEvent } from "react";
 import clsx from "clsx";
-import { type Doc, type Id } from "../../../convex/_generated/dataModel";
+import { type Id } from "../../../convex/_generated/dataModel";
 import { Modal } from "../Modal";
 import {
   ClipboardList,
@@ -17,6 +17,8 @@ import {
   formatAwardDate as formatAwardDateFn,
   formatPoints as formatPointsFn,
 } from "./../members/helpers";
+import { MemberWithProfile } from "../../lib/members";
+import { ProfileAvatar } from "../ProfileAvatar";
 
 export interface LeaderboardTabProps {
   leaderboard: Array<LeaderboardEntry>;
@@ -31,7 +33,7 @@ export interface LeaderboardTabProps {
   formatAwardDate?: (timestamp: number | null) => string;
   canAwardPoints: boolean;
   bountyBoard: BountyBoardData;
-  members: Array<Doc<"members">>;
+  members: Array<MemberWithProfile>;
   canManageBounties: boolean;
   onCreateBounty: (input: {
     title: string;
@@ -242,8 +244,16 @@ export function LeaderboardTab(props: LeaderboardTabProps) {
                     <div className="card-modern hover:-translate-y-1 transition-transform">
                       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                         <div className="flex items-start gap-4">
-                          <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-glass via-white/10 to-transparent border border-white/10 flex items-center justify-center text-sm font-semibold text-text-secondary">
-                            #{absoluteRank + 1}
+                          <div className="flex items-center gap-3">
+                            <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-glass via-white/10 to-transparent border border-white/10 flex items-center justify-center text-sm font-semibold text-text-secondary">
+                              #{absoluteRank + 1}
+                            </div>
+                            <ProfileAvatar
+                              name={entry.name}
+                              imageUrl={entry.profileImageUrl}
+                              size="lg"
+                              className="border border-white/20"
+                            />
                           </div>
                           <div>
                             <div className="flex items-center gap-2 flex-wrap text-text-primary">
@@ -460,6 +470,12 @@ function SpotlightCard({
   onSelect: () => void;
 }) {
   const backgroundClass = getSpotlightBackground(index);
+  const avatarClassName = clsx(
+    "border-2 border-white/50",
+    index === 0 && "border-amber-200/80 shadow-[0_0_28px_rgba(251,191,36,0.35)]",
+    index === 1 && "border-white/60 shadow-[0_0_22px_rgba(148,163,184,0.35)]",
+    index === 2 && "border-sunset-orange/70 shadow-[0_0_22px_rgba(251,146,60,0.35)]"
+  );
   return (
     <button
       type="button"
@@ -469,12 +485,19 @@ function SpotlightCard({
       <div className={clsx("absolute inset-0 opacity-80", backgroundClass)} />
       <div className="relative z-10 flex flex-col h-full justify-between gap-6 text-white">
         <div className="flex items-start justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <h4 className="text-xl font-light">{entry.name}</h4>
-              <span className="badge bg-black/40 border-white/20 text-white">
-                #{index + 1}
-              </span>
+          <div className="flex items-start gap-4">
+            <ProfileAvatar
+              name={entry.name}
+              imageUrl={entry.profileImageUrl}
+              size="xl"
+              className={avatarClassName}
+            />
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h4 className="text-xl font-light">{entry.name}</h4>
+                <span className="badge bg-black/40 border-white/20 text-white">
+                  #{index + 1}
+                </span>
               {isYou && (
                 <span className="text-xs bg-white/30 text-white px-2 py-0.5 rounded-full">
                   you
@@ -487,6 +510,7 @@ function SpotlightCard({
                 ? "no μpoints yet"
                 : `${entry.awardsCount} ${entry.awardsCount === 1 ? "award" : "awards"} • last awarded ${formatAwardDate(entry.lastAwardedAt)}`}
             </p>
+            </div>
           </div>
           {index === 0 ? (
             <Crown size={32} className="text-amber-200 drop-shadow-lg" />

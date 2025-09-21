@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
-import { type Doc, type Id } from "../../convex/_generated/dataModel";
+import { type Id } from "../../convex/_generated/dataModel";
 import { toast } from "sonner";
 import { Users, ShieldCheck, Sparkles, PlusCircle, Trophy } from "lucide-react";
 import { Modal } from "./Modal";
@@ -14,11 +14,13 @@ import {
   filterMembers as filterMembersHelper,
 } from "./members/helpers";
 import type { BountyBoardData, LeaderboardEntry } from "./members/types";
+import { MemberWithProfile } from "../lib/members";
+import { ProfileAvatar } from "./ProfileAvatar";
 
 type TabKey = "leaderboard" | "directory" | "management";
 
 interface MembersPageProps {
-  member: Doc<"members">;
+  member: MemberWithProfile;
 }
 
 export function MembersPage({ member }: MembersPageProps) {
@@ -38,8 +40,13 @@ export function MembersPage({ member }: MembersPageProps) {
   const [completingBountyId, setCompletingBountyId] =
     useState<Id<"bounties"> | null>(null);
 
-  const membersQuery = useQuery(api.members.getAllMembers);
-  const members = useMemo(() => membersQuery ?? [], [membersQuery]);
+  const membersQuery = useQuery(api.members.getAllMembers) as
+    | MemberWithProfile[]
+    | undefined;
+  const members = useMemo<MemberWithProfile[]>(
+    () => membersQuery ?? [],
+    [membersQuery]
+  );
   const leaderboardQuery = useQuery(api.members.getLeaderboard) as
     | LeaderboardEntry[]
     | undefined;
@@ -150,7 +157,7 @@ export function MembersPage({ member }: MembersPageProps) {
     }
   };
 
-  const handleMemberRemoval = async (targetMember: Doc<"members">) => {
+  const handleMemberRemoval = async (targetMember: MemberWithProfile) => {
     if (!confirm(`Remove ${targetMember.name}?`)) return;
     try {
       await deleteMember({ memberId: targetMember._id });
@@ -423,15 +430,31 @@ export function MembersPage({ member }: MembersPageProps) {
                 <div className="absolute -bottom-16 -right-12 h-36 w-36 rounded-full bg-gradient-to-br from-accent-purple/50 via-pink-500/40 to-transparent blur-3xl" />
               </div>
               <div className="relative z-10 flex flex-col md:flex-row md:items-start md:justify-between gap-6">
-                <div>
-                  <h3 className="text-2xl font-light text-text-primary">
-                    {selectedMember?.name ?? "team member"}
-                  </h3>
-                  {selectedMember?.email && (
-                    <p className="text-sm text-text-muted mt-1">
-                      {selectedMember.email}
-                    </p>
+                <div className="flex items-start gap-4">
+                  {selectedMember ? (
+                    <ProfileAvatar
+                      name={selectedMember.name}
+                      imageUrl={selectedMember.profileImageUrl}
+                      size="lg"
+                      className="border-2 border-sunset-orange/40"
+                    />
+                  ) : (
+                    <ProfileAvatar
+                      name="team member"
+                      size="lg"
+                      className="border-2 border-sunset-orange/40"
+                    />
                   )}
+                  <div>
+                    <h3 className="text-2xl font-light text-text-primary">
+                      {selectedMember?.name ?? "team member"}
+                    </h3>
+                    {selectedMember?.email && (
+                      <p className="text-sm text-text-muted mt-1">
+                        {selectedMember.email}
+                      </p>
+                    )}
+                  </div>
                 </div>
                 <div className="text-right">
                   <p className="text-4xl font-light text-sunset-orange">

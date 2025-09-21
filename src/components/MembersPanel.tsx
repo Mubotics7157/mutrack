@@ -1,14 +1,17 @@
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
-import { Doc } from "../../convex/_generated/dataModel";
 import { toast } from "sonner";
+import { MemberWithProfile } from "../lib/members";
+import { ProfileAvatar } from "./ProfileAvatar";
 
 interface MembersPanelProps {
-  member: Doc<"members">;
+  member: MemberWithProfile;
 }
 
 export function MembersPanel({ member }: MembersPanelProps) {
-  const members = useQuery(api.members.getAllMembers) || [];
+  const members =
+    (useQuery(api.members.getAllMembers) as MemberWithProfile[] | undefined) ||
+    [];
   const updateMemberRole = useMutation(api.members.updateMemberRole);
 
   const canManageRoles = member.role === "admin";
@@ -112,11 +115,12 @@ export function MembersPanel({ member }: MembersPanelProps) {
             <div key={teamMember._id} className="glass-panel p-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-4">
-                  <div className="w-10 h-10 bg-gradient-to-r from-orange-500 to-orange-600 rounded-full flex items-center justify-center">
-                    <span className="text-black font-semibold text-sm">
-                      {teamMember.name.charAt(0).toUpperCase()}
-                    </span>
-                  </div>
+                  <ProfileAvatar
+                    name={teamMember.name}
+                    imageUrl={teamMember.profileImageUrl}
+                    size="lg"
+                    className="border-2 border-border-glass"
+                  />
 
                   <div>
                     <h4 className="font-medium text-white">

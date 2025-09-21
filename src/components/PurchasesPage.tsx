@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
-import { Doc } from "../../convex/_generated/dataModel";
 import { toast } from "sonner";
 import { Modal } from "./Modal";
 import { RequestsList } from "./purchases/RequestsList";
@@ -14,9 +13,10 @@ import ProductAutocomplete, {
 } from "./purchases/ProductAutocomplete";
 import { VendorAutocomplete } from "./purchases/VendorAutocomplete";
 import { BulkRequestForm } from "./purchases/BulkRequestForm";
+import { MemberWithProfile } from "../lib/members";
 
 interface PurchasesPageProps {
-  member: Doc<"members">;
+  member: MemberWithProfile;
 }
 
 type ViewType = "requests" | "orders" | "summary";

@@ -14,6 +14,7 @@ const applicationTables = {
     onboardingCompleted: v.optional(v.boolean()),
     role: v.union(v.literal("admin"), v.literal("lead"), v.literal("member")),
     joinedAt: v.number(),
+    profileImageId: v.optional(v.id("_storage")),
   })
     .index("by_user", ["userId"])
     .index("by_notifications_enabled", ["notificationsEnabled"]),

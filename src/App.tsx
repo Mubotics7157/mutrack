@@ -16,6 +16,7 @@ import { Onboarding } from "./components/Onboarding";
 import { TimeTrackingPage } from "./components/TimeTrackingPage";
 import { Home, Users, ShoppingCart, User, LogOut } from "lucide-react";
 import { useAuthActions } from "@convex-dev/auth/react";
+import { MemberWithProfile } from "./lib/members";
 
 type PageType = "home" | "members" | "purchases" | "profile" | "time";
 
@@ -58,7 +59,11 @@ interface NavigationBarProps {
 }
 
 function NavigationBar({ currentPage, onPageChange }: NavigationBarProps) {
-  const currentMember = useQuery(api.members.getCurrentMember);
+  const currentMember =
+    useQuery(api.members.getCurrentMember) as
+      | MemberWithProfile
+      | null
+      | undefined;
   const { signOut } = useAuthActions();
 
   return (
@@ -193,7 +198,11 @@ interface MainContentProps {
 }
 
 function MainContent({ currentPage }: MainContentProps) {
-  const currentMember = useQuery(api.members.getCurrentMember);
+  const currentMember =
+    useQuery(api.members.getCurrentMember) as
+      | MemberWithProfile
+      | null
+      | undefined;
   const createMember = useMutation(api.members.createMemberIfNotExists);
 
   // Auto-create member if logged in but no member record exists

@@ -4,10 +4,10 @@ import { api } from "../../convex/_generated/api";
 import { MeetingsPanel } from "./MeetingsPanel";
 import { MembersPanel } from "./MembersPanel";
 import { PurchasesPanel } from "./PurchasesPanel";
-import { Doc } from "../../convex/_generated/dataModel";
+import { MemberWithProfile } from "../lib/members";
 
 interface DashboardProps {
-  member: Doc<"members">;
+  member: MemberWithProfile;
 }
 
 type TabType = "meetings" | "members" | "purchases";

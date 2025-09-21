@@ -8,6 +8,7 @@ export type LeaderboardEntry = {
   totalPoints: number;
   awardsCount: number;
   lastAwardedAt: number | null;
+  profileImageUrl: string | null;
 };
 
 export type BountyEntry = {

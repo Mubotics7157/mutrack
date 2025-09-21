@@ -2,12 +2,14 @@ import type React from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
-import { Doc, Id } from "../../convex/_generated/dataModel";
+import { Id } from "../../convex/_generated/dataModel";
 import { toast } from "sonner";
 import { Modal } from "./Modal";
+import { MemberWithProfile } from "../lib/members";
+import { ProfileAvatar } from "./ProfileAvatar";
 
 interface TimeTrackingPageProps {
-  member: Doc<"members">;
+  member: MemberWithProfile;
 }
 
 type ScanState = "idle" | "scanning" | "error";
@@ -33,7 +35,9 @@ export function TimeTrackingPage({ member }: TimeTrackingPageProps) {
   const handleSighting = useMutation(api.attendance.handleIbeaconSighting);
   const closeExpired = useMutation(api.attendance.closeExpiredSessions);
   const adminPair = useMutation(api.beacons.adminPairIbeaconToMember);
-  const allMembers = useQuery(api.members.getAllMembers) || [];
+  const allMembers =
+    (useQuery(api.members.getAllMembers) as MemberWithProfile[] | undefined) ||
+    [];
   const [assignOpen, setAssignOpen] = useState(false);
   const [assignScanning, setAssignScanning] = useState(false);
   const [assignScanError, setAssignScanError] = useState<string | null>(null);
@@ -633,13 +637,15 @@ function ActiveAttendeesList({
     meetingId ? { meetingId: meetingId as Id<"meetings"> } : "skip"
   );
   const [membersById, setMembersById] = useState<
-    Record<string, Doc<"members">>
+    Record<string, MemberWithProfile>
   >({});
-  const members = useQuery(api.members.getAllMembers) || [];
+  const members =
+    (useQuery(api.members.getAllMembers) as MemberWithProfile[] | undefined) ||
+    [];
   const [now, setNow] = useState<number>(Date.now());
 
   useEffect(() => {
-    const map: Record<string, Doc<"members">> = {};
+    const map: Record<string, MemberWithProfile> = {};
     for (const m of members) map[m._id] = m;
     setMembersById(map);
   }, [members]);
@@ -660,16 +666,23 @@ function ActiveAttendeesList({
     <div className="space-y-2">
       {sessions.map((s: any) => {
         const m = membersById[s.memberId];
+        const displayName = m ? m.name : s.memberId.slice(-6);
+        const avatarUrl = m?.profileImageUrl ?? null;
         const d = durations.find((x) => x.memberId === s.memberId);
         return (
           <div
             key={s._id}
             className="flex items-center justify-between p-3 bg-glass border border-border-glass rounded-xl"
           >
-            <div>
-              <div className="font-medium">
-                {m ? m.name : s.memberId.slice(-6)}
-              </div>
+            <div className="flex items-center gap-3">
+              <ProfileAvatar
+                name={displayName}
+                imageUrl={avatarUrl}
+                size="md"
+                className="border border-border-glass"
+              />
+              <div>
+                <div className="font-medium">{displayName}</div>
               <div className="text-xs text-text-muted">
                 since {new Date(s.startTime).toLocaleTimeString()}
               </div>
@@ -678,6 +691,7 @@ function ActiveAttendeesList({
                   total: {(d.durationMs / (1000 * 60)).toFixed(0)} mins
                 </div>
               )}
+            </div>
             </div>
             <div className="text-xs text-text-dim">
               {(() => {
