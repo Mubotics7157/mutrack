@@ -51,7 +51,6 @@ export function PurchasesPage({ member }: PurchasesPageProps) {
     useState<RequestFormState>(INITIAL_REQUEST_FORM);
   const [selectedProduct, setSelectedProduct] =
     useState<ProductSuggestion | null>(null);
-  const [productSearch, setProductSearch] = useState("");
 
   const requests = useQuery(api.purchases.getPurchaseRequests) || [];
   const orders = useQuery(api.purchases.getPurchaseOrders) || [];
@@ -118,7 +117,6 @@ export function PurchasesPage({ member }: PurchasesPageProps) {
 
   const handleSelectProduct = (product: ProductSuggestion) => {
     setSelectedProduct(product);
-    setProductSearch(product.name);
     setRequestForm((prev) => ({
       ...prev,
       title: product.name,
@@ -389,7 +387,6 @@ export function PurchasesPage({ member }: PurchasesPageProps) {
               onClick={() => {
                 setRequestForm(INITIAL_REQUEST_FORM);
                 setSelectedProduct(null);
-                setProductSearch("");
                 setShowRequestForm(true);
               }}
               className="btn-modern btn-primary"
@@ -415,45 +412,23 @@ export function PurchasesPage({ member }: PurchasesPageProps) {
           setShowRequestForm(false);
           setRequestForm(INITIAL_REQUEST_FORM);
           setSelectedProduct(null);
-          setProductSearch("");
         }}
         title="new purchase request"
         maxWidthClassName="max-w-2xl"
       >
         <form onSubmit={handleRequestSubmit} className="space-y-4">
           <ProductAutocomplete
-            label="product (optional)"
-            value={productSearch}
+            label="item/service *"
+            value={requestForm.title}
             onChange={(value) => {
-              setProductSearch(value);
-              if (!value) {
+              setRequestForm({ ...requestForm, title: value });
+              if (selectedProduct && value !== selectedProduct.name) {
                 setSelectedProduct(null);
               }
             }}
             onProductSelect={handleSelectProduct}
             vendorFilter={requestForm.vendorName}
           />
-
-          <div>
-            <label className="block mb-2 text-sm text-text-muted">
-              item/service title *
-            </label>
-            <input
-              type="text"
-              value={requestForm.title}
-              onChange={(e) => {
-                const value = e.target.value;
-                setRequestForm({ ...requestForm, title: value });
-                setProductSearch(value);
-                if (selectedProduct && value !== selectedProduct.name) {
-                  setSelectedProduct(null);
-                }
-              }}
-              className="input-modern"
-              required
-              placeholder="e.g., arduino uno r3, workshop tools"
-            />
-          </div>
 
           <div>
             <label className="block mb-2 text-sm text-text-muted">
