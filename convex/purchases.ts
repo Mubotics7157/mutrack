@@ -634,6 +634,7 @@ export const updatePurchaseOrderDetails = mutation({
     totalCost: v.number(),
     cartLink: v.optional(v.string()),
     notes: v.optional(v.string()),
+    requestIds: v.optional(v.array(v.id("purchaseRequests"))),
   },
   handler: async (ctx, args) => {
     const userId = await requireUserId(ctx);
@@ -648,11 +649,76 @@ export const updatePurchaseOrderDetails = mutation({
     const cartLink = args.cartLink?.trim();
     const notes = args.notes?.trim();
 
+    let nextRequestIds = order.requestIds;
+
+    if (args.requestIds) {
+      const seen = new Set<string>();
+      const uniqueRequestIds: Id<"purchaseRequests">[] = [];
+      for (const id of args.requestIds) {
+        const key = id as string;
+        if (!seen.has(key)) {
+          seen.add(key);
+          uniqueRequestIds.push(id);
+        }
+      }
+
+      if (uniqueRequestIds.length === 0) {
+        throw new Error("Order must include at least one request");
+      }
+
+      const currentSet = new Set(
+        order.requestIds.map((id: Id<"purchaseRequests">) => id as string)
+      );
+      const nextSet = new Set(
+        uniqueRequestIds.map((id: Id<"purchaseRequests">) => id as string)
+      );
+
+      const removedIds = order.requestIds.filter(
+        (id: Id<"purchaseRequests">) => !nextSet.has(id as string)
+      );
+      const addedIds = uniqueRequestIds.filter(
+        (id: Id<"purchaseRequests">) => !currentSet.has(id as string)
+      );
+
+      for (const removedId of removedIds) {
+        const request = await ctx.db.get(removedId);
+        if (request && request.status === "ordered") {
+          await ctx.db.patch(removedId, { status: "approved" });
+        }
+      }
+
+      if (addedIds.length > 0) {
+        const allOrders = await ctx.db.query("purchaseOrders").collect();
+        for (const addedId of addedIds) {
+          const request = await ctx.db.get(addedId);
+          if (!request) {
+            throw new Error("Request not found");
+          }
+
+          if (request.status !== "approved" && request.status !== "ordered") {
+            throw new Error("Request must be approved before adding to an order");
+          }
+
+          for (const otherOrder of allOrders) {
+            if (otherOrder._id === order._id) continue;
+            if (otherOrder.requestIds.some((id: any) => id === addedId)) {
+              throw new Error("Request already belongs to another order");
+            }
+          }
+
+          await ctx.db.patch(addedId, { status: "ordered" });
+        }
+      }
+
+      nextRequestIds = uniqueRequestIds;
+    }
+
     await ctx.db.patch(args.orderId, {
       vendor,
       totalCost: args.totalCost,
       cartLink: cartLink === "" ? undefined : cartLink,
       notes: notes === "" ? undefined : notes,
+      requestIds: nextRequestIds,
     });
   },
 });

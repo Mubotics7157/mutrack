@@ -61,6 +61,7 @@ export function PurchasesPage({ member }: PurchasesPageProps) {
   const [orderBeingEdited, setOrderBeingEdited] = useState<any | null>(null);
   const [showOrderEditModal, setShowOrderEditModal] = useState(false);
   const [isOrderEditSubmitting, setIsOrderEditSubmitting] = useState(false);
+  const [orderEditCandidates, setOrderEditCandidates] = useState<any[]>([]);
 
   const workflowGuide = [
     {
@@ -414,6 +415,11 @@ export function PurchasesPage({ member }: PurchasesPageProps) {
   };
 
   const handleOrderEdit = (order: any) => {
+    const orderRequestIds = new Set((order.requestIds || []).map((id: any) => id));
+    const candidates = requests.filter((request: any) =>
+      request.status === "approved" || orderRequestIds.has(request._id)
+    );
+    setOrderEditCandidates(candidates);
     setOrderBeingEdited(order);
     setShowOrderEditModal(true);
   };
@@ -430,6 +436,7 @@ export function PurchasesPage({ member }: PurchasesPageProps) {
         setShowOrderEditModal(false);
         setOrderBeingEdited(null);
         setIsOrderEditSubmitting(false);
+        setOrderEditCandidates([]);
       }
       if (orderBeingPlaced?._id === order._id) {
         setShowPlacementModal(false);
@@ -441,7 +448,8 @@ export function PurchasesPage({ member }: PurchasesPageProps) {
   };
 
   const handleOrderEditSubmit = async (
-    form: { vendor: string; totalCost: string; cartLink: string; notes: string }
+    form: { vendor: string; totalCost: string; cartLink: string; notes: string },
+    requestIds: string[]
   ) => {
     if (!orderBeingEdited) return;
 
@@ -457,6 +465,11 @@ export function PurchasesPage({ member }: PurchasesPageProps) {
       return;
     }
 
+    if (requestIds.length === 0) {
+      toast.error("select at least one line item");
+      return;
+    }
+
     setIsOrderEditSubmitting(true);
     try {
       await updateOrderDetails({
@@ -465,10 +478,12 @@ export function PurchasesPage({ member }: PurchasesPageProps) {
         totalCost: parsedTotal,
         cartLink: form.cartLink.trim() === "" ? undefined : form.cartLink.trim(),
         notes: form.notes.trim() === "" ? undefined : form.notes.trim(),
+        requestIds: requestIds as any,
       });
       toast.success("purchase order updated");
       setShowOrderEditModal(false);
       setOrderBeingEdited(null);
+      setOrderEditCandidates([]);
     } catch (error) {
       toast.error("failed to update order");
     } finally {
@@ -887,10 +902,12 @@ export function PurchasesPage({ member }: PurchasesPageProps) {
         order={orderBeingEdited}
         isOpen={showOrderEditModal}
         isSubmitting={isOrderEditSubmitting}
+        candidates={orderEditCandidates}
         onClose={() => {
           setShowOrderEditModal(false);
           setOrderBeingEdited(null);
           setIsOrderEditSubmitting(false);
+          setOrderEditCandidates([]);
         }}
         onSubmit={handleOrderEditSubmit}
       />
