@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import ReactDOM from "react-dom";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
-import { Doc } from "../../convex/_generated/dataModel";
+import { MemberWithProfile } from "../lib/members";
 import { toast } from "sonner";
 import {
   Calendar,
@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 
 interface HomePageProps {
-  member: Doc<"members">;
+  member: MemberWithProfile;
 }
 
 export function HomePage({ member }: HomePageProps) {
@@ -33,7 +33,9 @@ export function HomePage({ member }: HomePageProps) {
     member.role === "admin" || member.role === "lead";
 
   const meetings = useQuery(api.meetings.getMeetings);
-  const allMembers = useQuery(api.members.getAllMembers);
+  const allMembers =
+    (useQuery(api.members.getAllMembers) as MemberWithProfile[] | undefined) ||
+    [];
   const rsvpToMeeting = useMutation(api.meetings.rsvpToMeeting);
   const savePush = useMutation(api.members.savePushSubscription);
   const setNotificationsEnabled = useMutation(
@@ -377,7 +379,7 @@ export function HomePage({ member }: HomePageProps) {
             <SelectedDateDetails
               date={selectedDate}
               meetings={meetings || []}
-              members={allMembers || []}
+              members={allMembers}
               currentMember={member}
               onClose={() => setShowSelectedDate(false)}
             />
@@ -591,7 +593,7 @@ function CalendarView({
 
 interface MeetingCardProps {
   meeting: any;
-  member: Doc<"members">;
+  member: MemberWithProfile;
 }
 
 function MeetingCard({ meeting, member }: MeetingCardProps) {
@@ -678,7 +680,7 @@ function MeetingCard({ meeting, member }: MeetingCardProps) {
 
 interface NewMeetingModalProps {
   onClose: () => void;
-  member: Doc<"members">;
+  member: MemberWithProfile;
   defaultDate?: Date | null;
 }
 
@@ -887,8 +889,8 @@ function NewMeetingModal({
 interface SelectedDateDetailsProps {
   date: Date;
   meetings: any[];
-  members: any[];
-  currentMember: Doc<"members">;
+  members: MemberWithProfile[];
+  currentMember: MemberWithProfile;
   onClose: () => void;
 }
 

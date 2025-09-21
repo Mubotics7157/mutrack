@@ -1,9 +1,11 @@
-import { type Doc, type Id } from "../../../convex/_generated/dataModel";
+import { type Id } from "../../../convex/_generated/dataModel";
 import { filterMembers, formatDateYMD } from "./helpers";
 import { RoleBadge } from "./RoleBadge";
+import { MemberWithProfile } from "../../lib/members";
+import { ProfileAvatar } from "../ProfileAvatar";
 
 export interface DirectoryTabProps {
-  filteredMembers: Array<Doc<"members">>;
+  filteredMembers: Array<MemberWithProfile>;
   searchTerm: string;
   onSearchTermChange: (value: string) => void;
   roleFilter: string;
@@ -81,9 +83,12 @@ export function DirectoryTab(props: DirectoryTabProps) {
             <div key={teamMember._id} className="card-modern">
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div className="flex items-center gap-4">
-                  <div className="avatar">
-                    {teamMember.name.charAt(0).toUpperCase()}
-                  </div>
+                  <ProfileAvatar
+                    name={teamMember.name}
+                    imageUrl={teamMember.profileImageUrl}
+                    size="lg"
+                    className="border-2 border-border-glass"
+                  />
                   <div>
                     <h4 className="font-light text-lg text-text-primary flex items-center gap-2">
                       {teamMember.name}

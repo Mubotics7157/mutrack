@@ -3,9 +3,10 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { Doc } from "../../convex/_generated/dataModel";
 import { toast } from "sonner";
+import { MemberWithProfile } from "../lib/members";
 
 interface MeetingsPanelProps {
-  member: Doc<"members">;
+  member: MemberWithProfile;
 }
 
 export function MeetingsPanel({ member }: MeetingsPanelProps) {

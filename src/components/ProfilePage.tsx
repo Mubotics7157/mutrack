@@ -1,7 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
-import { Doc } from "../../convex/_generated/dataModel";
 import { toast } from "sonner";
 import { useAuthActions } from "@convex-dev/auth/react";
 import {
@@ -13,9 +12,11 @@ import {
   Bluetooth,
 } from "lucide-react";
 import { Modal } from "./Modal";
+import { ProfileAvatar } from "./ProfileAvatar";
+import { MemberWithProfile } from "../lib/members";
 
 interface ProfilePageProps {
-  member: Doc<"members">;
+  member: MemberWithProfile;
 }
 
 export function ProfilePage({ member }: ProfilePageProps) {
@@ -30,6 +31,10 @@ export function ProfilePage({ member }: ProfilePageProps) {
   const pairIbeacon = useMutation(api.beacons.pairIbeacon);
   const unpairBeacon = useMutation(api.beacons.unpairBeacon);
   const setBeaconLabel = useMutation(api.beacons.setBeaconLabel);
+  const generateProfileImageUploadUrl = useMutation(
+    api.members.generateProfileImageUploadUrl
+  );
+  const updateProfileImage = useMutation(api.members.setProfileImage);
 
   const [profileForm, setProfileForm] = useState({
     name: member.name,
@@ -37,6 +42,22 @@ export function ProfilePage({ member }: ProfilePageProps) {
     phone: "",
     bio: "",
   });
+
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+  const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (previewImageUrl) {
+        URL.revokeObjectURL(previewImageUrl);
+      }
+    };
+  }, [previewImageUrl]);
+
+  useEffect(() => {
+    setPreviewImageUrl(null);
+  }, [member.profileImageUrl]);
 
   const [pairModalOpen, setPairModalOpen] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
@@ -67,6 +88,76 @@ export function ProfilePage({ member }: ProfilePageProps) {
   const handleSignOut = async () => {
     await signOut();
     toast.success("signed out successfully");
+  };
+
+  const displayedProfileImageUrl =
+    previewImageUrl ?? member.profileImageUrl ?? null;
+
+  const triggerProfileImagePicker = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleProfileImageChange = async (
+    event: ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      toast.error("please choose an image file");
+      event.target.value = "";
+      return;
+    }
+
+    const MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024;
+    if (file.size > MAX_IMAGE_SIZE_BYTES) {
+      toast.error("profile photos must be 5 MB or smaller");
+      event.target.value = "";
+      return;
+    }
+
+    const tempUrl = URL.createObjectURL(file);
+    setPreviewImageUrl(tempUrl);
+    setIsUploadingPhoto(true);
+
+    try {
+      const uploadUrl = await generateProfileImageUploadUrl();
+      const response = await fetch(uploadUrl, {
+        method: "POST",
+        headers: { "Content-Type": file.type },
+        body: file,
+      });
+
+      if (!response.ok) {
+        throw new Error("upload failed");
+      }
+
+      const { storageId } = (await response.json()) as {
+        storageId: string;
+      };
+
+      await updateProfileImage({ storageId });
+      toast.success("profile photo updated");
+    } catch (error) {
+      setPreviewImageUrl(null);
+      toast.error("failed to upload profile photo");
+    } finally {
+      setIsUploadingPhoto(false);
+      event.target.value = "";
+    }
+  };
+
+  const handleRemoveProfileImage = async () => {
+    try {
+      setIsUploadingPhoto(true);
+      await updateProfileImage({ storageId: null });
+      setPreviewImageUrl(null);
+      toast.success("profile photo removed");
+    } catch (error) {
+      toast.error("failed to remove profile photo");
+    } finally {
+      setIsUploadingPhoto(false);
+    }
   };
 
   const scanAndPair = async () => {
@@ -271,9 +362,12 @@ export function ProfilePage({ member }: ProfilePageProps) {
       {/* Profile Header */}
       <div className="glass-panel p-8">
         <div className="flex flex-col md:flex-row items-start md:items-center gap-6">
-          <div className="w-24 h-24 bg-glass border border-border-glass rounded-2xl flex items-center justify-center text-4xl font-medium text-text-primary">
-            {member.name.charAt(0).toUpperCase()}
-          </div>
+          <ProfileAvatar
+            name={member.name}
+            imageUrl={displayedProfileImageUrl}
+            size="2xl"
+            className="shadow-[0_0_25px_rgba(136,58,234,0.25)] border-2 border-border-glass"
+          />
 
           <div className="flex-1">
             <h1 className="text-3xl font-light mb-2">{member.name}</h1>
@@ -310,6 +404,53 @@ export function ProfilePage({ member }: ProfilePageProps) {
         <div className="glass-panel p-8">
           <h2 className="text-xl font-light mb-6">edit profile information</h2>
           <form onSubmit={handleProfileUpdate} className="space-y-4">
+            <div>
+              <label className="block mb-2 text-sm text-text-muted">
+                profile photo
+              </label>
+              <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+                <ProfileAvatar
+                  name={member.name}
+                  imageUrl={displayedProfileImageUrl}
+                  size="xl"
+                  className="border-2 border-border-glass"
+                />
+                <div className="space-y-2">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleProfileImageChange}
+                  />
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      className="btn-modern btn-primary"
+                      onClick={triggerProfileImagePicker}
+                      disabled={isUploadingPhoto}
+                    >
+                      {isUploadingPhoto ? "uploading..." : "upload new photo"}
+                    </button>
+                    {displayedProfileImageUrl && (
+                      <button
+                        type="button"
+                        className="btn-modern"
+                        onClick={handleRemoveProfileImage}
+                        disabled={isUploadingPhoto}
+                      >
+                        remove photo
+                      </button>
+                    )}
+                  </div>
+                  <p className="text-xs text-text-dim">
+                    png, jpg, or gif up to 5 MB. your photo appears across the
+                    team map and leaderboard.
+                  </p>
+                </div>
+              </div>
+            </div>
+
             <div>
               <label className="block mb-2 text-sm text-text-muted">
                 full name

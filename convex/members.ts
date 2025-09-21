@@ -2,8 +2,17 @@ import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { internalQuery } from "./_generated/server";
-import { Id } from "./_generated/dataModel";
+import { Doc, Id } from "./_generated/dataModel";
 
+async function memberWithProfileImageUrl(
+  ctx: { storage: { getUrl: (id: Id<"_storage">) => Promise<string | null> } },
+  member: Doc<"members">
+) {
+  const profileImageUrl = member.profileImageId
+    ? await ctx.storage.getUrl(member.profileImageId)
+    : null;
+  return { ...member, profileImageUrl: profileImageUrl ?? null };
+}
 export const getCurrentMember = query({
   args: {},
   handler: async (ctx) => {
@@ -15,9 +24,9 @@ export const getCurrentMember = query({
       .withIndex("by_user", (q) => q.eq("userId", userId))
       .unique();
 
-    // Member will be created via mutation if needed
+    if (!member) return null;
 
-    return member;
+    return await memberWithProfileImageUrl(ctx, member);
   },
 });
 
@@ -27,7 +36,10 @@ export const getAllMembers = query({
     const userId = await getAuthUserId(ctx);
     if (!userId) return [];
     // Allow all authenticated members to view list
-    return await ctx.db.query("members").collect();
+    const members = await ctx.db.query("members").collect();
+    return await Promise.all(
+      members.map((member) => memberWithProfileImageUrl(ctx, member))
+    );
   },
 });
 
@@ -181,6 +193,40 @@ export const setNotificationsEnabled = mutation({
   },
 });
 
+export const generateProfileImageUploadUrl = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+
+    return await ctx.storage.generateUploadUrl();
+  },
+});
+
+export const setProfileImage = mutation({
+  args: {
+    storageId: v.union(v.id("_storage"), v.null()),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+
+    const member = await ctx.db
+      .query("members")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .unique();
+    if (!member) throw new Error("Member not found");
+
+    const patch: Partial<Doc<"members">> = args.storageId
+      ? { profileImageId: args.storageId }
+      : { profileImageId: undefined };
+
+    await ctx.db.patch(member._id, patch);
+    return null;
+  },
+});
+
 export const updateMemberRole = mutation({
   args: {
     memberId: v.id("members"),
@@ -267,6 +313,7 @@ export const getLeaderboard = query({
       totalPoints: v.number(),
       awardsCount: v.number(),
       lastAwardedAt: v.union(v.number(), v.null()),
+      profileImageUrl: v.union(v.string(), v.null()),
     })
   ),
   handler: async (ctx) => {
@@ -274,6 +321,12 @@ export const getLeaderboard = query({
     if (!userId) return [];
 
     const members = await ctx.db.query("members").collect();
+    const membersWithImages = await Promise.all(
+      members.map((member) => memberWithProfileImageUrl(ctx, member))
+    );
+    const imageMap = new Map(
+      membersWithImages.map((member) => [member._id, member.profileImageUrl])
+    );
     const awards = await ctx.db.query("muPoints").collect();
 
     const totals = new Map<Id<"members">, {
@@ -306,6 +359,7 @@ export const getLeaderboard = query({
         totalPoints: summary.total,
         awardsCount: summary.count,
         lastAwardedAt: summary.lastAwarded,
+        profileImageUrl: imageMap.get(member._id) ?? null,
       };
     });
 
