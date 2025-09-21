@@ -23,6 +23,19 @@ async function requireOrderManager(ctx: any, userId: string) {
   return member;
 }
 
+async function requireAdmin(ctx: any, userId: string) {
+  const member = await ctx.db
+    .query("members")
+    .withIndex("by_user", (q: any) => q.eq("userId", userId))
+    .unique();
+
+  if (!member || member.role !== "admin") {
+    throw new Error("Only admins can perform this action");
+  }
+
+  return member;
+}
+
 async function upsertOrderPlacement(
   ctx: any,
   order: any,
@@ -544,5 +557,194 @@ export const ensureProduct = mutation({
       updatedAt: now,
     });
     return productId;
+  },
+});
+
+export const updatePurchaseRequestDetails = mutation({
+  args: {
+    requestId: v.id("purchaseRequests"),
+    title: v.string(),
+    description: v.string(),
+    estimatedCost: v.number(),
+    priority: v.union(
+      v.literal("low"),
+      v.literal("medium"),
+      v.literal("high")
+    ),
+    link: v.string(),
+    quantity: v.number(),
+    vendorId: v.id("vendors"),
+    productId: v.optional(v.id("products")),
+  },
+  handler: async (ctx, args) => {
+    const userId = await requireUserId(ctx);
+    await requireAdmin(ctx, userId);
+
+    const { requestId, ...updates } = args;
+
+    const existing = await ctx.db.get(requestId);
+    if (!existing) {
+      throw new Error("Request not found");
+    }
+
+    await ctx.db.patch(requestId, {
+      ...updates,
+      vendorId: updates.vendorId,
+      productId: updates.productId,
+    });
+  },
+});
+
+export const deletePurchaseRequest = mutation({
+  args: {
+    requestId: v.id("purchaseRequests"),
+  },
+  handler: async (ctx, args) => {
+    const userId = await requireUserId(ctx);
+    await requireAdmin(ctx, userId);
+
+    const request = await ctx.db.get(args.requestId);
+    if (!request) {
+      throw new Error("Request not found");
+    }
+
+    const orders = await ctx.db.query("purchaseOrders").collect();
+    for (const order of orders) {
+      if (order.requestIds.some((id) => id === args.requestId)) {
+        const updatedRequestIds = order.requestIds.filter(
+          (id) => id !== args.requestId
+        );
+
+        if (updatedRequestIds.length === 0) {
+          await ctx.db.delete(order._id);
+        } else {
+          await ctx.db.patch(order._id, { requestIds: updatedRequestIds });
+        }
+      }
+    }
+
+    await ctx.db.delete(args.requestId);
+  },
+});
+
+export const updatePurchaseOrderDetails = mutation({
+  args: {
+    orderId: v.id("purchaseOrders"),
+    vendor: v.string(),
+    totalCost: v.number(),
+    cartLink: v.optional(v.string()),
+    notes: v.optional(v.string()),
+    requestIds: v.optional(v.array(v.id("purchaseRequests"))),
+  },
+  handler: async (ctx, args) => {
+    const userId = await requireUserId(ctx);
+    await requireAdmin(ctx, userId);
+
+    const order = await ctx.db.get(args.orderId);
+    if (!order) {
+      throw new Error("Order not found");
+    }
+
+    const vendor = args.vendor.trim();
+    const cartLink = args.cartLink?.trim();
+    const notes = args.notes?.trim();
+
+    let nextRequestIds = order.requestIds;
+
+    if (args.requestIds) {
+      const seen = new Set<string>();
+      const uniqueRequestIds: Id<"purchaseRequests">[] = [];
+      for (const id of args.requestIds) {
+        const key = id as string;
+        if (!seen.has(key)) {
+          seen.add(key);
+          uniqueRequestIds.push(id);
+        }
+      }
+
+      if (uniqueRequestIds.length === 0) {
+        throw new Error("Order must include at least one request");
+      }
+
+      const currentSet = new Set(
+        order.requestIds.map((id: Id<"purchaseRequests">) => id as string)
+      );
+      const nextSet = new Set(
+        uniqueRequestIds.map((id: Id<"purchaseRequests">) => id as string)
+      );
+
+      const removedIds = order.requestIds.filter(
+        (id: Id<"purchaseRequests">) => !nextSet.has(id as string)
+      );
+      const addedIds = uniqueRequestIds.filter(
+        (id: Id<"purchaseRequests">) => !currentSet.has(id as string)
+      );
+
+      for (const removedId of removedIds) {
+        const request = await ctx.db.get(removedId);
+        if (request && request.status === "ordered") {
+          await ctx.db.patch(removedId, { status: "approved" });
+        }
+      }
+
+      if (addedIds.length > 0) {
+        const allOrders = await ctx.db.query("purchaseOrders").collect();
+        for (const addedId of addedIds) {
+          const request = await ctx.db.get(addedId);
+          if (!request) {
+            throw new Error("Request not found");
+          }
+
+          if (request.status !== "approved" && request.status !== "ordered") {
+            throw new Error("Request must be approved before adding to an order");
+          }
+
+          for (const otherOrder of allOrders) {
+            if (otherOrder._id === order._id) continue;
+            if (otherOrder.requestIds.some((id: any) => id === addedId)) {
+              throw new Error("Request already belongs to another order");
+            }
+          }
+
+          await ctx.db.patch(addedId, { status: "ordered" });
+        }
+      }
+
+      nextRequestIds = uniqueRequestIds;
+    }
+
+    await ctx.db.patch(args.orderId, {
+      vendor,
+      totalCost: args.totalCost,
+      cartLink: cartLink === "" ? undefined : cartLink,
+      notes: notes === "" ? undefined : notes,
+      requestIds: nextRequestIds,
+    });
+  },
+});
+
+export const deletePurchaseOrder = mutation({
+  args: {
+    orderId: v.id("purchaseOrders"),
+  },
+  handler: async (ctx, args) => {
+    const userId = await requireUserId(ctx);
+    await requireAdmin(ctx, userId);
+
+    const order = await ctx.db.get(args.orderId);
+    if (!order) {
+      throw new Error("Order not found");
+    }
+
+    for (const requestId of order.requestIds) {
+      const request = await ctx.db.get(requestId);
+      if (!request) continue;
+
+      if (request.status === "ordered") {
+        await ctx.db.patch(requestId, { status: "approved" });
+      }
+    }
+
+    await ctx.db.delete(args.orderId);
   },
 });

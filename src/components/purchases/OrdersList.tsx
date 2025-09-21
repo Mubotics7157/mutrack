@@ -4,12 +4,18 @@ interface OrdersListProps {
   orders: any[];
   canManageOrders: boolean;
   onOpenPlacement: (order: any) => void;
+  isAdmin: boolean;
+  onEditOrder?: (order: any) => void;
+  onDeleteOrder?: (order: any) => void;
 }
 
 export function OrdersList({
   orders,
   canManageOrders,
   onOpenPlacement,
+  isAdmin,
+  onEditOrder,
+  onDeleteOrder,
 }: OrdersListProps) {
   const [statusFilter, setStatusFilter] = useState<"pending" | "placed">(
     "pending"
@@ -139,6 +145,24 @@ export function OrdersList({
                       ${order.totalCost.toFixed(2)}
                     </div>
                   </div>
+                  {isAdmin && (
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => onEditOrder?.(order)}
+                        className="btn-modern"
+                      >
+                        edit
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onDeleteOrder?.(order)}
+                        className="btn-modern btn-danger"
+                      >
+                        delete
+                      </button>
+                    </div>
+                  )}
                   {canManageOrders && (
                     <button
                       type="button"
@@ -224,6 +248,16 @@ export function OrdersList({
                             <span>
                               requested {new Date(request.requestedAt).toLocaleDateString()}
                             </span>
+                            {request.link && (
+                              <a
+                                href={request.link}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-sunset-orange hover:text-sunset-orange/80"
+                              >
+                                view item
+                              </a>
+                            )}
                           </div>
                         </div>
                         <div className="col-span-2 text-right font-mono">{quantity}</div>

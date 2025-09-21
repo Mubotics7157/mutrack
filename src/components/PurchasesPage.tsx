@@ -14,6 +14,7 @@ import ProductAutocomplete, {
 import { VendorAutocomplete } from "./purchases/VendorAutocomplete";
 import { BulkRequestForm } from "./purchases/BulkRequestForm";
 import { MemberWithProfile } from "../lib/members";
+import { OrderEditModal } from "./purchases/OrderEditModal";
 
 interface PurchasesPageProps {
   member: MemberWithProfile;
@@ -55,6 +56,12 @@ export function PurchasesPage({ member }: PurchasesPageProps) {
   const [showGuide, setShowGuide] = useState(false);
   const [requestFormMode, setRequestFormMode] =
     useState<"single" | "bulk">("single");
+  const [editingRequestId, setEditingRequestId] = useState<string | null>(null);
+  const [editingProductId, setEditingProductId] = useState<string | null>(null);
+  const [orderBeingEdited, setOrderBeingEdited] = useState<any | null>(null);
+  const [showOrderEditModal, setShowOrderEditModal] = useState(false);
+  const [isOrderEditSubmitting, setIsOrderEditSubmitting] = useState(false);
+  const [orderEditCandidates, setOrderEditCandidates] = useState<any[]>([]);
 
   const workflowGuide = [
     {
@@ -96,8 +103,27 @@ export function PurchasesPage({ member }: PurchasesPageProps) {
   const ensureProduct = useMutation(api.purchases.ensureProduct);
   const generateUploadUrl = useMutation(api.purchases.generateUploadUrl);
   const markOrderPlaced = useMutation(api.purchases.markPurchaseOrderPlaced);
+  const updateRequestDetails = useMutation(
+    api.purchases.updatePurchaseRequestDetails
+  );
+  const deleteRequestMutation = useMutation(
+    api.purchases.deletePurchaseRequest
+  );
+  const updateOrderDetails = useMutation(
+    api.purchases.updatePurchaseOrderDetails
+  );
+  const deleteOrderMutation = useMutation(api.purchases.deletePurchaseOrder);
 
   const canManageOrders = member.role === "admin" || member.role === "lead";
+  const isAdmin = member.role === "admin";
+
+  const resetRequestFormState = () => {
+    setRequestForm(INITIAL_REQUEST_FORM);
+    setSelectedProduct(null);
+    setEditingRequestId(null);
+    setEditingProductId(null);
+    setRequestFormMode("single");
+  };
 
   const stats = useMemo(
     () => ({
@@ -175,6 +201,7 @@ export function PurchasesPage({ member }: PurchasesPageProps) {
 
   const handleSelectProduct = (product: ProductSuggestion) => {
     setSelectedProduct(product);
+    setEditingProductId(product._id);
     setRequestForm((prev) => ({
       ...prev,
       title: product.name,
@@ -210,10 +237,12 @@ export function PurchasesPage({ member }: PurchasesPageProps) {
 
       const vendorId = await ensureVendor({ name: vendorName });
 
-      let productId: string | undefined;
+      const baseProductId = selectedProduct?._id || editingProductId || undefined;
+
+      let productId: string | undefined = baseProductId;
       try {
         productId = await ensureProduct({
-          productId: selectedProduct?._id as any,
+          productId: baseProductId as any,
           name: requestForm.title,
           description: requestForm.description,
           link: requestForm.link,
@@ -225,22 +254,71 @@ export function PurchasesPage({ member }: PurchasesPageProps) {
         console.warn("ensureProduct failed", error);
       }
 
-      await createRequest({
-        title: requestForm.title,
-        description: requestForm.description,
-        estimatedCost,
-        priority: requestForm.priority,
-        link: requestForm.link,
-        quantity,
-        vendorId,
-        productId: productId as any,
-      });
-      toast.success("purchase request submitted");
-      setRequestForm(INITIAL_REQUEST_FORM);
-      setSelectedProduct(null);
+      if (editingRequestId) {
+        await updateRequestDetails({
+          requestId: editingRequestId as any,
+          title: requestForm.title,
+          description: requestForm.description,
+          estimatedCost,
+          priority: requestForm.priority,
+          link: requestForm.link,
+          quantity,
+          vendorId,
+          productId: productId ? (productId as any) : undefined,
+        });
+        toast.success("purchase request updated");
+      } else {
+        await createRequest({
+          title: requestForm.title,
+          description: requestForm.description,
+          estimatedCost,
+          priority: requestForm.priority,
+          link: requestForm.link,
+          quantity,
+          vendorId,
+          productId: productId ? (productId as any) : undefined,
+        });
+        toast.success("purchase request submitted");
+      }
+
+      resetRequestFormState();
       setShowRequestForm(false);
     } catch (error) {
       toast.error("failed to submit request");
+    }
+  };
+
+  const handleRequestEdit = (request: any) => {
+    setRequestFormMode("single");
+    setEditingRequestId(request._id);
+    setEditingProductId(request.productId ?? null);
+    setRequestForm({
+      title: request.title,
+      description: request.description,
+      estimatedCost: request.estimatedCost?.toString() || "",
+      priority: request.priority,
+      link: request.link || "",
+      quantity: (request.quantity ?? 1).toString(),
+      vendorName: request.vendorName || "",
+    });
+    setSelectedProduct(null);
+    setShowRequestForm(true);
+  };
+
+  const handleRequestDelete = async (request: any) => {
+    if (!confirm("Delete this purchase request?")) {
+      return;
+    }
+
+    try {
+      await deleteRequestMutation({ requestId: request._id as any });
+      toast.success("purchase request deleted");
+      if (editingRequestId === request._id) {
+        resetRequestFormState();
+        setShowRequestForm(false);
+      }
+    } catch (error) {
+      toast.error("failed to delete request");
     }
   };
 
@@ -333,6 +411,83 @@ export function PurchasesPage({ member }: PurchasesPageProps) {
     } catch (error) {
       toast.error("failed to place order");
       throw error;
+    }
+  };
+
+  const handleOrderEdit = (order: any) => {
+    const orderRequestIds = new Set((order.requestIds || []).map((id: any) => id));
+    const candidates = requests.filter((request: any) =>
+      request.status === "approved" || orderRequestIds.has(request._id)
+    );
+    setOrderEditCandidates(candidates);
+    setOrderBeingEdited(order);
+    setShowOrderEditModal(true);
+  };
+
+  const handleOrderDelete = async (order: any) => {
+    if (!confirm("Delete this purchase order?")) {
+      return;
+    }
+
+    try {
+      await deleteOrderMutation({ orderId: order._id as any });
+      toast.success("purchase order deleted");
+      if (orderBeingEdited?._id === order._id) {
+        setShowOrderEditModal(false);
+        setOrderBeingEdited(null);
+        setIsOrderEditSubmitting(false);
+        setOrderEditCandidates([]);
+      }
+      if (orderBeingPlaced?._id === order._id) {
+        setShowPlacementModal(false);
+        setOrderBeingPlaced(null);
+      }
+    } catch (error) {
+      toast.error("failed to delete order");
+    }
+  };
+
+  const handleOrderEditSubmit = async (
+    form: { vendor: string; totalCost: string; cartLink: string; notes: string },
+    requestIds: string[]
+  ) => {
+    if (!orderBeingEdited) return;
+
+    const vendor = form.vendor.trim();
+    if (!vendor) {
+      toast.error("vendor is required");
+      return;
+    }
+
+    const parsedTotal = parseFloat(form.totalCost || "0");
+    if (!Number.isFinite(parsedTotal) || parsedTotal <= 0) {
+      toast.error("enter a valid total cost");
+      return;
+    }
+
+    if (requestIds.length === 0) {
+      toast.error("select at least one line item");
+      return;
+    }
+
+    setIsOrderEditSubmitting(true);
+    try {
+      await updateOrderDetails({
+        orderId: orderBeingEdited._id as any,
+        vendor,
+        totalCost: parsedTotal,
+        cartLink: form.cartLink.trim() === "" ? undefined : form.cartLink.trim(),
+        notes: form.notes.trim() === "" ? undefined : form.notes.trim(),
+        requestIds: requestIds as any,
+      });
+      toast.success("purchase order updated");
+      setShowOrderEditModal(false);
+      setOrderBeingEdited(null);
+      setOrderEditCandidates([]);
+    } catch (error) {
+      toast.error("failed to update order");
+    } finally {
+      setIsOrderEditSubmitting(false);
     }
   };
 
@@ -488,8 +643,7 @@ export function PurchasesPage({ member }: PurchasesPageProps) {
           <div className="flex gap-2">
             <button
               onClick={() => {
-                setRequestForm(INITIAL_REQUEST_FORM);
-                setSelectedProduct(null);
+                resetRequestFormState();
                 setShowRequestForm(true);
               }}
               className="btn-modern btn-primary"
@@ -513,13 +667,13 @@ export function PurchasesPage({ member }: PurchasesPageProps) {
         isOpen={showRequestForm}
         onClose={() => {
           setShowRequestForm(false);
-          setRequestForm(INITIAL_REQUEST_FORM);
-          setSelectedProduct(null);
-          setRequestFormMode("single");
+          resetRequestFormState();
         }}
         title={
           requestFormMode === "single"
-            ? "new purchase request"
+            ? editingRequestId
+              ? "edit purchase request"
+              : "new purchase request"
             : "bulk add requests"
         }
         maxWidthClassName={
@@ -655,23 +809,28 @@ export function PurchasesPage({ member }: PurchasesPageProps) {
             <div className="flex flex-col gap-3 pt-4">
               <div className="flex gap-4">
                 <button type="submit" className="btn-modern btn-primary flex-1">
-                  submit request
+                  {editingRequestId ? "save changes" : "submit request"}
                 </button>
                 <button
                   type="button"
-                  onClick={() => setShowRequestForm(false)}
+                  onClick={() => {
+                    setShowRequestForm(false);
+                    resetRequestFormState();
+                  }}
                   className="btn-modern flex-1"
                 >
                   cancel
                 </button>
               </div>
-              <button
-                type="button"
-                onClick={() => setRequestFormMode("bulk")}
-                className="text-xs uppercase tracking-wide text-sunset-orange hover:text-sunset-orange/80"
-              >
-                need to add multiple items? switch to bulk add
-              </button>
+              {!editingRequestId && (
+                <button
+                  type="button"
+                  onClick={() => setRequestFormMode("bulk")}
+                  className="text-xs uppercase tracking-wide text-sunset-orange hover:text-sunset-orange/80"
+                >
+                  need to add multiple items? switch to bulk add
+                </button>
+              )}
             </div>
           </form>
         ) : (
@@ -689,9 +848,7 @@ export function PurchasesPage({ member }: PurchasesPageProps) {
             onCancel={() => setRequestFormMode("single")}
             onComplete={() => {
               setShowRequestForm(false);
-              setRequestForm(INITIAL_REQUEST_FORM);
-              setSelectedProduct(null);
-              setRequestFormMode("single");
+              resetRequestFormState();
             }}
           />
         )}
@@ -711,6 +868,9 @@ export function PurchasesPage({ member }: PurchasesPageProps) {
           requests={sortedRequests}
           canManageOrders={canManageOrders}
           onStatusUpdate={handleStatusUpdate}
+          isAdmin={isAdmin}
+          onEdit={isAdmin ? handleRequestEdit : undefined}
+          onDelete={isAdmin ? handleRequestDelete : undefined}
         />
       )}
       {activeView === "orders" && (
@@ -721,6 +881,9 @@ export function PurchasesPage({ member }: PurchasesPageProps) {
             setOrderBeingPlaced(order);
             setShowPlacementModal(true);
           }}
+          isAdmin={isAdmin}
+          onEditOrder={isAdmin ? handleOrderEdit : undefined}
+          onDeleteOrder={isAdmin ? handleOrderDelete : undefined}
         />
       )}
       {activeView === "summary" && <OutstandingSummary requests={requests} />}
@@ -733,6 +896,20 @@ export function PurchasesPage({ member }: PurchasesPageProps) {
           setOrderBeingPlaced(null);
         }}
         onSubmit={handlePlacementSubmit}
+      />
+
+      <OrderEditModal
+        order={orderBeingEdited}
+        isOpen={showOrderEditModal}
+        isSubmitting={isOrderEditSubmitting}
+        candidates={orderEditCandidates}
+        onClose={() => {
+          setShowOrderEditModal(false);
+          setOrderBeingEdited(null);
+          setIsOrderEditSubmitting(false);
+          setOrderEditCandidates([]);
+        }}
+        onSubmit={handleOrderEditSubmit}
       />
     </div>
   );
