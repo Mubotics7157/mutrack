@@ -9,6 +9,10 @@ import { OrdersList } from "./purchases/OrdersList";
 import { OutstandingSummary } from "./purchases/OutstandingSummary";
 import { PurchaseOrderWizard } from "./purchases/PurchaseOrderWizard";
 import { OrderPlacementModal } from "./purchases/OrderPlacementModal";
+import ProductAutocomplete, {
+  ProductSuggestion,
+} from "./purchases/ProductAutocomplete";
+import { VendorAutocomplete } from "./purchases/VendorAutocomplete";
 
 interface PurchasesPageProps {
   member: Doc<"members">;
@@ -45,6 +49,9 @@ export function PurchasesPage({ member }: PurchasesPageProps) {
   const [showPlacementModal, setShowPlacementModal] = useState(false);
   const [requestForm, setRequestForm] =
     useState<RequestFormState>(INITIAL_REQUEST_FORM);
+  const [selectedProduct, setSelectedProduct] =
+    useState<ProductSuggestion | null>(null);
+  const [productSearch, setProductSearch] = useState("");
 
   const requests = useQuery(api.purchases.getPurchaseRequests) || [];
   const orders = useQuery(api.purchases.getPurchaseOrders) || [];
@@ -53,6 +60,7 @@ export function PurchasesPage({ member }: PurchasesPageProps) {
   const updateRequestStatus = useMutation(api.purchases.updateRequestStatus);
   const createOrder = useMutation(api.purchases.createPurchaseOrder);
   const ensureVendor = useMutation(api.purchases.ensureVendor);
+  const ensureProduct = useMutation(api.purchases.ensureProduct);
   const generateUploadUrl = useMutation(api.purchases.generateUploadUrl);
   const markOrderPlaced = useMutation(api.purchases.markPurchaseOrderPlaced);
 
@@ -94,15 +102,73 @@ export function PurchasesPage({ member }: PurchasesPageProps) {
     [requests]
   );
 
-  const vendorResults =
-    useQuery(api.purchases.searchVendors, { q: requestForm.vendorName }) || [];
+  const vendorQuickPicks = useMemo(() => {
+    const seen = new Set<string>();
+    const picks: string[] = [];
+    requests.forEach((request: any) => {
+      if (!request.vendorName) return;
+      const normalized = request.vendorName.toLowerCase();
+      if (!seen.has(normalized)) {
+        seen.add(normalized);
+        picks.push(request.vendorName);
+      }
+    });
+    return picks;
+  }, [requests]);
+
+  const handleSelectProduct = (product: ProductSuggestion) => {
+    setSelectedProduct(product);
+    setProductSearch(product.name);
+    setRequestForm((prev) => ({
+      ...prev,
+      title: product.name,
+      description: product.description,
+      estimatedCost: product.estimatedCost.toString(),
+      link: product.link,
+      quantity: product.quantity.toString(),
+      vendorName: product.vendorName,
+    }));
+  };
 
   const handleRequestSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const vendorId = await ensureVendor({
-        name: requestForm.vendorName.trim(),
-      });
+      const estimatedCost = parseFloat(requestForm.estimatedCost || "0");
+      const quantity = parseInt(requestForm.quantity || "1", 10);
+
+      if (!Number.isFinite(estimatedCost) || estimatedCost <= 0) {
+        toast.error("enter a valid estimated cost");
+        return;
+      }
+
+      if (!Number.isFinite(quantity) || quantity <= 0) {
+        toast.error("quantity must be at least 1");
+        return;
+      }
+
+      const vendorName = requestForm.vendorName.trim();
+      if (!vendorName) {
+        toast.error("vendor is required");
+        return;
+      }
+
+      const vendorId = await ensureVendor({ name: vendorName });
+
+      let productId: string | undefined;
+      try {
+        productId = await ensureProduct({
+          productId: selectedProduct?._id as any,
+          name: requestForm.title,
+          description: requestForm.description,
+          link: requestForm.link,
+          estimatedCost,
+          quantity,
+          vendorId,
+        });
+      } catch (error) {
+        console.warn("ensureProduct failed", error);
+      }
+
       await createRequest({
         title: requestForm.title,
         description: requestForm.description,
@@ -111,9 +177,12 @@ export function PurchasesPage({ member }: PurchasesPageProps) {
         link: requestForm.link,
         quantity,
         vendorId,
+        productId: productId as any,
       });
       toast.success("purchase request submitted");
       setRequestForm(INITIAL_REQUEST_FORM);
+      setSelectedProduct(null);
+      setProductSearch("");
       setShowRequestForm(false);
     } catch (error) {
       toast.error("failed to submit request");
@@ -372,9 +441,14 @@ export function PurchasesPage({ member }: PurchasesPageProps) {
             <input
               type="text"
               value={requestForm.title}
-              onChange={(e) =>
-                setRequestForm({ ...requestForm, title: e.target.value })
-              }
+              onChange={(e) => {
+                const value = e.target.value;
+                setRequestForm({ ...requestForm, title: value });
+                setProductSearch(value);
+                if (selectedProduct && value !== selectedProduct.name) {
+                  setSelectedProduct(null);
+                }
+              }}
               className="input-modern"
               required
               placeholder="e.g., arduino uno r3, workshop tools"

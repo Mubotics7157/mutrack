@@ -94,3 +94,5 @@ export function ProductAutocomplete({
     </div>
   );
 }
+
+export default ProductAutocomplete;
