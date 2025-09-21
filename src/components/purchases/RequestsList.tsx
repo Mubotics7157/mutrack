@@ -16,6 +16,7 @@ type PurchaseRequest = {
   rejectionReason?: string;
   link?: string;
   approvals?: Array<{ memberName: string; approvedAt: number }>;
+  productId?: string;
 };
 
 interface RequestsListProps {
@@ -26,12 +27,18 @@ interface RequestsListProps {
     status: "approved" | "rejected",
     reason?: string
   ) => void;
+  isAdmin: boolean;
+  onEdit?: (request: PurchaseRequest) => void;
+  onDelete?: (request: PurchaseRequest) => void;
 }
 
 export function RequestsList({
   requests,
   canManageOrders,
   onStatusUpdate,
+  isAdmin,
+  onEdit,
+  onDelete,
 }: RequestsListProps) {
   if (requests.length === 0) {
     return (
@@ -116,23 +123,44 @@ export function RequestsList({
                 )}
               </div>
 
-              {canManageOrders && request.status === "pending" && (
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => onStatusUpdate(request._id, "approved")}
-                    className="btn-modern btn-success"
-                  >
-                    approve
-                  </button>
-                  <button
-                    onClick={() => {
-                      const reason = prompt("rejection reason (optional):");
-                      onStatusUpdate(request._id, "rejected", reason || undefined);
-                    }}
-                    className="btn-modern btn-danger"
-                  >
-                    reject
-                  </button>
+              {(canManageOrders || isAdmin) && (
+                <div className="flex flex-col gap-2 md:items-end">
+                  {canManageOrders && request.status === "pending" && (
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => onStatusUpdate(request._id, "approved")}
+                        className="btn-modern btn-success"
+                      >
+                        approve
+                      </button>
+                      <button
+                        onClick={() => {
+                          const reason = prompt("rejection reason (optional):");
+                          onStatusUpdate(request._id, "rejected", reason || undefined);
+                        }}
+                        className="btn-modern btn-danger"
+                      >
+                        reject
+                      </button>
+                    </div>
+                  )}
+
+                  {isAdmin && (
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => onEdit?.(request)}
+                        className="btn-modern"
+                      >
+                        edit
+                      </button>
+                      <button
+                        onClick={() => onDelete?.(request)}
+                        className="btn-modern btn-danger"
+                      >
+                        delete
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

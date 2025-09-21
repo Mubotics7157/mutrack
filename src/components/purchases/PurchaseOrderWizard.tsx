@@ -170,6 +170,12 @@ export function PurchaseOrderWizard({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (wizardStep !== "review") {
+      handleNext();
+      return;
+    }
+
     if (selectedRequestIds.length === 0) {
       toast.error("select at least one approved request");
       setWizardStep("select");

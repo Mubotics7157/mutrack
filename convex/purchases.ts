@@ -23,6 +23,19 @@ async function requireOrderManager(ctx: any, userId: string) {
   return member;
 }
 
+async function requireAdmin(ctx: any, userId: string) {
+  const member = await ctx.db
+    .query("members")
+    .withIndex("by_user", (q: any) => q.eq("userId", userId))
+    .unique();
+
+  if (!member || member.role !== "admin") {
+    throw new Error("Only admins can perform this action");
+  }
+
+  return member;
+}
+
 async function upsertOrderPlacement(
   ctx: any,
   order: any,
@@ -544,5 +557,128 @@ export const ensureProduct = mutation({
       updatedAt: now,
     });
     return productId;
+  },
+});
+
+export const updatePurchaseRequestDetails = mutation({
+  args: {
+    requestId: v.id("purchaseRequests"),
+    title: v.string(),
+    description: v.string(),
+    estimatedCost: v.number(),
+    priority: v.union(
+      v.literal("low"),
+      v.literal("medium"),
+      v.literal("high")
+    ),
+    link: v.string(),
+    quantity: v.number(),
+    vendorId: v.id("vendors"),
+    productId: v.optional(v.id("products")),
+  },
+  handler: async (ctx, args) => {
+    const userId = await requireUserId(ctx);
+    await requireAdmin(ctx, userId);
+
+    const { requestId, ...updates } = args;
+
+    const existing = await ctx.db.get(requestId);
+    if (!existing) {
+      throw new Error("Request not found");
+    }
+
+    await ctx.db.patch(requestId, {
+      ...updates,
+      vendorId: updates.vendorId,
+      productId: updates.productId,
+    });
+  },
+});
+
+export const deletePurchaseRequest = mutation({
+  args: {
+    requestId: v.id("purchaseRequests"),
+  },
+  handler: async (ctx, args) => {
+    const userId = await requireUserId(ctx);
+    await requireAdmin(ctx, userId);
+
+    const request = await ctx.db.get(args.requestId);
+    if (!request) {
+      throw new Error("Request not found");
+    }
+
+    const orders = await ctx.db.query("purchaseOrders").collect();
+    for (const order of orders) {
+      if (order.requestIds.some((id) => id === args.requestId)) {
+        const updatedRequestIds = order.requestIds.filter(
+          (id) => id !== args.requestId
+        );
+
+        if (updatedRequestIds.length === 0) {
+          await ctx.db.delete(order._id);
+        } else {
+          await ctx.db.patch(order._id, { requestIds: updatedRequestIds });
+        }
+      }
+    }
+
+    await ctx.db.delete(args.requestId);
+  },
+});
+
+export const updatePurchaseOrderDetails = mutation({
+  args: {
+    orderId: v.id("purchaseOrders"),
+    vendor: v.string(),
+    totalCost: v.number(),
+    cartLink: v.optional(v.string()),
+    notes: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const userId = await requireUserId(ctx);
+    await requireAdmin(ctx, userId);
+
+    const order = await ctx.db.get(args.orderId);
+    if (!order) {
+      throw new Error("Order not found");
+    }
+
+    const vendor = args.vendor.trim();
+    const cartLink = args.cartLink?.trim();
+    const notes = args.notes?.trim();
+
+    await ctx.db.patch(args.orderId, {
+      vendor,
+      totalCost: args.totalCost,
+      cartLink: cartLink === "" ? undefined : cartLink,
+      notes: notes === "" ? undefined : notes,
+    });
+  },
+});
+
+export const deletePurchaseOrder = mutation({
+  args: {
+    orderId: v.id("purchaseOrders"),
+  },
+  handler: async (ctx, args) => {
+    const userId = await requireUserId(ctx);
+    await requireAdmin(ctx, userId);
+
+    const order = await ctx.db.get(args.orderId);
+    if (!order) {
+      throw new Error("Order not found");
+    }
+
+    for (const requestId of order.requestIds) {
+      const request = await ctx.db.get(requestId);
+      if (!request) continue;
+
+      if (request.status === "ordered") {
+        await ctx.db.patch(requestId, { status: "approved" });
+      }
+    }
+
+    await ctx.db.delete(args.orderId);
   },
 });
