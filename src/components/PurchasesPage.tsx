@@ -40,14 +40,11 @@ export function PurchasesPage({ member }: PurchasesPageProps) {
   const [activeView, setActiveView] = useState<ViewType>("requests");
   const [showRequestForm, setShowRequestForm] = useState(false);
   const [showOrderForm, setShowOrderForm] = useState(false);
-  const [requestSort, setRequestSort] = useState<"recent" | "vendor">(
-    "recent"
-  );
+  const [requestSort, setRequestSort] = useState<"recent" | "vendor">("recent");
   const [orderBeingPlaced, setOrderBeingPlaced] = useState<any | null>(null);
   const [showPlacementModal, setShowPlacementModal] = useState(false);
-  const [requestForm, setRequestForm] = useState<RequestFormState>(
-    INITIAL_REQUEST_FORM
-  );
+  const [requestForm, setRequestForm] =
+    useState<RequestFormState>(INITIAL_REQUEST_FORM);
 
   const requests = useQuery(api.purchases.getPurchaseRequests) || [];
   const orders = useQuery(api.purchases.getPurchaseOrders) || [];
@@ -83,9 +80,7 @@ export function PurchasesPage({ member }: PurchasesPageProps) {
       });
     }
 
-    return copy.sort(
-      (a, b) => (b.requestedAt || 0) - (a.requestedAt || 0)
-    );
+    return copy.sort((a, b) => (b.requestedAt || 0) - (a.requestedAt || 0));
   }, [requests, requestSort]);
 
   const approvedRequests = useMemo(
@@ -95,9 +90,7 @@ export function PurchasesPage({ member }: PurchasesPageProps) {
 
   const outstandingRequests = useMemo(
     () =>
-      requests.filter(
-        (r) => r.status === "pending" || r.status === "approved"
-      ),
+      requests.filter((r) => r.status === "pending" || r.status === "approved"),
     [requests]
   );
 
@@ -113,10 +106,10 @@ export function PurchasesPage({ member }: PurchasesPageProps) {
       await createRequest({
         title: requestForm.title,
         description: requestForm.description,
-        estimatedCost: parseFloat(requestForm.estimatedCost),
+        estimatedCost,
         priority: requestForm.priority,
         link: requestForm.link,
-        quantity: parseInt(requestForm.quantity || "1", 10),
+        quantity,
         vendorId,
       });
       toast.success("purchase request submitted");
@@ -324,7 +317,12 @@ export function PurchasesPage({ member }: PurchasesPageProps) {
 
           <div className="flex gap-2">
             <button
-              onClick={() => setShowRequestForm(!showRequestForm)}
+              onClick={() => {
+                setRequestForm(INITIAL_REQUEST_FORM);
+                setSelectedProduct(null);
+                setProductSearch("");
+                setShowRequestForm(true);
+              }}
               className="btn-modern btn-primary"
             >
               + new request
@@ -344,11 +342,29 @@ export function PurchasesPage({ member }: PurchasesPageProps) {
       {/* Request Form Modal */}
       <Modal
         isOpen={showRequestForm}
-        onClose={() => setShowRequestForm(false)}
+        onClose={() => {
+          setShowRequestForm(false);
+          setRequestForm(INITIAL_REQUEST_FORM);
+          setSelectedProduct(null);
+          setProductSearch("");
+        }}
         title="new purchase request"
         maxWidthClassName="max-w-2xl"
       >
         <form onSubmit={handleRequestSubmit} className="space-y-4">
+          <ProductAutocomplete
+            label="product (optional)"
+            value={productSearch}
+            onChange={(value) => {
+              setProductSearch(value);
+              if (!value) {
+                setSelectedProduct(null);
+              }
+            }}
+            onProductSelect={handleSelectProduct}
+            vendorFilter={requestForm.vendorName}
+          />
+
           <div>
             <label className="block mb-2 text-sm text-text-muted">
               item/service title *
@@ -462,42 +478,19 @@ export function PurchasesPage({ member }: PurchasesPageProps) {
             </div>
           </div>
 
-          <div>
-            <label className="block mb-2 text-sm text-text-muted">
-              vendor *
-            </label>
-            <div className="relative">
-              <input
-                type="text"
-                value={requestForm.vendorName}
-                onChange={(e) =>
-                  setRequestForm({
-                    ...requestForm,
-                    vendorName: e.target.value,
-                  })
-                }
-                className="input-modern"
-                required
-                placeholder="e.g., amazon, mcmaster-carr"
-              />
-              {requestForm.vendorName && vendorResults.length > 0 && (
-                <div className="absolute z-10 mt-1 w-full bg-void-black/95 border border-border-glass rounded-xl max-h-48 overflow-auto">
-                  {vendorResults.map((v: any) => (
-                    <button
-                      type="button"
-                      key={v._id}
-                      onClick={() =>
-                        setRequestForm({ ...requestForm, vendorName: v.name })
-                      }
-                      className="block w-full text-left px-3 py-2 hover:bg-white/10 text-sm"
-                    >
-                      {v.name}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
+          <VendorAutocomplete
+            label="vendor"
+            value={requestForm.vendorName}
+            onChange={(name) => {
+              setSelectedProduct(null);
+              setRequestForm({ ...requestForm, vendorName: name });
+            }}
+            onSelect={(name) =>
+              setRequestForm({ ...requestForm, vendorName: name })
+            }
+            quickPicks={vendorQuickPicks}
+            required
+          />
 
           <div className="flex gap-4 pt-4">
             <button type="submit" className="btn-modern btn-primary flex-1">
@@ -540,9 +533,7 @@ export function PurchasesPage({ member }: PurchasesPageProps) {
           }}
         />
       )}
-      {activeView === "summary" && (
-        <OutstandingSummary requests={requests} />
-      )}
+      {activeView === "summary" && <OutstandingSummary requests={requests} />}
 
       <OrderPlacementModal
         order={orderBeingPlaced}

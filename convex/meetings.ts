@@ -1,4 +1,5 @@
 import { query, mutation } from "./_generated/server";
+import type { MutationCtx } from "./_generated/server";
 import { v } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { internal } from "./_generated/api";
@@ -26,6 +27,26 @@ export const getMeetingById = query({
   },
 });
 
+const requireMeetingManager = async (ctx: MutationCtx) => {
+  const userId = await getAuthUserId(ctx);
+  if (!userId) throw new Error("Not authenticated");
+
+  const member = await ctx.db
+    .query("members")
+    .withIndex("by_user", (q) => q.eq("userId", userId))
+    .unique();
+
+  if (!member) {
+    throw new Error("Member not found");
+  }
+
+  if (member.role !== "admin" && member.role !== "lead") {
+    throw new Error("Only admins and leads can manage meetings");
+  }
+
+  return { userId, member } as const;
+};
+
 export const createMeeting = mutation({
   args: {
     title: v.string(),
@@ -36,17 +57,7 @@ export const createMeeting = mutation({
     location: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
-
-    const member = await ctx.db
-      .query("members")
-      .withIndex("by_user", (q) => q.eq("userId", userId))
-      .unique();
-
-    if (!member || (member.role !== "admin" && member.role !== "lead")) {
-      throw new Error("Only admins and leads can create meetings");
-    }
+    const { userId } = await requireMeetingManager(ctx);
 
     const meetingId = await ctx.db.insert("meetings", {
       ...args,
@@ -89,17 +100,7 @@ export const updateMeeting = mutation({
     location: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
-
-    const member = await ctx.db
-      .query("members")
-      .withIndex("by_user", (q) => q.eq("userId", userId))
-      .unique();
-
-    if (!member || (member.role !== "admin" && member.role !== "lead")) {
-      throw new Error("Only admins and leads can update meetings");
-    }
+    await requireMeetingManager(ctx);
 
     const { meetingId, ...updates } = args;
     await ctx.db.patch(meetingId, updates);
@@ -109,17 +110,7 @@ export const updateMeeting = mutation({
 export const deleteMeeting = mutation({
   args: { meetingId: v.id("meetings") },
   handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
-
-    const member = await ctx.db
-      .query("members")
-      .withIndex("by_user", (q) => q.eq("userId", userId))
-      .unique();
-
-    if (!member || (member.role !== "admin" && member.role !== "lead")) {
-      throw new Error("Only admins and leads can delete meetings");
-    }
+    await requireMeetingManager(ctx);
 
     await ctx.db.delete(args.meetingId);
   },

@@ -29,6 +29,9 @@ export function HomePage({ member }: HomePageProps) {
   const [showSelectedDate, setShowSelectedDate] = useState(false);
   const [devicePushEnabled, setDevicePushEnabled] = useState<boolean>();
 
+  const canManageMeetings =
+    member.role === "admin" || member.role === "lead";
+
   const meetings = useQuery(api.meetings.getMeetings);
   const allMembers = useQuery(api.members.getAllMembers);
   const rsvpToMeeting = useMutation(api.meetings.rsvpToMeeting);
@@ -37,14 +40,25 @@ export function HomePage({ member }: HomePageProps) {
     api.members.setNotificationsEnabled
   );
   const [rsvpSubmitting, setRsvpSubmitting] = useState(false);
-  const upcomingMeetings = meetings
-    ?.filter((m: any) => new Date(m.date) >= new Date())
+  const getMeetingStartMs = (m: any): number => {
+    const start = new Date(m.date);
+    const [hours, minutes] = (m.startTime ?? "00:00")
+      .split(":")
+      .map((x: string) => parseInt(x, 10) || 0);
+    start.setHours(hours, minutes, 0, 0);
+    return start.getTime();
+  };
+
+  const upcomingMeetings = (meetings || [])
+    .filter((m: any) => getMeetingStartMs(m) >= Date.now())
+    .sort((a: any, b: any) => getMeetingStartMs(a) - getMeetingStartMs(b))
     .slice(0, 5);
 
   // Quick meeting creation with smart defaults
   const [quickMeetingDate, setQuickMeetingDate] = useState<Date | null>(null);
 
   const handleQuickMeeting = (date: Date) => {
+    if (!canManageMeetings) return;
     setQuickMeetingDate(date);
     setShowNewMeeting(true);
   };
@@ -182,7 +196,7 @@ export function HomePage({ member }: HomePageProps) {
       )}
 
       {/* New Meeting Modal - Outside main content flow */}
-      {showNewMeeting && (
+      {showNewMeeting && canManageMeetings && (
         <NewMeetingModal
           onClose={() => {
             setShowNewMeeting(false);
@@ -217,7 +231,9 @@ export function HomePage({ member }: HomePageProps) {
                     .toLowerCase()}{" "}
                   at {nextMeeting.startTime}
                   <span className="text-accent-green ml-2">
-                    {getTimeUntilMeeting(new Date(nextMeeting.date))}
+                    {getTimeUntilMeeting(
+                      new Date(getMeetingStartMs(nextMeeting))
+                    )}
                   </span>
                 </p>
                 {nextMeeting.location && (
@@ -293,7 +309,7 @@ export function HomePage({ member }: HomePageProps) {
         </div>
 
         {/* Quick Actions Bar - Only for admins/leads */}
-        {(member.role === "admin" || member.role === "lead") && (
+        {canManageMeetings && (
           <div className="flex gap-2 flex-wrap">
             <button
               className="btn-modern btn-primary flex items-center gap-2"
@@ -350,7 +366,9 @@ export function HomePage({ member }: HomePageProps) {
               setSelectedDate(date);
               setShowSelectedDate(true);
             }}
-            onDateDoubleClick={handleQuickMeeting}
+            onDateDoubleClick={
+              canManageMeetings ? handleQuickMeeting : undefined
+            }
             viewMode={viewMode}
           />
 
@@ -390,7 +408,7 @@ interface CalendarViewProps {
   meetings: any[];
   selectedDate: Date;
   onDateSelect: (date: Date) => void;
-  onDateDoubleClick: (date: Date) => void;
+  onDateDoubleClick?: (date: Date) => void;
   viewMode: "month" | "week";
 }
 
@@ -523,13 +541,13 @@ function CalendarView({
                 ${dayMeetings.length > 0 ? "has-event" : ""}
               `}
               onClick={() => date && onDateSelect(date)}
-              onDoubleClick={() => date && onDateDoubleClick(date)}
+              onDoubleClick={() => date && onDateDoubleClick?.(date)}
               style={{
                 cursor: date ? "pointer" : "default",
                 opacity: date ? 1 : 0.3,
               }}
               title={
-                date
+                date && onDateDoubleClick
                   ? `Double-click to add meeting on ${date.toLocaleDateString()}`
                   : undefined
               }
@@ -710,17 +728,25 @@ function NewMeetingModal({
     // Create date at midnight local time (not UTC)
     const meetingDate = new Date(date + "T00:00:00");
 
-    await createMeeting({
-      title,
-      date: meetingDate.getTime(),
-      startTime,
-      endTime,
-      location,
-      description,
-    });
+    try {
+      await createMeeting({
+        title,
+        date: meetingDate.getTime(),
+        startTime,
+        endTime,
+        location,
+        description,
+      });
 
-    toast.success("meeting scheduled successfully");
-    onClose();
+      toast.success("meeting scheduled successfully");
+      onClose();
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "failed to schedule meeting";
+      toast.error(message);
+    }
   };
 
   // Use React Portal to render modal at document body level

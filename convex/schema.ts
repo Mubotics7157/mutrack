@@ -74,6 +74,7 @@ const applicationTables = {
     link: v.string(),
     quantity: v.number(),
     vendorId: v.id("vendors"),
+    productId: v.optional(v.id("products")),
     status: v.union(
       v.literal("pending"),
       v.literal("approved"),
@@ -85,6 +86,14 @@ const applicationTables = {
     requestedAt: v.number(),
     approvedBy: v.optional(v.id("users")),
     approvedAt: v.optional(v.number()),
+    approvals: v.optional(
+      v.array(
+        v.object({
+          memberId: v.id("members"),
+          approvedAt: v.number(),
+        })
+      )
+    ),
     rejectionReason: v.optional(v.string()),
   })
     .index("by_status", ["status"])
@@ -117,9 +126,54 @@ const applicationTables = {
     .index("by_member", ["memberId"])
     .index("by_endpoint", ["endpoint"]),
 
+  muPoints: defineTable({
+    memberId: v.id("members"),
+    assignedByMemberId: v.id("members"),
+    points: v.number(),
+    reason: v.string(),
+    createdAt: v.number(),
+  })
+    .index("by_member", ["memberId"])
+    .index("by_assigned_by", ["assignedByMemberId"]),
+
+  bounties: defineTable({
+    title: v.string(),
+    description: v.optional(v.string()),
+    points: v.number(),
+    status: v.union(
+      v.literal("open"),
+      v.literal("completed"),
+      v.literal("cancelled")
+    ),
+    createdByMemberId: v.id("members"),
+    createdAt: v.number(),
+    completedByMemberId: v.optional(v.id("members")),
+    completedAt: v.optional(v.number()),
+    completionNotes: v.optional(v.string()),
+  })
+    .index("by_status", ["status"])
+    .index("by_created_by", ["createdByMemberId"])
+    .index("by_status_and_createdAt", ["status", "createdAt"]),
+
   vendors: defineTable({
     name: v.string(),
   }).index("by_name", ["name"]),
+
+  products: defineTable({
+    name: v.string(),
+    normalizedName: v.string(),
+    description: v.string(),
+    link: v.string(),
+    estimatedCost: v.number(),
+    quantity: v.number(),
+    vendorId: v.id("vendors"),
+    createdBy: v.id("users"),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_normalized_name", ["normalizedName"])
+    .index("by_vendor", ["vendorId"])
+    .index("by_updated_at", ["updatedAt"]),
 };
 
 export default defineSchema({
