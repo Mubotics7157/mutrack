@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Modal } from "../Modal";
-import { useQuery } from "convex/react";
-import { api } from "../../../convex/_generated/api";
+import { VendorAutocomplete } from "./VendorAutocomplete";
 
 type OrderWizardStep = "select" | "details" | "review";
 
@@ -99,10 +98,6 @@ export function PurchaseOrderWizard({
       setForm((prev) => ({ ...prev, totalCost: selectedTotal.toFixed(2) }));
     }
   }, [wizardStep, selectedTotal, form.totalCost]);
-
-  const vendorResults = useQuery(api.purchases.searchVendors, {
-    q: isOpen ? form.vendor : "",
-  });
 
   const steps: Array<{ id: OrderWizardStep; label: string }> = [
     { id: "select", label: "line items" },
@@ -356,62 +351,20 @@ export function PurchaseOrderWizard({
               confirm vendor and add optional notes before reviewing the order.
             </p>
 
-            <div>
-              <label className="block mb-2 text-sm text-text-muted">
-                vendor *
-              </label>
-              <div className="relative">
-                <input
-                  type="text"
-                  value={form.vendor}
-                  onChange={(e) => {
-                    setVendorTouched(true);
-                    setForm((prev) => ({ ...prev, vendor: e.target.value }));
-                  }}
-                  className="input-modern"
-                  placeholder="e.g., amazon, mcmaster-carr"
-                  required
-                />
-                {form.vendor && vendorResults && vendorResults.length > 0 && (
-                  <div className="absolute z-20 mt-1 w-full max-h-48 overflow-auto rounded-xl border border-border-glass bg-void-black/95 shadow-xl">
-                    {vendorResults.map((v: any) => (
-                      <button
-                        type="button"
-                        key={v._id}
-                        onClick={() => {
-                          setVendorTouched(true);
-                          setForm((prev) => ({ ...prev, vendor: v.name }));
-                        }}
-                        className="block w-full px-3 py-2 text-left text-sm text-text-secondary hover:bg-white/10"
-                      >
-                        {v.name}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {vendorQuickPicks.length > 0 && (
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-xs uppercase tracking-wide text-text-muted">
-                  quick picks
-                </span>
-                {vendorQuickPicks.slice(0, 6).map((vendor) => (
-                  <button
-                    type="button"
-                    key={vendor}
-                    onClick={() => {
-                      setVendorTouched(true);
-                      setForm((prev) => ({ ...prev, vendor }));
-                    }}
-                    className="rounded-full border border-border-glass px-3 py-1 text-xs text-text-secondary hover:border-sunset-orange hover:text-sunset-orange"
-                  >
-                    {vendor}
-                  </button>
-                ))}
-              </div>
-            )}
+            <VendorAutocomplete
+              label="vendor"
+              value={form.vendor}
+              onChange={(name) => {
+                setVendorTouched(true);
+                setForm((prev) => ({ ...prev, vendor: name }));
+              }}
+              onSelect={(name) => {
+                setVendorTouched(true);
+                setForm((prev) => ({ ...prev, vendor: name }));
+              }}
+              quickPicks={vendorQuickPicks}
+              required
+            />
 
             <div>
               <label className="block mb-2 text-sm text-text-muted">

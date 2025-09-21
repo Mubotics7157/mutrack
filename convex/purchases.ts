@@ -341,23 +341,24 @@ export const searchVendors = query({
     q: v.string(),
   },
   handler: async (ctx, args) => {
-    const queryText = args.q.trim();
-    if (queryText === "") {
-      // return a few vendors for empty input
-      return await ctx.db.query("vendors").take(10);
-    }
-    const normalizedQuery = queryText.toLowerCase();
-    const results = [];
+    const normalizedQuery = args.q.trim().toLowerCase();
+    const results: Array<Doc<"vendors"> & { normalizedName: string }> = [];
     const cursor = ctx.db
       .query("vendors")
       .withIndex("by_name")
       .order("asc");
+
     for await (const vendor of cursor) {
-      if (vendor.name.toLowerCase().startsWith(normalizedQuery)) {
-        results.push(vendor);
+      const normalized = vendor.normalizedName || vendor.name.toLowerCase();
+      if (
+        normalizedQuery === "" ||
+        normalized.includes(normalizedQuery)
+      ) {
+        results.push({ ...vendor, normalizedName: normalized });
         if (results.length >= 10) break;
       }
     }
+
     return results;
   },
 });
@@ -370,12 +371,27 @@ export const ensureVendor = mutation({
     if (name === "") {
       throw new Error("Vendor name required");
     }
-    const existing = await ctx.db
+    const normalizedName = name.toLowerCase();
+
+    const cursor = ctx.db
       .query("vendors")
-      .withIndex("by_name", (q) => q.eq("name", name))
-      .unique();
-    if (existing) return existing._id;
-    const id = await ctx.db.insert("vendors", { name });
+      .withIndex("by_name")
+      .order("asc");
+
+    for await (const vendor of cursor) {
+      const normalized = vendor.normalizedName || vendor.name.toLowerCase();
+      if (normalized === normalizedName) {
+        if (vendor.name !== name || vendor.normalizedName !== normalized) {
+          await ctx.db.patch(vendor._id, {
+            name,
+            normalizedName,
+          });
+        }
+        return vendor._id;
+      }
+    }
+
+    const id = await ctx.db.insert("vendors", { name, normalizedName });
     return id;
   },
 });

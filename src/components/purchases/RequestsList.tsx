@@ -15,6 +15,7 @@ type PurchaseRequest = {
   requestedAt?: number;
   rejectionReason?: string;
   link?: string;
+  approvals?: Array<{ memberName: string; approvedAt: number }>;
 };
 
 interface RequestsListProps {
@@ -69,6 +70,12 @@ export function RequestsList({
                   <span className="text-sm font-mono text-text-secondary">
                     ${lineTotal.toFixed(2)} total
                   </span>
+                  {request.approvals && request.approvals.length > 0 && (
+                    <span className="text-xs uppercase tracking-wide text-accent-green">
+                      {request.approvals.length} approval
+                      {request.approvals.length === 1 ? "" : "s"}
+                    </span>
+                  )}
                 </div>
 
                 <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-text-muted">
@@ -95,6 +102,16 @@ export function RequestsList({
                     <p className="text-sm text-error-red">
                       <strong>rejection reason:</strong> {request.rejectionReason}
                     </p>
+                  </div>
+                )}
+                {request.approvals && request.approvals.length > 0 && (
+                  <div className="mt-3 rounded-xl border border-border-glass px-3 py-2 text-xs text-text-muted">
+                    <span className="font-medium text-text-secondary">
+                      approvals:
+                    </span>{" "}
+                    {request.approvals
+                      .map((approval) => approval.memberName)
+                      .join(", ")}
                   </div>
                 )}
               </div>

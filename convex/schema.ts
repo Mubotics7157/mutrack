@@ -157,7 +157,10 @@ const applicationTables = {
 
   vendors: defineTable({
     name: v.string(),
-  }).index("by_name", ["name"]),
+    normalizedName: v.optional(v.string()),
+  })
+    .index("by_normalized_name", ["normalizedName"])
+    .index("by_name", ["name"]),
 
   products: defineTable({
     name: v.string(),
