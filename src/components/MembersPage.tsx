@@ -3,7 +3,14 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { type Id } from "../../convex/_generated/dataModel";
 import { toast } from "sonner";
-import { Users, ShieldCheck, Sparkles, PlusCircle, Trophy } from "lucide-react";
+import {
+  Users,
+  ShieldCheck,
+  Sparkles,
+  PlusCircle,
+  Trophy,
+  Timer,
+} from "lucide-react";
 import { Modal } from "./Modal";
 import { LeaderboardTab } from "./members/LeaderboardTab";
 import { DirectoryTab } from "./members/DirectoryTab";
@@ -12,6 +19,7 @@ import {
   formatAwardDate as formatAwardDateHelper,
   formatPoints as formatPointsHelper,
   filterMembers as filterMembersHelper,
+  formatHours as formatHoursHelper,
 } from "./members/helpers";
 import type { BountyBoardData, LeaderboardEntry } from "./members/types";
 import { MemberWithProfile } from "../lib/members";
@@ -51,6 +59,15 @@ export function MembersPage({ member }: MembersPageProps) {
     | LeaderboardEntry[]
     | undefined;
   const leaderboard = useMemo(() => leaderboardQuery ?? [], [leaderboardQuery]);
+  const totalAttendanceMs = useMemo(
+    () =>
+      leaderboard.reduce(
+        (sum, entry) => sum + entry.totalAttendanceMs,
+        0
+      ),
+    [leaderboard]
+  );
+  const totalAttendanceLabel = formatHoursHelper(totalAttendanceMs);
   const bountyBoardQuery = useQuery(api.bounties.getBounties) as
     | BountyBoardData
     | undefined;
@@ -138,6 +155,23 @@ export function MembersPage({ member }: MembersPageProps) {
     selectedMemberLeaderboardEntry?.awardsCount ?? 0;
   const selectedMemberTotalPoints =
     selectedMemberLeaderboardEntry?.totalPoints ?? 0;
+  const selectedMemberAttendanceMs =
+    selectedMemberLeaderboardEntry?.totalAttendanceMs ?? 0;
+  const selectedMemberAttendanceMeetings =
+    selectedMemberLeaderboardEntry?.attendanceMeetingsCount ?? 0;
+  const selectedMemberAttendanceSessions =
+    selectedMemberLeaderboardEntry?.attendanceSessionCount ?? 0;
+  const selectedMemberAttendanceLabel = formatHoursHelper(
+    selectedMemberAttendanceMs
+  );
+  const selectedMemberAttendanceSummary =
+    selectedMemberAttendanceMs > 0
+      ? `${selectedMemberAttendanceLabel} hours across ${selectedMemberAttendanceMeetings.toLocaleString()} ${
+          selectedMemberAttendanceMeetings === 1 ? "meeting" : "meetings"
+        } • ${selectedMemberAttendanceSessions.toLocaleString()} ${
+          selectedMemberAttendanceSessions === 1 ? "check-in" : "check-ins"
+        }`
+      : "no hours tracked just yet";
   const selectedMemberAwardsLabel =
     selectedMemberAwardsCount === 1 ? "award" : "awards";
 
@@ -353,6 +387,14 @@ export function MembersPage({ member }: MembersPageProps) {
                   μpoints
                 </p>
               </div>
+              <div>
+                <p className="text-3xl font-light text-emerald-300">
+                  {totalAttendanceLabel}h
+                </p>
+                <p className="text-xs text-text-dim uppercase tracking-widest">
+                  hours tracked
+                </p>
+              </div>
             </div>
           </div>
 
@@ -380,6 +422,7 @@ export function MembersPage({ member }: MembersPageProps) {
           currentMemberId={member._id}
           formatPoints={formatPoints}
           formatAwardDate={formatAwardDate}
+          formatHours={formatHoursHelper}
           canAwardPoints={canAwardPoints}
           bountyBoard={bountyBoard}
           members={members}
@@ -454,6 +497,10 @@ export function MembersPage({ member }: MembersPageProps) {
                         {selectedMember.email}
                       </p>
                     )}
+                    <p className="text-xs text-text-muted mt-3 flex items-center gap-2">
+                      <Timer size={14} className="text-emerald-300" />
+                      {selectedMemberAttendanceSummary}
+                    </p>
                   </div>
                 </div>
                 <div className="text-right">

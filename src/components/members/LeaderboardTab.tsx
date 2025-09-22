@@ -9,6 +9,7 @@ import {
   Sparkles,
   Target,
   Trophy,
+  Timer,
 } from "lucide-react";
 import { toast } from "sonner";
 import { BountyBoardData, LeaderboardEntry, BountyEntry } from "./types";
@@ -16,6 +17,7 @@ import {
   formatDateTime,
   formatAwardDate as formatAwardDateFn,
   formatPoints as formatPointsFn,
+  formatHours as formatHoursFn,
 } from "./../members/helpers";
 import { MemberWithProfile } from "../../lib/members";
 import { ProfileAvatar } from "../ProfileAvatar";
@@ -31,6 +33,7 @@ export interface LeaderboardTabProps {
   currentMemberId: Id<"members">;
   formatPoints?: (value: number) => string;
   formatAwardDate?: (timestamp: number | null) => string;
+  formatHours?: (valueMs: number) => string;
   canAwardPoints: boolean;
   bountyBoard: BountyBoardData;
   members: Array<MemberWithProfile>;
@@ -67,10 +70,69 @@ export function LeaderboardTab(props: LeaderboardTabProps) {
 
   const formatPoints = props.formatPoints ?? formatPointsFn;
   const formatAwardDate = props.formatAwardDate ?? formatAwardDateFn;
+  const formatHours = props.formatHours ?? formatHoursFn;
 
   const topThree = leaderboard.slice(0, 3);
   const rest = leaderboard.slice(3);
   const leaderPoints = leaderboard[0]?.totalPoints ?? 0;
+
+  const hoursLeaderboard = useMemo(() => {
+    const sorted = [...leaderboard];
+    sorted.sort((a, b) => {
+      if (b.totalAttendanceMs !== a.totalAttendanceMs) {
+        return b.totalAttendanceMs - a.totalAttendanceMs;
+      }
+      const lastAttendanceDiff =
+        (b.lastAttendanceAt ?? 0) - (a.lastAttendanceAt ?? 0);
+      if (lastAttendanceDiff !== 0) {
+        return lastAttendanceDiff;
+      }
+      if (b.totalPoints !== a.totalPoints) {
+        return b.totalPoints - a.totalPoints;
+      }
+      return a.name.localeCompare(b.name);
+    });
+    return sorted;
+  }, [leaderboard]);
+
+  const hoursLeadersWithData = useMemo(
+    () => hoursLeaderboard.filter((entry) => entry.totalAttendanceMs > 0),
+    [hoursLeaderboard]
+  );
+
+  const attendanceShowcase = hoursLeadersWithData.slice(0, 5);
+  const totalAttendanceMs = useMemo(
+    () =>
+      leaderboard.reduce(
+        (sum, entry) => sum + entry.totalAttendanceMs,
+        0
+      ),
+    [leaderboard]
+  );
+  const totalAttendanceLabel = formatHours(totalAttendanceMs);
+  const hoursLeaderEntry = hoursLeadersWithData[0] ?? null;
+  const topPointsName =
+    leaderboardStats.topMemberName ?? leaderboard[0]?.name ?? null;
+  const topHoursName = hoursLeaderEntry?.name ?? null;
+  const doubleChampionId =
+    leaderboard[0] && hoursLeaderEntry
+      ? leaderboard[0].memberId === hoursLeaderEntry.memberId
+        ? hoursLeaderEntry.memberId
+        : null
+      : null;
+
+  const topHoursSet = useMemo(
+    () =>
+      new Set(
+        hoursLeadersWithData.slice(0, 3).map((entry) => entry.memberId)
+      ),
+    [hoursLeadersWithData]
+  );
+  const pointsTopSet = useMemo(
+    () =>
+      new Set(leaderboard.slice(0, 3).map((entry) => entry.memberId)),
+    [leaderboard]
+  );
 
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [newTitle, setNewTitle] = useState("");
@@ -154,7 +216,7 @@ export function LeaderboardTab(props: LeaderboardTabProps) {
                 : "tap a teammate to explore their μpoint highlight reel."}
             </p>
           </div>
-          <div className="grid grid-cols-2 gap-4 text-center">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-center">
             <div>
               <p className="text-2xl font-light text-sunset-orange">
                 {formatPoints(leaderboardStats.totalPoints)}
@@ -171,15 +233,43 @@ export function LeaderboardTab(props: LeaderboardTabProps) {
                 recognitions logged
               </p>
             </div>
+            <div>
+              <p className="text-2xl font-light text-emerald-300">
+                {totalAttendanceLabel}h
+              </p>
+              <p className="text-xs text-text-dim uppercase tracking-widest">
+                hours tracked
+              </p>
+            </div>
           </div>
         </div>
-        {leaderboardStats.topMemberName && (
-          <div className="relative z-10 mt-4 text-sm text-text-muted">
-            🏆 leading the charge:{" "}
-            <span className="text-text-primary">
-              {leaderboardStats.topMemberName}
+        {doubleChampionId && topPointsName ? (
+          <div className="relative z-10 mt-4 inline-flex items-center gap-2 rounded-2xl border border-emerald-300/40 bg-emerald-400/10 px-4 py-2 text-sm text-emerald-100 shadow-[0_10px_25px_rgba(16,185,129,0.12)]">
+            <Sparkles size={16} className="text-emerald-200" />
+            <span>
+              double crown:{" "}
+              <span className="text-text-primary">{topPointsName}</span>{" "}
+              leads μpoints & hours!
             </span>
           </div>
+        ) : (
+          <>
+            {topPointsName && (
+              <div className="relative z-10 mt-4 text-sm text-text-muted">
+                🏆 leading the charge:{" "}
+                <span className="text-text-primary">{topPointsName}</span>
+              </div>
+            )}
+            {topHoursName && (
+              <div className="relative z-10 mt-2 text-sm text-text-muted flex items-center gap-2">
+                <Timer size={16} className="text-emerald-300" />
+                <span>
+                  hours hero:{" "}
+                  <span className="text-text-primary">{topHoursName}</span>
+                </span>
+              </div>
+            )}
+          </>
         )}
       </div>
 
@@ -201,12 +291,24 @@ export function LeaderboardTab(props: LeaderboardTabProps) {
                   index={index}
                   formatPoints={formatPoints}
                   formatAwardDate={formatAwardDate}
+                  formatHours={formatHours}
                   isYou={entry.memberId === currentMemberId}
+                  isHoursHero={topHoursSet.has(entry.memberId)}
+                  isDoubleChampion={doubleChampionId === entry.memberId}
                   onSelect={() => onSelectMember(entry.memberId)}
                 />
               ))}
             </div>
           )}
+
+          <AttendanceLeaderboardSection
+            entries={attendanceShowcase}
+            formatHours={formatHours}
+            onSelectMember={onSelectMember}
+            currentMemberId={currentMemberId}
+            doubleChampionId={doubleChampionId}
+            pointsRoyaltyIds={pointsTopSet}
+          />
 
           <OpenBountiesSection
             bountyBoard={bountyBoard}
@@ -234,6 +336,22 @@ export function LeaderboardTab(props: LeaderboardTabProps) {
                     )
                   : 0;
                 const progressWidth = `${progressRaw}%`;
+                const isYou = entry.memberId === currentMemberId;
+                const isHoursHero = topHoursSet.has(entry.memberId);
+                const isDoubleChampion = doubleChampionId === entry.memberId;
+                const attendanceHoursLabel = formatHours(
+                  entry.totalAttendanceMs
+                );
+                const meetingsLabel =
+                  entry.attendanceMeetingsCount === 1 ? "meeting" : "meetings";
+                const sessionsLabel =
+                  entry.attendanceSessionCount === 1
+                    ? "check-in"
+                    : "check-ins";
+                const attendanceSummary =
+                  entry.totalAttendanceMs > 0
+                    ? `${attendanceHoursLabel} hours • ${entry.attendanceMeetingsCount.toLocaleString()} ${meetingsLabel} • ${entry.attendanceSessionCount.toLocaleString()} ${sessionsLabel}`
+                    : "no hours tracked yet";
                 return (
                   <button
                     key={entry.memberId}
@@ -241,7 +359,13 @@ export function LeaderboardTab(props: LeaderboardTabProps) {
                     onClick={() => onSelectMember(entry.memberId)}
                     className="w-full text-left"
                   >
-                    <div className="card-modern hover:-translate-y-1 transition-transform">
+                    <div
+                      className={clsx(
+                        "card-modern hover:-translate-y-1 transition-transform",
+                        isDoubleChampion &&
+                          "border-emerald-300/50 shadow-[0_12px_32px_rgba(16,185,129,0.22)]"
+                      )}
+                    >
                       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                         <div className="flex items-start gap-4">
                           <div className="flex items-center gap-3">
@@ -252,7 +376,13 @@ export function LeaderboardTab(props: LeaderboardTabProps) {
                               name={entry.name}
                               imageUrl={entry.profileImageUrl}
                               size="lg"
-                              className="border border-white/20"
+                              className={clsx(
+                                "border border-white/20",
+                                isHoursHero &&
+                                  "border-accent-purple/50 shadow-[0_0_18px_rgba(129,140,248,0.35)]",
+                                isDoubleChampion &&
+                                  "border-emerald-300/70 shadow-[0_0_22px_rgba(16,185,129,0.35)]"
+                              )}
                             />
                           </div>
                           <div>
@@ -260,10 +390,23 @@ export function LeaderboardTab(props: LeaderboardTabProps) {
                               <h4 className="font-light text-lg">
                                 {entry.name}
                               </h4>
-                              {entry.memberId === currentMemberId && (
+                              {isYou && (
                                 <span className="text-xs text-sunset-orange bg-sunset-orange-dim px-2 py-0.5 rounded-full">
                                   you
                                 </span>
+                              )}
+                              {isDoubleChampion ? (
+                                <span className="text-[11px] uppercase tracking-widest bg-emerald-400/15 text-emerald-200 px-2 py-0.5 rounded-full border border-emerald-300/50 flex items-center gap-1">
+                                  <Sparkles size={12} className="text-emerald-200" />
+                                  double crown
+                                </span>
+                              ) : (
+                                isHoursHero && (
+                                  <span className="text-[11px] uppercase tracking-widest bg-accent-purple/15 text-accent-purple px-2 py-0.5 rounded-full border border-accent-purple/40 flex items-center gap-1">
+                                    <Timer size={12} className="text-accent-purple" />
+                                    hours hero
+                                  </span>
+                                )
                               )}
                             </div>
                             <p className="text-sm text-text-muted">
@@ -272,7 +415,13 @@ export function LeaderboardTab(props: LeaderboardTabProps) {
                             <p className="text-xs text-text-dim mt-1">
                               {entry.awardsCount === 0
                                 ? "no μpoints yet"
-                                : `${entry.awardsCount} ${entry.awardsCount === 1 ? "award" : "awards"} • last awarded ${formatAwardDate(entry.lastAwardedAt)}`}
+                                : `${entry.awardsCount.toLocaleString()} ${
+                                    entry.awardsCount === 1 ? "award" : "awards"
+                                  } • last awarded ${formatAwardDate(entry.lastAwardedAt)}`}
+                            </p>
+                            <p className="text-xs text-text-dim mt-2 flex items-center gap-1">
+                              <Timer size={14} className="text-emerald-300" />
+                              {attendanceSummary}
                             </p>
                           </div>
                         </div>
@@ -459,14 +608,20 @@ function SpotlightCard({
   index,
   formatPoints,
   formatAwardDate,
+  formatHours,
   isYou,
+  isHoursHero,
+  isDoubleChampion,
   onSelect,
 }: {
   entry: LeaderboardEntry;
   index: number;
   formatPoints: (value: number) => string;
   formatAwardDate: (timestamp: number | null) => string;
+  formatHours: (valueMs: number) => string;
   isYou: boolean;
+  isHoursHero: boolean;
+  isDoubleChampion: boolean;
   onSelect: () => void;
 }) {
   const backgroundClass = getSpotlightBackground(index);
@@ -474,14 +629,33 @@ function SpotlightCard({
     "border-2 border-white/50",
     index === 0 && "border-amber-200/80 shadow-[0_0_28px_rgba(251,191,36,0.35)]",
     index === 1 && "border-white/60 shadow-[0_0_22px_rgba(148,163,184,0.35)]",
-    index === 2 && "border-sunset-orange/70 shadow-[0_0_22px_rgba(251,146,60,0.35)]"
+    index === 2 && "border-sunset-orange/70 shadow-[0_0_22px_rgba(251,146,60,0.35)]",
+    isHoursHero && !isDoubleChampion &&
+      "border-accent-purple/70 shadow-[0_0_28px_rgba(129,140,248,0.35)]",
+    isDoubleChampion &&
+      "border-emerald-200/80 shadow-[0_0_38px_rgba(16,185,129,0.45)]"
   );
+  const attendanceSummary =
+    entry.totalAttendanceMs > 0
+      ? `${formatHours(entry.totalAttendanceMs)} hours • ${entry.attendanceMeetingsCount.toLocaleString()} ${
+          entry.attendanceMeetingsCount === 1 ? "meeting" : "meetings"
+        } • ${entry.attendanceSessionCount.toLocaleString()} ${
+          entry.attendanceSessionCount === 1 ? "check-in" : "check-ins"
+        }`
+      : "no hours tracked yet";
   return (
     <button
       type="button"
       onClick={onSelect}
-      className="relative overflow-hidden rounded-3xl border border-white/15 p-6 text-left transition-transform hover:-translate-y-1"
+      className={clsx(
+        "relative overflow-hidden rounded-3xl border border-white/15 p-6 text-left transition-transform hover:-translate-y-1",
+        isDoubleChampion &&
+          "border-emerald-200/70 shadow-[0_22px_48px_rgba(16,185,129,0.35)]"
+      )}
     >
+      {isDoubleChampion && (
+        <div className="absolute inset-0 bg-gradient-to-br from-emerald-400/20 via-transparent to-emerald-500/20" />
+      )}
       <div className={clsx("absolute inset-0 opacity-80", backgroundClass)} />
       <div className="relative z-10 flex flex-col h-full justify-between gap-6 text-white">
         <div className="flex items-start justify-between gap-4">
@@ -498,18 +672,37 @@ function SpotlightCard({
                 <span className="badge bg-black/40 border-white/20 text-white">
                   #{index + 1}
                 </span>
-              {isYou && (
-                <span className="text-xs bg-white/30 text-white px-2 py-0.5 rounded-full">
-                  you
-                </span>
-              )}
-            </div>
-            <p className="text-sm text-white/70 mt-1">{entry.email}</p>
-            <p className="text-xs text-white/60 mt-2">
-              {entry.awardsCount === 0
-                ? "no μpoints yet"
-                : `${entry.awardsCount} ${entry.awardsCount === 1 ? "award" : "awards"} • last awarded ${formatAwardDate(entry.lastAwardedAt)}`}
-            </p>
+                {isYou && (
+                  <span className="text-xs bg-white/30 text-white px-2 py-0.5 rounded-full">
+                    you
+                  </span>
+                )}
+                {isDoubleChampion ? (
+                  <span className="text-[11px] uppercase tracking-widest bg-emerald-300/30 text-emerald-100 px-2 py-0.5 rounded-full border border-emerald-200/60 flex items-center gap-1">
+                    <Sparkles size={14} className="text-emerald-200" />
+                    double crown
+                  </span>
+                ) : (
+                  isHoursHero && (
+                    <span className="text-[11px] uppercase tracking-widest bg-indigo-300/25 text-white px-2 py-0.5 rounded-full border border-white/30 flex items-center gap-1">
+                      <Timer size={14} className="text-white" />
+                      hours hero
+                    </span>
+                  )
+                )}
+              </div>
+              <p className="text-sm text-white/70 mt-1">{entry.email}</p>
+              <p className="text-xs text-white/60 mt-2">
+                {entry.awardsCount === 0
+                  ? "no μpoints yet"
+                  : `${entry.awardsCount.toLocaleString()} ${
+                      entry.awardsCount === 1 ? "award" : "awards"
+                    } • last awarded ${formatAwardDate(entry.lastAwardedAt)}`}
+              </p>
+              <p className="text-xs text-white/60 mt-2 flex items-center gap-1">
+                <Timer size={16} className="text-emerald-200" />
+                {attendanceSummary}
+              </p>
             </div>
           </div>
           {index === 0 ? (
@@ -528,6 +721,169 @@ function SpotlightCard({
         </div>
       </div>
     </button>
+  );
+}
+
+function AttendanceLeaderboardSection({
+  entries,
+  formatHours,
+  onSelectMember,
+  currentMemberId,
+  doubleChampionId,
+  pointsRoyaltyIds,
+}: {
+  entries: Array<LeaderboardEntry>;
+  formatHours: (valueMs: number) => string;
+  onSelectMember: (memberId: Id<"members">) => void;
+  currentMemberId: Id<"members">;
+  doubleChampionId: Id<"members"> | null;
+  pointsRoyaltyIds: Set<Id<"members">>;
+}) {
+  const leaderMs = entries[0]?.totalAttendanceMs ?? 0;
+  const rankTitles = ["time titan", "momentum maker", "clockwork ace"];
+
+  return (
+    <div className="relative overflow-hidden glass-panel mt-6 p-6">
+      <div className="absolute inset-0 pointer-events-none opacity-60">
+        <div className="absolute -top-24 left-0 h-40 w-40 rounded-full bg-gradient-to-br from-emerald-400/40 via-emerald-300/20 to-transparent blur-3xl" />
+        <div className="absolute -bottom-24 right-0 h-48 w-48 rounded-full bg-gradient-to-br from-accent-purple/40 via-indigo-400/30 to-transparent blur-3xl" />
+      </div>
+      <div className="relative z-10">
+        <div className="flex items-center gap-2 text-text-primary">
+          <Timer size={22} className="text-emerald-300" />
+          <h3 className="text-2xl font-light">attendance hours leaderboard</h3>
+        </div>
+        <p className="text-sm text-text-muted mt-2">
+          celebrating the time our crew invests in the lab and at meetings.
+        </p>
+        {entries.length === 0 ? (
+          <div className="mt-6 text-sm text-text-muted">
+            no attendance sessions recorded yet. once meetings are logged, this
+            board will glow to honor our timekeepers.
+          </div>
+        ) : (
+          <div className="mt-6 space-y-3">
+            {entries.map((entry, index) => {
+              const rank = index + 1;
+              const progressRaw = leaderMs
+                ? Math.min(
+                    100,
+                    Math.max(
+                      8,
+                      Math.round((entry.totalAttendanceMs / leaderMs) * 100)
+                    )
+                  )
+                : 0;
+              const progressWidth = `${progressRaw}%`;
+              const isYou = entry.memberId === currentMemberId;
+              const isDoubleChampion = doubleChampionId === entry.memberId;
+              const isPointsRoyalty = pointsRoyaltyIds.has(entry.memberId);
+              const hoursLabel = formatHours(entry.totalAttendanceMs);
+              const meetingsLabel =
+                entry.attendanceMeetingsCount === 1 ? "meeting" : "meetings";
+              const sessionsLabel =
+                entry.attendanceSessionCount === 1
+                  ? "check-in"
+                  : "check-ins";
+              const rankTitle = rankTitles[index] ?? null;
+              return (
+                <button
+                  key={entry.memberId}
+                  type="button"
+                  onClick={() => onSelectMember(entry.memberId)}
+                  className="w-full text-left"
+                >
+                  <div
+                    className={clsx(
+                      "card-modern hover:-translate-y-1 transition-transform bg-gradient-to-br from-emerald-500/5 via-transparent to-indigo-500/10",
+                      isDoubleChampion &&
+                        "border-emerald-300/50 shadow-[0_12px_36px_rgba(16,185,129,0.25)]"
+                    )}
+                  >
+                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                      <div className="flex items-start gap-4">
+                        <div className="flex items-center gap-3">
+                          <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-emerald-500/15 via-transparent to-emerald-300/10 border border-emerald-400/30 flex items-center justify-center text-sm font-semibold text-emerald-100">
+                            #{rank}
+                          </div>
+                          <ProfileAvatar
+                            name={entry.name}
+                            imageUrl={entry.profileImageUrl}
+                            size="lg"
+                            className={clsx(
+                              "border border-white/20",
+                              isDoubleChampion &&
+                                "border-emerald-300/70 shadow-[0_0_24px_rgba(16,185,129,0.45)]",
+                              !isDoubleChampion &&
+                                "border-accent-purple/40 shadow-[0_0_18px_rgba(129,140,248,0.28)]"
+                            )}
+                          />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2 flex-wrap text-text-primary">
+                            <h4 className="font-light text-lg text-text-primary">
+                              {entry.name}
+                            </h4>
+                            {rankTitle && (
+                              <span className="text-[11px] uppercase tracking-widest bg-emerald-400/20 text-emerald-200 px-2 py-0.5 rounded-full">
+                                {rankTitle}
+                              </span>
+                            )}
+                            {isYou && (
+                              <span className="text-xs text-emerald-200 bg-emerald-500/20 px-2 py-0.5 rounded-full">
+                                you
+                              </span>
+                            )}
+                            {isDoubleChampion ? (
+                              <span className="text-[11px] uppercase tracking-widest bg-emerald-300/25 text-emerald-100 px-2 py-0.5 rounded-full border border-emerald-200/50 flex items-center gap-1">
+                                <Sparkles size={12} className="text-emerald-200" />
+                                double crown
+                              </span>
+                            ) : (
+                              isPointsRoyalty && (
+                                <span className="text-[11px] uppercase tracking-widest bg-accent-purple/20 text-accent-purple px-2 py-0.5 rounded-full border border-accent-purple/40 flex items-center gap-1">
+                                  <Trophy size={12} className="text-accent-purple" />
+                                  μpoint royalty
+                                </span>
+                              )
+                            )}
+                          </div>
+                          <p className="text-sm text-text-muted">
+                            {entry.email}
+                          </p>
+                          <p className="text-xs text-text-dim mt-1 flex items-center gap-1">
+                            <Timer size={14} className="text-emerald-300" />
+                            {hoursLabel} hours logged
+                          </p>
+                          <p className="text-xs text-text-dim mt-1">
+                            {entry.attendanceMeetingsCount.toLocaleString()} {meetingsLabel} • {" "}
+                            {entry.attendanceSessionCount.toLocaleString()} {sessionsLabel}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-2xl font-light text-emerald-200">
+                          {hoursLabel}h
+                        </p>
+                        <p className="text-xs text-text-dim uppercase tracking-widest mt-1">
+                          attendance hours
+                        </p>
+                      </div>
+                    </div>
+                    <div className="mt-4 h-2 rounded-full bg-white/10 overflow-hidden">
+                      <div
+                        className="h-full bg-gradient-to-r from-emerald-300 via-indigo-400 to-accent-purple"
+                        style={{ width: progressWidth }}
+                      />
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 
