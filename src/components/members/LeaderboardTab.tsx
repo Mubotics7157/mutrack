@@ -102,11 +102,7 @@ export function LeaderboardTab(props: LeaderboardTabProps) {
 
   const attendanceShowcase = hoursLeadersWithData.slice(0, 5);
   const totalAttendanceMs = useMemo(
-    () =>
-      leaderboard.reduce(
-        (sum, entry) => sum + entry.totalAttendanceMs,
-        0
-      ),
+    () => leaderboard.reduce((sum, entry) => sum + entry.totalAttendanceMs, 0),
     [leaderboard]
   );
   const totalAttendanceLabel = formatHours(totalAttendanceMs);
@@ -123,14 +119,11 @@ export function LeaderboardTab(props: LeaderboardTabProps) {
 
   const topHoursSet = useMemo(
     () =>
-      new Set(
-        hoursLeadersWithData.slice(0, 3).map((entry) => entry.memberId)
-      ),
+      new Set(hoursLeadersWithData.slice(0, 3).map((entry) => entry.memberId)),
     [hoursLeadersWithData]
   );
   const pointsTopSet = useMemo(
-    () =>
-      new Set(leaderboard.slice(0, 3).map((entry) => entry.memberId)),
+    () => new Set(leaderboard.slice(0, 3).map((entry) => entry.memberId)),
     [leaderboard]
   );
 
@@ -248,8 +241,8 @@ export function LeaderboardTab(props: LeaderboardTabProps) {
             <Sparkles size={16} className="text-emerald-200" />
             <span>
               double crown:{" "}
-              <span className="text-text-primary">{topPointsName}</span>{" "}
-              leads μpoints & hours!
+              <span className="text-text-primary">{topPointsName}</span> leads
+              μpoints & hours!
             </span>
           </div>
         ) : (
@@ -345,9 +338,7 @@ export function LeaderboardTab(props: LeaderboardTabProps) {
                 const meetingsLabel =
                   entry.attendanceMeetingsCount === 1 ? "meeting" : "meetings";
                 const sessionsLabel =
-                  entry.attendanceSessionCount === 1
-                    ? "check-in"
-                    : "check-ins";
+                  entry.attendanceSessionCount === 1 ? "check-in" : "check-ins";
                 const attendanceSummary =
                   entry.totalAttendanceMs > 0
                     ? `${attendanceHoursLabel} hours • ${entry.attendanceMeetingsCount.toLocaleString()} ${meetingsLabel} • ${entry.attendanceSessionCount.toLocaleString()} ${sessionsLabel}`
@@ -397,13 +388,19 @@ export function LeaderboardTab(props: LeaderboardTabProps) {
                               )}
                               {isDoubleChampion ? (
                                 <span className="text-[11px] uppercase tracking-widest bg-emerald-400/15 text-emerald-200 px-2 py-0.5 rounded-full border border-emerald-300/50 flex items-center gap-1">
-                                  <Sparkles size={12} className="text-emerald-200" />
+                                  <Sparkles
+                                    size={12}
+                                    className="text-emerald-200"
+                                  />
                                   double crown
                                 </span>
                               ) : (
                                 isHoursHero && (
                                   <span className="text-[11px] uppercase tracking-widest bg-accent-purple/15 text-accent-purple px-2 py-0.5 rounded-full border border-accent-purple/40 flex items-center gap-1">
-                                    <Timer size={12} className="text-accent-purple" />
+                                    <Timer
+                                      size={12}
+                                      className="text-accent-purple"
+                                    />
                                     hours hero
                                   </span>
                                 )
@@ -627,10 +624,13 @@ function SpotlightCard({
   const backgroundClass = getSpotlightBackground(index);
   const avatarClassName = clsx(
     "border-2 border-white/50",
-    index === 0 && "border-amber-200/80 shadow-[0_0_28px_rgba(251,191,36,0.35)]",
+    index === 0 &&
+      "border-amber-200/80 shadow-[0_0_28px_rgba(251,191,36,0.35)]",
     index === 1 && "border-white/60 shadow-[0_0_22px_rgba(148,163,184,0.35)]",
-    index === 2 && "border-sunset-orange/70 shadow-[0_0_22px_rgba(251,146,60,0.35)]",
-    isHoursHero && !isDoubleChampion &&
+    index === 2 &&
+      "border-sunset-orange/70 shadow-[0_0_22px_rgba(251,146,60,0.35)]",
+    isHoursHero &&
+      !isDoubleChampion &&
       "border-accent-purple/70 shadow-[0_0_28px_rgba(129,140,248,0.35)]",
     isDoubleChampion &&
       "border-emerald-200/80 shadow-[0_0_38px_rgba(16,185,129,0.45)]"
@@ -754,7 +754,7 @@ function AttendanceLeaderboardSection({
           <h3 className="text-2xl font-light">attendance hours leaderboard</h3>
         </div>
         <p className="text-sm text-text-muted mt-2">
-          celebrating the time our crew invests in the lab and at meetings.
+          celebrating the time invested at meetings.
         </p>
         {entries.length === 0 ? (
           <div className="mt-6 text-sm text-text-muted">
@@ -782,9 +782,7 @@ function AttendanceLeaderboardSection({
               const meetingsLabel =
                 entry.attendanceMeetingsCount === 1 ? "meeting" : "meetings";
               const sessionsLabel =
-                entry.attendanceSessionCount === 1
-                  ? "check-in"
-                  : "check-ins";
+                entry.attendanceSessionCount === 1 ? "check-in" : "check-ins";
               const rankTitle = rankTitles[index] ?? null;
               return (
                 <button
@@ -836,13 +834,19 @@ function AttendanceLeaderboardSection({
                             )}
                             {isDoubleChampion ? (
                               <span className="text-[11px] uppercase tracking-widest bg-emerald-300/25 text-emerald-100 px-2 py-0.5 rounded-full border border-emerald-200/50 flex items-center gap-1">
-                                <Sparkles size={12} className="text-emerald-200" />
+                                <Sparkles
+                                  size={12}
+                                  className="text-emerald-200"
+                                />
                                 double crown
                               </span>
                             ) : (
                               isPointsRoyalty && (
                                 <span className="text-[11px] uppercase tracking-widest bg-accent-purple/20 text-accent-purple px-2 py-0.5 rounded-full border border-accent-purple/40 flex items-center gap-1">
-                                  <Trophy size={12} className="text-accent-purple" />
+                                  <Trophy
+                                    size={12}
+                                    className="text-accent-purple"
+                                  />
                                   μpoint royalty
                                 </span>
                               )
@@ -856,8 +860,10 @@ function AttendanceLeaderboardSection({
                             {hoursLabel} hours logged
                           </p>
                           <p className="text-xs text-text-dim mt-1">
-                            {entry.attendanceMeetingsCount.toLocaleString()} {meetingsLabel} • {" "}
-                            {entry.attendanceSessionCount.toLocaleString()} {sessionsLabel}
+                            {entry.attendanceMeetingsCount.toLocaleString()}{" "}
+                            {meetingsLabel} •{" "}
+                            {entry.attendanceSessionCount.toLocaleString()}{" "}
+                            {sessionsLabel}
                           </p>
                         </div>
                       </div>
