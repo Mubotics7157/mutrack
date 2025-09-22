@@ -314,6 +314,10 @@ export const getLeaderboard = query({
       awardsCount: v.number(),
       lastAwardedAt: v.union(v.number(), v.null()),
       profileImageUrl: v.union(v.string(), v.null()),
+      totalAttendanceMs: v.number(),
+      totalHours: v.number(),
+      meetingsAttended: v.number(),
+      lastAttendedAt: v.union(v.number(), v.null()),
     })
   ),
   handler: async (ctx) => {
@@ -329,14 +333,28 @@ export const getLeaderboard = query({
     );
     const awards = await ctx.db.query("muPoints").collect();
 
+    const attendanceSessions = await ctx.db
+      .query("attendanceSessions")
+      .collect();
+
     const totals = new Map<Id<"members">, {
       total: number;
       count: number;
       lastAwarded: number | null;
     }>();
 
+    const attendanceTotals = new Map<
+      Id<"members">,
+      { totalMs: number; meetings: number; lastAttendance: number | null }
+    >();
+
     for (const member of members) {
       totals.set(member._id, { total: 0, count: 0, lastAwarded: null });
+      attendanceTotals.set(member._id, {
+        totalMs: 0,
+        meetings: 0,
+        lastAttendance: null,
+      });
     }
 
     for (const award of awards) {
@@ -349,8 +367,48 @@ export const getLeaderboard = query({
         : award.createdAt;
     }
 
+    const meetingSpans = new Map<
+      string,
+      { earliestStart: number; latestEnd: number }
+    >();
+
+    for (const session of attendanceSessions) {
+      const latest = session.endTime ?? session.lastSeenAt;
+      const key = `${session.memberId}:${session.meetingId}`;
+      const span = meetingSpans.get(key);
+      if (!span) {
+        meetingSpans.set(key, {
+          earliestStart: session.startTime,
+          latestEnd: latest,
+        });
+      } else {
+        if (session.startTime < span.earliestStart) {
+          span.earliestStart = session.startTime;
+        }
+        if (latest > span.latestEnd) {
+          span.latestEnd = latest;
+        }
+      }
+    }
+
+    for (const [key, span] of meetingSpans.entries()) {
+      const [memberIdRaw] = key.split(":");
+      const memberId = memberIdRaw as Id<"members">;
+      const current = attendanceTotals.get(memberId);
+      if (!current) continue;
+      const duration = Math.max(0, span.latestEnd - span.earliestStart);
+      current.totalMs += duration;
+      current.meetings += 1;
+      current.lastAttendance = current.lastAttendance
+        ? Math.max(current.lastAttendance, span.latestEnd)
+        : span.latestEnd;
+    }
+
+    const HOURS_IN_MS = 1000 * 60 * 60;
+
     const leaderboard = members.map((member) => {
       const summary = totals.get(member._id)!;
+      const attendanceSummary = attendanceTotals.get(member._id)!;
       return {
         memberId: member._id,
         name: member.name,
@@ -360,6 +418,10 @@ export const getLeaderboard = query({
         awardsCount: summary.count,
         lastAwardedAt: summary.lastAwarded,
         profileImageUrl: imageMap.get(member._id) ?? null,
+        totalAttendanceMs: attendanceSummary.totalMs,
+        totalHours: attendanceSummary.totalMs / HOURS_IN_MS,
+        meetingsAttended: attendanceSummary.meetings,
+        lastAttendedAt: attendanceSummary.lastAttendance,
       };
     });
 

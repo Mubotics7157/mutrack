@@ -3,7 +3,13 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { type Id } from "../../convex/_generated/dataModel";
 import { toast } from "sonner";
-import { Users, ShieldCheck, Sparkles, PlusCircle, Trophy } from "lucide-react";
+import {
+  Users,
+  ShieldCheck,
+  Sparkles,
+  PlusCircle,
+  Trophy,
+} from "lucide-react";
 import { Modal } from "./Modal";
 import { LeaderboardTab } from "./members/LeaderboardTab";
 import { DirectoryTab } from "./members/DirectoryTab";
@@ -12,6 +18,7 @@ import {
   formatAwardDate as formatAwardDateHelper,
   formatPoints as formatPointsHelper,
   filterMembers as filterMembersHelper,
+  formatHours as formatHoursHelper,
 } from "./members/helpers";
 import type { BountyBoardData, LeaderboardEntry } from "./members/types";
 import { MemberWithProfile } from "../lib/members";
@@ -110,6 +117,8 @@ export function MembersPage({ member }: MembersPageProps) {
       return {
         totalPoints: 0,
         totalAwards: 0,
+        totalHours: 0,
+        totalMeetings: 0,
         topMemberName: null as string | null,
       };
     }
@@ -121,9 +130,17 @@ export function MembersPage({ member }: MembersPageProps) {
       (sum, entry) => sum + entry.awardsCount,
       0
     );
+    const totalHours = leaderboard.reduce(
+      (sum, entry) => sum + entry.totalHours,
+      0
+    );
+    const totalMeetings = leaderboard.reduce(
+      (sum, entry) => sum + entry.meetingsAttended,
+      0
+    );
     const topMemberName =
       totalAwards > 0 && leaderboard[0] ? leaderboard[0].name : null;
-    return { totalPoints, totalAwards, topMemberName };
+    return { totalPoints, totalAwards, totalHours, totalMeetings, topMemberName };
   }, [leaderboard]);
 
   const selectedMember = selectedMemberId
@@ -138,6 +155,12 @@ export function MembersPage({ member }: MembersPageProps) {
     selectedMemberLeaderboardEntry?.awardsCount ?? 0;
   const selectedMemberTotalPoints =
     selectedMemberLeaderboardEntry?.totalPoints ?? 0;
+  const selectedMemberTotalHours =
+    selectedMemberLeaderboardEntry?.totalHours ?? 0;
+  const selectedMemberMeetingsAttended =
+    selectedMemberLeaderboardEntry?.meetingsAttended ?? 0;
+  const selectedMemberLastAttendedAt =
+    selectedMemberLeaderboardEntry?.lastAttendedAt ?? null;
   const selectedMemberAwardsLabel =
     selectedMemberAwardsCount === 1 ? "award" : "awards";
 
@@ -183,6 +206,7 @@ export function MembersPage({ member }: MembersPageProps) {
   };
 
   const formatPoints = (value: number) => formatPointsHelper(value);
+  const formatHours = (value: number) => formatHoursHelper(value);
 
   const openMemberDetails = (id: Id<"members">) => {
     setSelectedMemberId(id);
@@ -336,7 +360,7 @@ export function MembersPage({ member }: MembersPageProps) {
                 celebrate wins, stay organized, and keep frc team 7157 buzzing.
               </p>
             </div>
-            <div className="flex flex-wrap gap-4 text-center">
+            <div className="grid grid-cols-2 gap-4 text-center sm:grid-cols-4">
               <div>
                 <p className="text-3xl font-light text-sunset-orange">
                   {members.length}
@@ -351,6 +375,22 @@ export function MembersPage({ member }: MembersPageProps) {
                 </p>
                 <p className="text-xs text-text-dim uppercase tracking-widest">
                   μpoints
+                </p>
+              </div>
+              <div>
+                <p className="text-3xl font-light text-accent-purple">
+                  {formatHours(leaderboardStats.totalHours)}
+                </p>
+                <p className="text-xs text-text-dim uppercase tracking-widest">
+                  hours logged
+                </p>
+              </div>
+              <div>
+                <p className="text-3xl font-light text-sunset-orange">
+                  {leaderboardStats.totalMeetings.toLocaleString()}
+                </p>
+                <p className="text-xs text-text-dim uppercase tracking-widest">
+                  check-ins
                 </p>
               </div>
             </div>
@@ -380,6 +420,7 @@ export function MembersPage({ member }: MembersPageProps) {
           currentMemberId={member._id}
           formatPoints={formatPoints}
           formatAwardDate={formatAwardDate}
+          formatHours={formatHours}
           canAwardPoints={canAwardPoints}
           bountyBoard={bountyBoard}
           members={members}
@@ -466,6 +507,26 @@ export function MembersPage({ member }: MembersPageProps) {
                   <p className="text-xs text-text-muted mt-1">
                     {selectedMemberAwardsCount.toLocaleString()}{" "}
                     {selectedMemberAwardsLabel}
+                  </p>
+                </div>
+              </div>
+              <div className="mt-4 grid grid-cols-1 gap-4 text-right sm:grid-cols-2">
+                <div>
+                  <p className="text-2xl font-light text-accent-purple">
+                    {formatHours(selectedMemberTotalHours)} hrs
+                  </p>
+                  <p className="text-xs text-text-dim uppercase tracking-widest">
+                    attendance logged
+                  </p>
+                </div>
+                <div>
+                  <p className="text-lg font-light text-text-primary">
+                    {selectedMemberMeetingsAttended.toLocaleString()} check-ins
+                  </p>
+                  <p className="text-xs text-text-muted mt-1">
+                    {selectedMemberLastAttendedAt
+                      ? `last seen ${formatHistoryDate(selectedMemberLastAttendedAt)}`
+                      : "no attendance tracked yet"}
                   </p>
                 </div>
               </div>

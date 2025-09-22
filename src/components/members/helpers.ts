@@ -35,6 +35,18 @@ export function formatPoints(value: number) {
   });
 }
 
+export function formatHours(value: number) {
+  if (!Number.isFinite(value) || value === 0) {
+    return "0";
+  }
+  const absValue = Math.abs(value);
+  const fractionDigits = absValue >= 100 ? 0 : absValue >= 10 ? 1 : 2;
+  return value.toLocaleString(undefined, {
+    minimumFractionDigits: fractionDigits,
+    maximumFractionDigits: fractionDigits,
+  });
+}
+
 export function filterMembers<
   T extends { name: string; email: string; role: string },
 >(list: Array<T>, searchTerm: string, roleFilter: string): Array<T> {

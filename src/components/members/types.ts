@@ -9,6 +9,10 @@ export type LeaderboardEntry = {
   awardsCount: number;
   lastAwardedAt: number | null;
   profileImageUrl: string | null;
+  totalAttendanceMs: number;
+  totalHours: number;
+  meetingsAttended: number;
+  lastAttendedAt: number | null;
 };
 
 export type BountyEntry = {
