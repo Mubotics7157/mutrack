@@ -3,7 +3,14 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { type Id } from "../../convex/_generated/dataModel";
 import { toast } from "sonner";
-import { Users, ShieldCheck, Sparkles, PlusCircle, Trophy } from "lucide-react";
+import {
+  Users,
+  ShieldCheck,
+  Sparkles,
+  PlusCircle,
+  Trophy,
+  Timer,
+} from "lucide-react";
 import { Modal } from "./Modal";
 import { LeaderboardTab } from "./members/LeaderboardTab";
 import { DirectoryTab } from "./members/DirectoryTab";
@@ -13,7 +20,11 @@ import {
   formatPoints as formatPointsHelper,
   filterMembers as filterMembersHelper,
 } from "./members/helpers";
-import type { BountyBoardData, LeaderboardEntry } from "./members/types";
+import type {
+  AttendanceLeaderboardEntry,
+  BountyBoardData,
+  LeaderboardEntry,
+} from "./members/types";
 import { MemberWithProfile } from "../lib/members";
 import { ProfileAvatar } from "./ProfileAvatar";
 
@@ -51,6 +62,13 @@ export function MembersPage({ member }: MembersPageProps) {
     | LeaderboardEntry[]
     | undefined;
   const leaderboard = useMemo(() => leaderboardQuery ?? [], [leaderboardQuery]);
+  const attendanceLeaderboardQuery = useQuery(
+    api.members.getAttendanceLeaderboard
+  ) as AttendanceLeaderboardEntry[] | undefined;
+  const attendanceLeaderboard = useMemo(
+    () => attendanceLeaderboardQuery ?? [],
+    [attendanceLeaderboardQuery]
+  );
   const bountyBoardQuery = useQuery(api.bounties.getBounties) as
     | BountyBoardData
     | undefined;
@@ -126,6 +144,27 @@ export function MembersPage({ member }: MembersPageProps) {
     return { totalPoints, totalAwards, topMemberName };
   }, [leaderboard]);
 
+  const attendanceStats = useMemo(() => {
+    if (attendanceLeaderboard.length === 0) {
+      return {
+        totalHours: 0,
+        totalSessions: 0,
+        topMemberName: null as string | null,
+      };
+    }
+    const totalDurationMs = attendanceLeaderboard.reduce(
+      (sum, entry) => sum + entry.totalDurationMs,
+      0
+    );
+    const totalSessions = attendanceLeaderboard.reduce(
+      (sum, entry) => sum + entry.sessionsCount,
+      0
+    );
+    const totalHours = totalDurationMs / (1000 * 60 * 60);
+    const topMemberName = attendanceLeaderboard[0]?.name ?? null;
+    return { totalHours, totalSessions, topMemberName };
+  }, [attendanceLeaderboard]);
+
   const selectedMember = selectedMemberId
     ? (members.find((m) => m._id === selectedMemberId) ?? null)
     : null;
@@ -183,6 +222,11 @@ export function MembersPage({ member }: MembersPageProps) {
   };
 
   const formatPoints = (value: number) => formatPointsHelper(value);
+  const formatHours = (value: number) =>
+    value.toLocaleString(undefined, {
+      minimumFractionDigits: value >= 10 ? 0 : 1,
+      maximumFractionDigits: 1,
+    });
 
   const openMemberDetails = (id: Id<"members">) => {
     setSelectedMemberId(id);
@@ -336,24 +380,35 @@ export function MembersPage({ member }: MembersPageProps) {
                 celebrate wins, stay organized, and keep frc team 7157 buzzing.
               </p>
             </div>
-            <div className="flex flex-wrap gap-4 text-center">
-              <div>
-                <p className="text-3xl font-light text-sunset-orange">
-                  {members.length}
-                </p>
-                <p className="text-xs text-text-dim uppercase tracking-widest">
-                  humans
-                </p>
-              </div>
-              <div>
-                <p className="text-3xl font-light text-accent-purple">
-                  {formatPoints(leaderboardStats.totalPoints)}
-                </p>
-                <p className="text-xs text-text-dim uppercase tracking-widest">
-                  μpoints
-                </p>
-              </div>
+          <div className="flex flex-wrap gap-4 text-center">
+            <div>
+              <p className="text-3xl font-light text-sunset-orange">
+                {members.length}
+              </p>
+              <p className="text-xs text-text-dim uppercase tracking-widest">
+                humans
+              </p>
             </div>
+            <div>
+              <p className="text-3xl font-light text-accent-purple">
+                {formatPoints(leaderboardStats.totalPoints)}
+              </p>
+              <p className="text-xs text-text-dim uppercase tracking-widest">
+                μpoints
+              </p>
+            </div>
+            <div>
+              <p className="text-3xl font-light text-emerald-300">
+                {formatHours(attendanceStats.totalHours)}
+              </p>
+              <p className="text-xs text-text-dim uppercase tracking-widest flex items-center justify-center gap-1">
+                <Timer size={12} className="text-emerald-300" /> hours logged
+              </p>
+              <p className="text-[10px] text-text-muted uppercase tracking-[0.3em] mt-1">
+                {attendanceStats.totalSessions.toLocaleString()} check-ins
+              </p>
+            </div>
+          </div>
           </div>
 
           <div className="flex flex-wrap gap-3">
@@ -376,6 +431,8 @@ export function MembersPage({ member }: MembersPageProps) {
         <LeaderboardTab
           leaderboard={leaderboard}
           leaderboardStats={leaderboardStats}
+          attendanceLeaderboard={attendanceLeaderboard}
+          attendanceStats={attendanceStats}
           onSelectMember={openMemberDetails}
           currentMemberId={member._id}
           formatPoints={formatPoints}

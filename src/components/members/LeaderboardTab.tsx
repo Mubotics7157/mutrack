@@ -8,23 +8,38 @@ import {
   CheckCircle2,
   Sparkles,
   Target,
+  Timer,
   Trophy,
 } from "lucide-react";
 import { toast } from "sonner";
-import { BountyBoardData, LeaderboardEntry, BountyEntry } from "./types";
+import {
+  AttendanceLeaderboardEntry,
+  BountyBoardData,
+  LeaderboardEntry,
+  BountyEntry,
+} from "./types";
 import {
   formatDateTime,
   formatAwardDate as formatAwardDateFn,
   formatPoints as formatPointsFn,
+  formatDuration,
 } from "./../members/helpers";
 import { MemberWithProfile } from "../../lib/members";
 import { ProfileAvatar } from "../ProfileAvatar";
+
+const MS_PER_HOUR = 1000 * 60 * 60;
 
 export interface LeaderboardTabProps {
   leaderboard: Array<LeaderboardEntry>;
   leaderboardStats: {
     totalPoints: number;
     totalAwards: number;
+    topMemberName: string | null;
+  };
+  attendanceLeaderboard: Array<AttendanceLeaderboardEntry>;
+  attendanceStats: {
+    totalHours: number;
+    totalSessions: number;
     topMemberName: string | null;
   };
   onSelectMember: (memberId: Id<"members">) => void;
@@ -53,6 +68,8 @@ export function LeaderboardTab(props: LeaderboardTabProps) {
   const {
     leaderboard,
     leaderboardStats,
+    attendanceLeaderboard,
+    attendanceStats,
     onSelectMember,
     currentMemberId,
     canAwardPoints,
@@ -67,10 +84,35 @@ export function LeaderboardTab(props: LeaderboardTabProps) {
 
   const formatPoints = props.formatPoints ?? formatPointsFn;
   const formatAwardDate = props.formatAwardDate ?? formatAwardDateFn;
+  const formatHoursValue = (durationMs: number) =>
+    formatPoints(durationMs / MS_PER_HOUR);
 
   const topThree = leaderboard.slice(0, 3);
   const rest = leaderboard.slice(3);
   const leaderPoints = leaderboard[0]?.totalPoints ?? 0;
+  const attendanceTopThree = attendanceLeaderboard.slice(0, 3);
+  const attendanceRest = attendanceLeaderboard.slice(3);
+  const attendanceLeaderMs = attendanceLeaderboard[0]?.totalDurationMs ?? 0;
+
+  const pointsTopIds = new Set(topThree.map((entry) => entry.memberId));
+  const attendanceTopIds = new Set(
+    attendanceTopThree.map((entry) => entry.memberId)
+  );
+  const overlappingTopIds = new Set<Id<"members">>();
+  for (const id of pointsTopIds) {
+    if (attendanceTopIds.has(id)) {
+      overlappingTopIds.add(id);
+    }
+  }
+  const doubleChampionId =
+    leaderboard[0] &&
+    attendanceLeaderboard[0] &&
+    leaderboard[0].memberId === attendanceLeaderboard[0].memberId
+      ? leaderboard[0].memberId
+      : null;
+  const doubleChampionEntry = doubleChampionId
+    ? leaderboard.find((entry) => entry.memberId === doubleChampionId)
+    : null;
 
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [newTitle, setNewTitle] = useState("");
@@ -146,15 +188,15 @@ export function LeaderboardTab(props: LeaderboardTabProps) {
           <div>
             <div className="flex items-center gap-2 text-text-primary">
               <Trophy size={22} className="text-sunset-orange drop-shadow" />
-              <h2 className="text-2xl font-light">μpoint leaderboard</h2>
+              <h2 className="text-2xl font-light">team leaderboard lounge</h2>
             </div>
             <p className="text-sm text-text-muted mt-2">
               {canAwardPoints
-                ? "tap a teammate to celebrate them with μpoints and peek at their highlight reel."
-                : "tap a teammate to explore their μpoint highlight reel."}
+                ? "celebrate μpoints triumphs, crown hours heroes, and tap anyone to spotlight or award them."
+                : "peek at μpoints triumphs and hours heroes from across the team."}
             </p>
           </div>
-          <div className="grid grid-cols-2 gap-4 text-center">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
             <div>
               <p className="text-2xl font-light text-sunset-orange">
                 {formatPoints(leaderboardStats.totalPoints)}
@@ -171,134 +213,335 @@ export function LeaderboardTab(props: LeaderboardTabProps) {
                 recognitions logged
               </p>
             </div>
+            <div>
+              <p className="text-2xl font-light text-emerald-300">
+                {formatPoints(attendanceStats.totalHours)}
+              </p>
+              <p className="text-xs text-text-dim uppercase tracking-widest">
+                hours tracked
+              </p>
+            </div>
+            <div>
+              <p className="text-2xl font-light text-emerald-200">
+                {attendanceStats.totalSessions.toLocaleString()}
+              </p>
+              <p className="text-xs text-text-dim uppercase tracking-widest">
+                check-ins
+              </p>
+            </div>
           </div>
         </div>
-        {leaderboardStats.topMemberName && (
-          <div className="relative z-10 mt-4 text-sm text-text-muted">
-            🏆 leading the charge:{" "}
-            <span className="text-text-primary">
-              {leaderboardStats.topMemberName}
-            </span>
-          </div>
-        )}
+        <div className="relative z-10 mt-4 space-y-1 text-sm text-text-muted">
+          {doubleChampionEntry ? (
+            <div className="inline-flex items-center gap-2 rounded-full border border-emerald-400/40 bg-emerald-500/10 px-4 py-2 text-emerald-200">
+              <Sparkles size={16} className="text-emerald-300" />
+              <span>
+                double crown: <span className="text-emerald-100">{doubleChampionEntry.name}</span> leads μpoints and hours!
+              </span>
+            </div>
+          ) : (
+            <>
+              {leaderboardStats.topMemberName && (
+                <div>
+                  🏆 μpoints frontrunner:{" "}
+                  <span className="text-text-primary">
+                    {leaderboardStats.topMemberName}
+                  </span>
+                </div>
+              )}
+              {attendanceStats.topMemberName && (
+                <div>
+                  ⏱ hours hero:{" "}
+                  <span className="text-text-primary">
+                    {attendanceStats.topMemberName}
+                  </span>
+                </div>
+              )}
+            </>
+          )}
+        </div>
       </div>
 
-      {leaderboard.length === 0 ? (
+      {leaderboard.length === 0 && attendanceLeaderboard.length === 0 ? (
         <div className="glass-panel p-8 text-center">
           <p className="text-text-muted">
-            no μpoints have been awarded yet. once recognitions are logged, the
-            leaderboard will sparkle here.
+            no μpoints or attendance hours logged yet. once recognitions or
+            check-ins roll in, both leaderboards will sparkle here.
           </p>
         </div>
       ) : (
-        <>
-          {topThree.length > 0 && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {topThree.map((entry, index) => (
-                <SpotlightCard
-                  key={entry.memberId}
-                  entry={entry}
-                  index={index}
-                  formatPoints={formatPoints}
-                  formatAwardDate={formatAwardDate}
-                  isYou={entry.memberId === currentMemberId}
-                  onSelect={() => onSelectMember(entry.memberId)}
-                />
-              ))}
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+          <div className="space-y-4">
+            <div className="flex items-center gap-2 text-text-secondary">
+              <Trophy size={18} className="text-sunset-orange" />
+              <h3 className="text-sm font-mono uppercase tracking-widest">
+                μpoint legends
+              </h3>
             </div>
-          )}
-
-          <OpenBountiesSection
-            bountyBoard={bountyBoard}
-            canManageBounties={canManageBounties}
-            formatPoints={formatPoints}
-            onClickCreate={() => setIsCreateModalOpen(true)}
-            onClickComplete={(b) => {
-              setSelectedBounty(b);
-              setSelectedMemberId(null);
-              setCompletionNotes("");
-            }}
-          />
-
-          {rest.length > 0 && (
-            <div className="space-y-3">
-              {rest.map((entry, index) => {
-                const absoluteRank = index + topThree.length;
-                const progressRaw = leaderPoints
-                  ? Math.min(
-                      100,
-                      Math.max(
-                        6,
-                        Math.round((entry.totalPoints / leaderPoints) * 100)
-                      )
-                    )
-                  : 0;
-                const progressWidth = `${progressRaw}%`;
-                return (
-                  <button
+            {topThree.length > 0 ? (
+              <div className="space-y-4">
+                {topThree.map((entry, index) => (
+                  <SpotlightCard
                     key={entry.memberId}
-                    type="button"
-                    onClick={() => onSelectMember(entry.memberId)}
-                    className="w-full text-left"
-                  >
-                    <div className="card-modern hover:-translate-y-1 transition-transform">
-                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                        <div className="flex items-start gap-4">
-                          <div className="flex items-center gap-3">
-                            <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-glass via-white/10 to-transparent border border-white/10 flex items-center justify-center text-sm font-semibold text-text-secondary">
-                              #{absoluteRank + 1}
+                    entry={entry}
+                    index={index}
+                    formatPoints={formatPoints}
+                    formatAwardDate={formatAwardDate}
+                    isYou={entry.memberId === currentMemberId}
+                    isDualLegend={entry.memberId === doubleChampionId}
+                    isDualTop={overlappingTopIds.has(entry.memberId)}
+                    onSelect={() => onSelectMember(entry.memberId)}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="card-modern text-center text-text-muted">
+                no μpoints have been awarded yet. start celebrating teammates to
+                light up this board.
+              </div>
+            )}
+            {rest.length > 0 && (
+              <div className="space-y-3">
+                {rest.map((entry, index) => {
+                  const absoluteRank = index + topThree.length;
+                  const progressRaw = leaderPoints
+                    ? Math.min(
+                        100,
+                        Math.max(
+                          6,
+                          Math.round((entry.totalPoints / leaderPoints) * 100)
+                        )
+                      )
+                    : 0;
+                  const progressWidth = `${progressRaw}%`;
+                  const isDual = overlappingTopIds.has(entry.memberId);
+                  const isLegend = entry.memberId === doubleChampionId;
+                  return (
+                    <button
+                      key={entry.memberId}
+                      type="button"
+                      onClick={() => onSelectMember(entry.memberId)}
+                      className="w-full text-left"
+                    >
+                      <div
+                        className={clsx(
+                          "card-modern hover:-translate-y-1 transition-transform",
+                          isLegend &&
+                            "border-emerald-300/60 shadow-[0_8px_40px_rgba(16,185,129,0.25)]"
+                        )}
+                      >
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                          <div className="flex items-start gap-4">
+                            <div className="flex items-center gap-3">
+                              <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-glass via-white/10 to-transparent border border-white/10 flex items-center justify-center text-sm font-semibold text-text-secondary">
+                                #{absoluteRank + 1}
+                              </div>
+                              <ProfileAvatar
+                                name={entry.name}
+                                imageUrl={entry.profileImageUrl}
+                                size="lg"
+                                className="border border-white/20"
+                              />
                             </div>
-                            <ProfileAvatar
-                              name={entry.name}
-                              imageUrl={entry.profileImageUrl}
-                              size="lg"
-                              className="border border-white/20"
-                            />
+                            <div>
+                              <div className="flex items-center gap-2 flex-wrap text-text-primary">
+                                <h4 className="font-light text-lg">
+                                  {entry.name}
+                                </h4>
+                                {entry.memberId === currentMemberId && (
+                                  <span className="text-xs text-sunset-orange bg-sunset-orange-dim px-2 py-0.5 rounded-full">
+                                    you
+                                  </span>
+                                )}
+                                {isLegend && (
+                                  <span className="text-xs text-emerald-200 bg-emerald-500/20 border border-emerald-400/40 px-2 py-0.5 rounded-full">
+                                    double crown
+                                  </span>
+                                )}
+                                {!isLegend && isDual && (
+                                  <span className="text-xs text-accent-purple bg-accent-purple/15 border border-accent-purple/30 px-2 py-0.5 rounded-full">
+                                    dual leaderboard
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-sm text-text-muted">
+                                {entry.email}
+                              </p>
+                              <p className="text-xs text-text-dim mt-1">
+                                {entry.awardsCount === 0
+                                  ? "no μpoints yet"
+                                  : `${entry.awardsCount} ${entry.awardsCount === 1 ? "award" : "awards"} • last awarded ${formatAwardDate(entry.lastAwardedAt)}`}
+                              </p>
+                            </div>
                           </div>
-                          <div>
-                            <div className="flex items-center gap-2 flex-wrap text-text-primary">
-                              <h4 className="font-light text-lg">
-                                {entry.name}
-                              </h4>
-                              {entry.memberId === currentMemberId && (
-                                <span className="text-xs text-sunset-orange bg-sunset-orange-dim px-2 py-0.5 rounded-full">
-                                  you
-                                </span>
-                              )}
-                            </div>
-                            <p className="text-sm text-text-muted">
-                              {entry.email}
+                          <div className="text-right">
+                            <p className="text-2xl font-light text-sunset-orange">
+                              +{formatPoints(entry.totalPoints)}
                             </p>
-                            <p className="text-xs text-text-dim mt-1">
-                              {entry.awardsCount === 0
-                                ? "no μpoints yet"
-                                : `${entry.awardsCount} ${entry.awardsCount === 1 ? "award" : "awards"} • last awarded ${formatAwardDate(entry.lastAwardedAt)}`}
+                            <p className="text-xs text-text-dim uppercase tracking-widest mt-1">
+                              total μpoints
                             </p>
                           </div>
                         </div>
-                        <div className="text-right">
-                          <p className="text-2xl font-light text-sunset-orange">
-                            +{formatPoints(entry.totalPoints)}
-                          </p>
-                          <p className="text-xs text-text-dim uppercase tracking-widest mt-1">
-                            total μpoints
-                          </p>
+                        <div className="mt-4 h-2 rounded-full bg-white/10 overflow-hidden">
+                          <div
+                            className="h-full bg-gradient-to-r from-sunset-orange via-amber-400 to-accent-purple"
+                            style={{ width: progressWidth }}
+                          />
                         </div>
                       </div>
-                      <div className="mt-4 h-2 rounded-full bg-white/10 overflow-hidden">
-                        <div
-                          className="h-full bg-gradient-to-r from-sunset-orange via-amber-400 to-accent-purple"
-                          style={{ width: progressWidth }}
-                        />
-                      </div>
-                    </div>
-                  </button>
-                );
-              })}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          <div className="space-y-4">
+            <div className="flex items-center gap-2 text-text-secondary">
+              <Timer size={18} className="text-emerald-300" />
+              <h3 className="text-sm font-mono uppercase tracking-widest">
+                hours heroes
+              </h3>
             </div>
-          )}
-        </>
+            {attendanceTopThree.length > 0 ? (
+              <div className="space-y-4">
+                {attendanceTopThree.map((entry, index) => (
+                  <HoursSpotlightCard
+                    key={entry.memberId}
+                    entry={entry}
+                    index={index}
+                    formatHoursValue={formatHoursValue}
+                    isYou={entry.memberId === currentMemberId}
+                    isDualLegend={entry.memberId === doubleChampionId}
+                    isDualTop={overlappingTopIds.has(entry.memberId)}
+                    onSelect={() => onSelectMember(entry.memberId)}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="card-modern text-center text-text-muted">
+                no attendance sessions have been tracked yet. once scanners hum,
+                the hours heroes will appear here.
+              </div>
+            )}
+            {attendanceRest.length > 0 && (
+              <div className="space-y-3">
+                {attendanceRest.map((entry, index) => {
+                  const absoluteRank = index + attendanceTopThree.length;
+                  const progressRaw = attendanceLeaderMs
+                    ? Math.min(
+                        100,
+                        Math.max(
+                          6,
+                          Math.round(
+                            (entry.totalDurationMs / attendanceLeaderMs) * 100
+                          )
+                        )
+                      )
+                    : 0;
+                  const progressWidth = `${progressRaw}%`;
+                  const isDual = overlappingTopIds.has(entry.memberId);
+                  const isLegend = entry.memberId === doubleChampionId;
+                  return (
+                    <button
+                      key={entry.memberId}
+                      type="button"
+                      onClick={() => onSelectMember(entry.memberId)}
+                      className="w-full text-left"
+                    >
+                      <div
+                        className={clsx(
+                          "card-modern hover:-translate-y-1 transition-transform",
+                          isLegend &&
+                            "border-emerald-300/60 shadow-[0_8px_40px_rgba(16,185,129,0.25)]"
+                        )}
+                      >
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                          <div className="flex items-start gap-4">
+                            <div className="flex items-center gap-3">
+                              <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-emerald-500/10 via-emerald-400/10 to-transparent border border-emerald-300/40 flex items-center justify-center text-sm font-semibold text-emerald-200">
+                                #{absoluteRank + 1}
+                              </div>
+                              <ProfileAvatar
+                                name={entry.name}
+                                imageUrl={entry.profileImageUrl}
+                                size="lg"
+                                className="border border-emerald-200/40"
+                              />
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-2 flex-wrap text-text-primary">
+                                <h4 className="font-light text-lg">
+                                  {entry.name}
+                                </h4>
+                                {entry.memberId === currentMemberId && (
+                                  <span className="text-xs text-emerald-200 bg-emerald-500/20 px-2 py-0.5 rounded-full">
+                                    you
+                                  </span>
+                                )}
+                                {isLegend && (
+                                  <span className="text-xs text-emerald-200 bg-emerald-500/20 border border-emerald-400/40 px-2 py-0.5 rounded-full">
+                                    double crown
+                                  </span>
+                                )}
+                                {!isLegend && isDual && (
+                                  <span className="text-xs text-accent-purple bg-accent-purple/15 border border-accent-purple/30 px-2 py-0.5 rounded-full">
+                                    dual leaderboard
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-sm text-text-muted">
+                                {entry.email}
+                              </p>
+                              <p className="text-xs text-text-dim mt-1">
+                                {entry.meetingsAttended === 0
+                                  ? "no attendance logged"
+                                  : `${entry.meetingsAttended} ${entry.meetingsAttended === 1 ? "meeting" : "meetings"} • ${entry.sessionsCount} ${entry.sessionsCount === 1 ? "check-in" : "check-ins"}`}
+                              </p>
+                              <p className="text-xs text-text-dim">
+                                {entry.lastAttendanceAt
+                                  ? `last seen ${formatDateTime(entry.lastAttendanceAt)}`
+                                  : "awaiting first check-in"}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-2xl font-light text-emerald-300">
+                              {formatHoursValue(entry.totalDurationMs)}h
+                            </p>
+                            <p className="text-xs text-text-dim uppercase tracking-widest mt-1">
+                              logged time
+                            </p>
+                          </div>
+                        </div>
+                        <div className="mt-4 h-2 rounded-full bg-emerald-500/10 overflow-hidden">
+                          <div
+                            className="h-full bg-gradient-to-r from-emerald-400 via-cyan-300 to-sky-400"
+                            style={{ width: progressWidth }}
+                          />
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
       )}
+
+      <OpenBountiesSection
+        bountyBoard={bountyBoard}
+        canManageBounties={canManageBounties}
+        formatPoints={formatPoints}
+        onClickCreate={() => setIsCreateModalOpen(true)}
+        onClickComplete={(b) => {
+          setSelectedBounty(b);
+          setSelectedMemberId(null);
+          setCompletionNotes("");
+        }}
+      />
 
       <Modal
         isOpen={isCreateModalOpen}
@@ -460,6 +703,8 @@ function SpotlightCard({
   formatPoints,
   formatAwardDate,
   isYou,
+  isDualLegend,
+  isDualTop,
   onSelect,
 }: {
   entry: LeaderboardEntry;
@@ -467,6 +712,8 @@ function SpotlightCard({
   formatPoints: (value: number) => string;
   formatAwardDate: (timestamp: number | null) => string;
   isYou: boolean;
+  isDualLegend: boolean;
+  isDualTop: boolean;
   onSelect: () => void;
 }) {
   const backgroundClass = getSpotlightBackground(index);
@@ -474,15 +721,20 @@ function SpotlightCard({
     "border-2 border-white/50",
     index === 0 && "border-amber-200/80 shadow-[0_0_28px_rgba(251,191,36,0.35)]",
     index === 1 && "border-white/60 shadow-[0_0_22px_rgba(148,163,184,0.35)]",
-    index === 2 && "border-sunset-orange/70 shadow-[0_0_22px_rgba(251,146,60,0.35)]"
+    index === 2 && "border-sunset-orange/70 shadow-[0_0_22px_rgba(251,146,60,0.35)]",
+    isDualLegend && "ring-4 ring-emerald-300/40"
+  );
+  const containerClass = clsx(
+    "relative overflow-hidden rounded-3xl border border-white/15 p-6 text-left transition-transform hover:-translate-y-1",
+    isDualLegend &&
+      "border-emerald-300/60 shadow-[0_12px_48px_rgba(16,185,129,0.35)]"
   );
   return (
-    <button
-      type="button"
-      onClick={onSelect}
-      className="relative overflow-hidden rounded-3xl border border-white/15 p-6 text-left transition-transform hover:-translate-y-1"
-    >
+    <button type="button" onClick={onSelect} className={containerClass}>
       <div className={clsx("absolute inset-0 opacity-80", backgroundClass)} />
+      {isDualLegend && (
+        <div className="absolute inset-0 bg-gradient-to-r from-emerald-400/20 via-transparent to-emerald-400/20" />
+      )}
       <div className="relative z-10 flex flex-col h-full justify-between gap-6 text-white">
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-start gap-4">
@@ -498,25 +750,40 @@ function SpotlightCard({
                 <span className="badge bg-black/40 border-white/20 text-white">
                   #{index + 1}
                 </span>
-              {isYou && (
-                <span className="text-xs bg-white/30 text-white px-2 py-0.5 rounded-full">
-                  you
-                </span>
-              )}
-            </div>
-            <p className="text-sm text-white/70 mt-1">{entry.email}</p>
-            <p className="text-xs text-white/60 mt-2">
-              {entry.awardsCount === 0
-                ? "no μpoints yet"
-                : `${entry.awardsCount} ${entry.awardsCount === 1 ? "award" : "awards"} • last awarded ${formatAwardDate(entry.lastAwardedAt)}`}
-            </p>
+                {isYou && (
+                  <span className="text-xs bg-white/30 text-white px-2 py-0.5 rounded-full">
+                    you
+                  </span>
+                )}
+                {isDualLegend && (
+                  <span className="text-xs text-emerald-200 bg-emerald-500/30 border border-emerald-300/50 px-2 py-0.5 rounded-full">
+                    double crown
+                  </span>
+                )}
+                {!isDualLegend && isDualTop && (
+                  <span className="text-xs text-accent-purple bg-accent-purple/20 border border-accent-purple/40 px-2 py-0.5 rounded-full">
+                    dual leaderboard
+                  </span>
+                )}
+              </div>
+              <p className="text-sm text-white/70 mt-1">{entry.email}</p>
+              <p className="text-xs text-white/60 mt-2">
+                {entry.awardsCount === 0
+                  ? "no μpoints yet"
+                  : `${entry.awardsCount} ${entry.awardsCount === 1 ? "award" : "awards"} • last awarded ${formatAwardDate(entry.lastAwardedAt)}`}
+              </p>
             </div>
           </div>
-          {index === 0 ? (
-            <Crown size={32} className="text-amber-200 drop-shadow-lg" />
-          ) : (
-            <Trophy size={28} className="text-white/80" />
-          )}
+          <div className="relative">
+            {index === 0 ? (
+              <Crown size={32} className="text-amber-200 drop-shadow-lg" />
+            ) : (
+              <Trophy size={28} className="text-white/80" />
+            )}
+            {isDualLegend && (
+              <Sparkles className="absolute -top-2 -right-3 text-emerald-200 animate-pulse" size={18} />
+            )}
+          </div>
         </div>
         <div>
           <p className="text-4xl font-light drop-shadow-lg">
@@ -635,5 +902,125 @@ function getSpotlightBackground(index: number) {
       return "bg-gradient-to-br from-[#a855f7]/70 via-[#6366f1]/60 to-transparent";
     default:
       return "bg-gradient-to-br from-white/10 to-transparent";
+  }
+}
+
+function HoursSpotlightCard({
+  entry,
+  index,
+  formatHoursValue,
+  isYou,
+  isDualLegend,
+  isDualTop,
+  onSelect,
+}: {
+  entry: AttendanceLeaderboardEntry;
+  index: number;
+  formatHoursValue: (durationMs: number) => string;
+  isYou: boolean;
+  isDualLegend: boolean;
+  isDualTop: boolean;
+  onSelect: () => void;
+}) {
+  const backgroundClass = getHoursSpotlightBackground(index);
+  const avatarClassName = clsx(
+    "border-2 border-emerald-200/60",
+    index === 0 && "border-emerald-100/90 shadow-[0_0_28px_rgba(110,231,183,0.35)]",
+    index === 1 && "border-teal-100/70 shadow-[0_0_22px_rgba(94,234,212,0.35)]",
+    index === 2 && "border-cyan-200/70 shadow-[0_0_22px_rgba(165,243,252,0.35)]",
+    isDualLegend && "ring-4 ring-emerald-300/40"
+  );
+  const containerClass = clsx(
+    "relative overflow-hidden rounded-3xl border border-emerald-200/20 p-6 text-left transition-transform hover:-translate-y-1",
+    isDualLegend &&
+      "border-emerald-300/60 shadow-[0_12px_48px_rgba(16,185,129,0.35)]"
+  );
+  return (
+    <button type="button" onClick={onSelect} className={containerClass}>
+      <div className={clsx("absolute inset-0 opacity-80", backgroundClass)} />
+      {isDualLegend && (
+        <div className="absolute inset-0 bg-gradient-to-r from-emerald-400/20 via-transparent to-emerald-400/20" />
+      )}
+      <div className="relative z-10 flex flex-col h-full justify-between gap-6 text-emerald-50">
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex items-start gap-4">
+            <ProfileAvatar
+              name={entry.name}
+              imageUrl={entry.profileImageUrl}
+              size="xl"
+              className={avatarClassName}
+            />
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h4 className="text-xl font-light">{entry.name}</h4>
+                <span className="badge bg-emerald-900/40 border-emerald-100/40 text-emerald-100">
+                  #{index + 1}
+                </span>
+                {isYou && (
+                  <span className="text-xs bg-emerald-900/40 text-emerald-100 px-2 py-0.5 rounded-full">
+                    you
+                  </span>
+                )}
+                {isDualLegend && (
+                  <span className="text-xs text-emerald-100 bg-emerald-500/30 border border-emerald-300/50 px-2 py-0.5 rounded-full">
+                    double crown
+                  </span>
+                )}
+                {!isDualLegend && isDualTop && (
+                  <span className="text-xs text-accent-purple bg-accent-purple/30 border border-accent-purple/40 px-2 py-0.5 rounded-full">
+                    dual leaderboard
+                  </span>
+                )}
+              </div>
+              <p className="text-sm text-emerald-100/80 mt-1">{entry.email}</p>
+              <p className="text-xs text-emerald-100/70 mt-2">
+                {entry.meetingsAttended === 0
+                  ? "no attendance logged yet"
+                  : `${entry.meetingsAttended} ${entry.meetingsAttended === 1 ? "meeting" : "meetings"} • ${entry.sessionsCount} ${entry.sessionsCount === 1 ? "check-in" : "check-ins"}`}
+              </p>
+              <p className="text-xs text-emerald-100/60">
+                {entry.lastAttendanceAt
+                  ? `last seen ${formatDateTime(entry.lastAttendanceAt)}`
+                  : "awaiting first check-in"}
+              </p>
+            </div>
+          </div>
+          <div className="relative">
+            {index === 0 ? (
+              <Timer size={32} className="text-emerald-100 drop-shadow-lg" />
+            ) : (
+              <Sparkles size={26} className="text-emerald-100" />
+            )}
+            {isDualLegend && (
+              <Sparkles className="absolute -top-2 -right-3 text-emerald-100 animate-pulse" size={16} />
+            )}
+          </div>
+        </div>
+        <div>
+          <p className="text-4xl font-light drop-shadow-lg">
+            {formatHoursValue(entry.totalDurationMs)}h
+          </p>
+          <p className="text-xs uppercase tracking-widest text-emerald-100/80 mt-1">
+            logged this season
+          </p>
+          <p className="text-xs text-emerald-100/70 mt-1">
+            {formatDuration(entry.totalDurationMs)} on-site
+          </p>
+        </div>
+      </div>
+    </button>
+  );
+}
+
+function getHoursSpotlightBackground(index: number) {
+  switch (index) {
+    case 0:
+      return "bg-gradient-to-br from-emerald-400 via-emerald-500/80 to-cyan-400/80";
+    case 1:
+      return "bg-gradient-to-br from-cyan-400/70 via-sky-400/60 to-transparent";
+    case 2:
+      return "bg-gradient-to-br from-teal-400/60 via-emerald-300/50 to-transparent";
+    default:
+      return "bg-gradient-to-br from-emerald-200/20 to-transparent";
   }
 }

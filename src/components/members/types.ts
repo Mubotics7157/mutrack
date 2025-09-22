@@ -11,6 +11,18 @@ export type LeaderboardEntry = {
   profileImageUrl: string | null;
 };
 
+export type AttendanceLeaderboardEntry = {
+  memberId: Id<"members">;
+  name: string;
+  email: string;
+  role: "admin" | "lead" | "member";
+  totalDurationMs: number;
+  sessionsCount: number;
+  meetingsAttended: number;
+  lastAttendanceAt: number | null;
+  profileImageUrl: string | null;
+};
+
 export type BountyEntry = {
   _id: Id<"bounties">;
   title: string;

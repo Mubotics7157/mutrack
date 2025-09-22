@@ -378,6 +378,102 @@ export const getLeaderboard = query({
   },
 });
 
+export const getAttendanceLeaderboard = query({
+  args: {},
+  returns: v.array(
+    v.object({
+      memberId: v.id("members"),
+      name: v.string(),
+      email: v.string(),
+      role: v.union(
+        v.literal("admin"),
+        v.literal("lead"),
+        v.literal("member")
+      ),
+      totalDurationMs: v.number(),
+      sessionsCount: v.number(),
+      meetingsAttended: v.number(),
+      lastAttendanceAt: v.union(v.number(), v.null()),
+      profileImageUrl: v.union(v.string(), v.null()),
+    })
+  ),
+  handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) return [];
+
+    const members = await ctx.db.query("members").collect();
+    const membersWithImages = await Promise.all(
+      members.map((member) => memberWithProfileImageUrl(ctx, member))
+    );
+    const imageMap = new Map(
+      membersWithImages.map((member) => [member._id, member.profileImageUrl])
+    );
+
+    const sessions = await ctx.db.query("attendanceSessions").collect();
+
+    const summaries = new Map<
+      Id<"members">,
+      {
+        totalDurationMs: number;
+        sessionsCount: number;
+        meetingIds: Set<Id<"meetings">>;
+        lastAttendanceAt: number | null;
+      }
+    >();
+
+    for (const member of members) {
+      summaries.set(member._id, {
+        totalDurationMs: 0,
+        sessionsCount: 0,
+        meetingIds: new Set(),
+        lastAttendanceAt: null,
+      });
+    }
+
+    for (const session of sessions) {
+      const summary = summaries.get(session.memberId);
+      if (!summary) continue;
+      const end = session.endTime ?? session.lastSeenAt ?? session.startTime;
+      const duration = Math.max(0, end - session.startTime);
+      summary.totalDurationMs += duration;
+      summary.sessionsCount += 1;
+      summary.meetingIds.add(session.meetingId);
+      summary.lastAttendanceAt = summary.lastAttendanceAt
+        ? Math.max(summary.lastAttendanceAt, end)
+        : end;
+    }
+
+    const leaderboard = members.map((member) => {
+      const summary = summaries.get(member._id)!;
+      return {
+        memberId: member._id,
+        name: member.name,
+        email: member.email,
+        role: member.role,
+        totalDurationMs: summary.totalDurationMs,
+        sessionsCount: summary.sessionsCount,
+        meetingsAttended: summary.meetingIds.size,
+        lastAttendanceAt: summary.lastAttendanceAt,
+        profileImageUrl: imageMap.get(member._id) ?? null,
+      };
+    });
+
+    leaderboard.sort((a, b) => {
+      if (b.totalDurationMs !== a.totalDurationMs) {
+        return b.totalDurationMs - a.totalDurationMs;
+      }
+      const lastAttendanceDiff =
+        (b.lastAttendanceAt ?? 0) - (a.lastAttendanceAt ?? 0);
+      if (lastAttendanceDiff !== 0) {
+        return lastAttendanceDiff;
+      }
+      return a.name.localeCompare(b.name);
+    });
+
+    return leaderboard;
+  },
+});
+
 export const getMemberMuPoints = query({
   args: { memberId: v.id("members") },
   returns: v.array(
