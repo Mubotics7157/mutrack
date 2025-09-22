@@ -1,3 +1,5 @@
+export const MS_PER_HOUR = 60 * 60 * 1000;
+
 export function formatDateYMD(ts: number) {
   return new Date(ts)
     .toLocaleDateString("en-US", {
@@ -32,6 +34,25 @@ export function formatPoints(value: number) {
   return value.toLocaleString(undefined, {
     minimumFractionDigits,
     maximumFractionDigits: minimumFractionDigits,
+  });
+}
+
+export function msToHours(valueMs: number) {
+  return valueMs / MS_PER_HOUR;
+}
+
+export function formatHours(valueMs: number) {
+  const hours = msToHours(valueMs);
+  if (hours === 0) return "0";
+  const decimals = Number.isInteger(hours)
+    ? 0
+    : hours > 0 && hours < 1
+      ? 2
+      : 1;
+  const minimumFractionDigits = decimals === 0 ? 0 : 1;
+  return hours.toLocaleString(undefined, {
+    minimumFractionDigits,
+    maximumFractionDigits: decimals,
   });
 }
 
