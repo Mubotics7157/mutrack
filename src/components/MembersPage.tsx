@@ -111,6 +111,11 @@ export function MembersPage({ member }: MembersPageProps) {
         totalPoints: 0,
         totalAwards: 0,
         topMemberName: null as string | null,
+        totalAttendanceMs: 0,
+        topHoursMemberName: null as string | null,
+        topHoursMs: 0,
+        dualChampionId: null as Id<"members"> | null,
+        dualChampionName: null as string | null,
       };
     }
     const totalPoints = leaderboard.reduce(
@@ -121,9 +126,38 @@ export function MembersPage({ member }: MembersPageProps) {
       (sum, entry) => sum + entry.awardsCount,
       0
     );
+    const totalAttendanceMs = leaderboard.reduce(
+      (sum, entry) => sum + entry.totalAttendanceMs,
+      0
+    );
+    const topMember = leaderboard[0] ?? null;
     const topMemberName =
-      totalAwards > 0 && leaderboard[0] ? leaderboard[0].name : null;
-    return { totalPoints, totalAwards, topMemberName };
+      totalAwards > 0 && topMember ? topMember.name : null;
+    let topHoursEntry: LeaderboardEntry | null = null;
+    for (const entry of leaderboard) {
+      if (
+        !topHoursEntry ||
+        entry.totalAttendanceMs > topHoursEntry.totalAttendanceMs
+      ) {
+        topHoursEntry = entry;
+      }
+    }
+    const dualChampion =
+      topMember &&
+      topHoursEntry &&
+      topMember.memberId === topHoursEntry.memberId
+        ? topMember
+        : null;
+    return {
+      totalPoints,
+      totalAwards,
+      topMemberName,
+      totalAttendanceMs,
+      topHoursMemberName: topHoursEntry ? topHoursEntry.name : null,
+      topHoursMs: topHoursEntry ? topHoursEntry.totalAttendanceMs : 0,
+      dualChampionId: dualChampion ? dualChampion.memberId : null,
+      dualChampionName: dualChampion ? dualChampion.name : null,
+    };
   }, [leaderboard]);
 
   const selectedMember = selectedMemberId

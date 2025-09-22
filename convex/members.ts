@@ -328,15 +328,23 @@ export const getLeaderboard = query({
       membersWithImages.map((member) => [member._id, member.profileImageUrl])
     );
     const awards = await ctx.db.query("muPoints").collect();
+    const attendanceSessions = await ctx.db
+      .query("attendanceSessions")
+      .collect();
 
     const totals = new Map<Id<"members">, {
       total: number;
       count: number;
       lastAwarded: number | null;
     }>();
+    const attendanceTotals = new Map<
+      Id<"members">,
+      { totalMs: number; sessions: number }
+    >();
 
     for (const member of members) {
       totals.set(member._id, { total: 0, count: 0, lastAwarded: null });
+      attendanceTotals.set(member._id, { totalMs: 0, sessions: 0 });
     }
 
     for (const award of awards) {
@@ -349,8 +357,18 @@ export const getLeaderboard = query({
         : award.createdAt;
     }
 
+    for (const session of attendanceSessions) {
+      const current = attendanceTotals.get(session.memberId);
+      if (!current) continue;
+      const latest = session.endTime ?? session.lastSeenAt ?? session.startTime;
+      const duration = Math.max(0, latest - session.startTime);
+      current.totalMs += duration;
+      current.sessions += 1;
+    }
+
     const leaderboard = members.map((member) => {
       const summary = totals.get(member._id)!;
+      const attendance = attendanceTotals.get(member._id)!;
       return {
         memberId: member._id,
         name: member.name,
@@ -360,6 +378,8 @@ export const getLeaderboard = query({
         awardsCount: summary.count,
         lastAwardedAt: summary.lastAwarded,
         profileImageUrl: imageMap.get(member._id) ?? null,
+        totalAttendanceMs: attendance.totalMs,
+        attendanceSessionsCount: attendance.sessions,
       };
     });
 
