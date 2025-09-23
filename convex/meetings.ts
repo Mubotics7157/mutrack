@@ -3,6 +3,7 @@ import type { MutationCtx } from "./_generated/server";
 import { v } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { internal } from "./_generated/api";
+import { computeMeetingStartUtcMs } from "./lib/meetingTime";
 
 export const getMeetings = query({
   args: {},
@@ -70,16 +71,12 @@ export const createMeeting = mutation({
       internal.notifications.sendMeetingCreatedNotification,
       { meetingId }
     );
-    // Schedule reminder 3 hours before the meeting start
-    const meetingStart = args.date; // assuming date is ms since epoch for meeting day; combine with startTime if needed
-    // Parse startTime "HH:MM" to hours/minutes
-    const [hours, minutes] = args.startTime
-      .split(":")
-      .map((x) => parseInt(x, 10));
-    const startDate = new Date(meetingStart);
-    startDate.setHours(hours, minutes, 0, 0);
-    const reminderTime = new Date(startDate.getTime() - 3 * 60 * 60 * 1000);
-    const delayMs = Math.max(0, reminderTime.getTime() - Date.now());
+    const meetingStartUtcMs = computeMeetingStartUtcMs(
+      args.date,
+      args.startTime
+    );
+    const reminderTimeMs = meetingStartUtcMs - 3 * 60 * 60 * 1000;
+    const delayMs = Math.max(0, reminderTimeMs - Date.now());
     await ctx.scheduler.runAfter(
       delayMs,
       internal.notifications.sendMeetingReminderNotification,
