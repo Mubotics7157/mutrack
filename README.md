@@ -1,4 +1,4 @@
-# MuTrack — 7157 ops tool
+# mutrack — 7157 ops tool
 
 Schedule meetings, drop μpoints, track meeting attendance, and push purchase orders
 
