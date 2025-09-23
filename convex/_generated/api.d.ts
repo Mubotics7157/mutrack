@@ -18,6 +18,7 @@ import type * as auth from "../auth.js";
 import type * as beacons from "../beacons.js";
 import type * as bounties from "../bounties.js";
 import type * as http from "../http.js";
+import type * as lib_meetingTime from "../lib/meetingTime.js";
 import type * as meetings from "../meetings.js";
 import type * as members from "../members.js";
 import type * as notifications from "../notifications.js";
@@ -38,6 +39,7 @@ declare const fullApi: ApiFromModules<{
   beacons: typeof beacons;
   bounties: typeof bounties;
   http: typeof http;
+  "lib/meetingTime": typeof lib_meetingTime;
   meetings: typeof meetings;
   members: typeof members;
   notifications: typeof notifications;
