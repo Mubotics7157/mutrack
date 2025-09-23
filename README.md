@@ -1,98 +1,76 @@
-# MuTrack — FRC Team 7157 Internal Tool
+# MuTrack — 7157 ops tool
 
-Team operations hub for FRC 7157. Schedule and get reminded about meetings, track RSVPs, manage members and roles, and run the purchasing workflow — all in one place.
+Schedule meetings, drop μpoints, track meeting attendance, and push purchase orders
 
-## Features
+## what you can do
 
-- Meetings
-  - Create/update/delete meetings (admin/lead)
-  - RSVPs with per-user status
-  - Push notifications to all opted-in members
-- Members
-  - Member list visible to all authenticated users
-- Onboarding
-  - Prompts for web push notifications and saves device subscriptions
-- Purchases
-  - Request tracking UI with statuses and vendor info (see `PurchasesPage`/`PurchasesPanel`)
+- **Meetings** Admins and leads can spin up, edit, or delete meetings with descriptions, time blocks, and locations. Everyone sees the RSVP list, and reminders are sent to opted users via push notifications on multiple devices.
+- **Real attendance from BLE beacons.** The time tracking tab can scan iBeacons over Web Bluetooth, spin up sessions, and roll them into clean hour totals per member without requiring sign ins.
+- **μpoints + leaderboard hype.** Award μpoints manually or by completing bounties, track full award history, and surface a live leaderboard with attendance stats mixed in. Push notifications fire when someone earns points or sneaks into the top three (assuming they opted in).
+- **Bounties for ad-hoc tasks.** Leads/admins can post quests with point values and mark them complete with notes so the right member gets the credit.
+- **Purchasing pipeline.** Track requests, vendors, approvals, and purchase orders in one view so nothing falls through.
 
-## Tech stack
+## under the hood
 
-- Frontend: React + Vite, Tailwind CSS, `lucide-react`, `sonner`
-- Backend: Convex (database, functions, scheduler), Convex Auth
-- Push: Web Push with service worker (`public/sw.js`) and `web-push` on the server
+- Frontend: React + Vite, Tailwind, lucide icons, Sonner toasts, and a glassmorphic UI layer.
+- Backend: Convex handles the database, auth, cron-style scheduling, and server-side logic.
+- Push: Web Push via `public/sw.js` on the client and `web-push` inside Convex actions.
+- Hardware tie-ins: Web Bluetooth scanning for the attendance flow, with guard rails for browsers that can't scan.
 
-## Local development
+## getting set up locally
 
-1. Install dependencies
+1. Install deps:
+   ```bash
+   npm install
+   ```
+2. Wire up env vars:
+   - Frontend (`.env` or shell):
+     ```bash
+     VITE_VAPID_PUBLIC_KEY=your_public_vapid_key
+     ```
+   - Convex deployment env:
+     ```bash
+     VAPID_PUBLIC_KEY=your_public_vapid_key
+     VAPID_PRIVATE_KEY=your_private_vapid_key
+     VAPID_CONTACT=mailto:you@example.com
+     CONVEX_SITE_URL=https://your.dev.domain
+     ```
+   - Need keys? Run `npx web-push generate-vapid-keys` once and paste them in both places.
+3. Kick off both servers:
+   ```bash
+   npm run dev
+   ```
+   Vite serves the React app, `convex dev` boots the backend, and the first account you create becomes the admin.
 
-```bash
-npm install
-```
+### other scripts
 
-2. Configure environment
+- `npm run build` — production Vite build.
+- `npm run lint` — type-check both Convex + frontend, boot a one-off Convex backend (for schema validation), then build the client. Bring a coffee; it does a lot.
 
-Frontend (.env or shell):
+## folders, roughly
 
-```bash
-# must match backend public key
-VITE_VAPID_PUBLIC_KEY=YOUR_PUBLIC_VAPID_KEY
-```
+- `src/` — the React app.
+  - `components/` — dashboard panels, onboarding flow, purchase UI, leaderboard tabs, and the BLE time-tracking screen.
+  - `lib/` — helpers for members, formatting, and shared UI logic.
+- `convex/` — database schema plus all server-side queries/mutations/actions.
+  - `meetings.ts` schedules, RSVPs, and reminder jobs.
+  - `members.ts` handles onboarding, μpoint math, leaderboard queries, and push preferences.
+  - `attendance.ts` stores BLE check-ins and aggregates durations.
+  - `bounties.ts` tracks quests that auto-award μpoints.
+  - `notifications.ts` centralizes push sending.
+  - `lib/meetingTime.ts` makes the reminder scheduler timezone-aware.
+- `public/sw.js` — service worker that actually listens for pushes.
 
-Backend (Convex environment):
+## roles & permissions
 
-```bash
-# set these in your Convex deployment environment
-VAPID_PUBLIC_KEY=YOUR_PUBLIC_VAPID_KEY
-VAPID_PRIVATE_KEY=YOUR_PRIVATE_VAPID_KEY
-VAPID_CONTACT=mailto:you@example.com
-```
+- `admin` — can manage roles, scrub members, handle meetings, award μpoints, and oversee purchases/bounties.
+- `lead` — manages meetings, awards μpoints, and runs bounties.
+- `member` — RSVP, view the directory + leaderboard, submit purchase requests, and opt into pushes.
 
-Generate VAPID keys (one-time):
+## extra little notes
 
-```bash
-npx web-push generate-vapid-keys
-```
-
-3. Start dev servers
-
-```bash
-npm run dev
-```
-
-- Frontend runs on Vite
-- Backend runs on Convex dev
-
-Sign up with email/password. The first account created becomes `admin` automatically.
-
-## Project structure
-
-- `src/` — React app components and pages
-  - `components/HomePage.tsx` — calendar view, quick meeting actions
-  - `components/MembersPage.tsx` — member list, role management, admin remove
-  - `components/PurchasesPage.tsx` — purchase request UI
-  - `components/ProfilePage.tsx` — per-device push enable, past meetings calendar
-  - `components/Onboarding.tsx` — real-name + phone + push enable
-- `convex/` — Convex functions and schema
-  - `schema.ts` — tables: `members`, `meetings`, `meetingRsvps`, `purchase*`, `pushSubscriptions`
-  - `members.ts` — current user, list, role updates, delete, onboarding, push saves
-  - `meetings.ts` — CRUD, RSVP, and queries (includes `getMeetingById`)
-  - `notifications.ts` — internal actions to broadcast web push
-- `public/sw.js` — service worker for web push notifications
-
-## Roles & access
-
-- `admin`: full access — manage roles, remove members, manage meetings
-- `lead`: manage meetings
-- `member`: view members, RSVP, participate
-
-## Notes
-
-- Push subscriptions are stored per device in `pushSubscriptions`, allowing desktop and phone to both receive alerts
-- Onboarding gates the app until completed (`onboardingCompleted` flag)
-- Gradients are used sparingly in the UI; toggles and headings are toned down for clarity
-
-## Useful links
-
-- Convex docs: https://docs.convex.dev/
-- Convex Auth: https://auth.convex.dev/
-- Vite: https://vitejs.dev/
+- Onboarding is a hard gate: no dashboard until the profile is filled out.
+- Each device's push subscription is stored separately so phones and laptops can ping in sync.
+- Meeting reminders reschedule themselves if they somehow fire early.
+- Attendance durations use the earliest start + latest end per meeting/member so brief BLE dropouts don't nuke your hours.
+- Leaderboard math blends μpoints, attendance totals, and award counts so you get a quick read on involvement.
