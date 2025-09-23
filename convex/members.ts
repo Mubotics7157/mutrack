@@ -3,6 +3,7 @@ import { v } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { internalQuery } from "./_generated/server";
 import { Doc, Id } from "./_generated/dataModel";
+import { internal } from "./_generated/api";
 
 async function memberWithProfileImageUrl(
   ctx: { storage: { getUrl: (id: Id<"_storage">) => Promise<string | null> } },
@@ -177,6 +178,27 @@ export const internalListSubscriptionsForMember = internalQuery({
   },
 });
 
+export const internalGetMemberNotificationInfo = internalQuery({
+  args: { memberId: v.id("members") },
+  returns: v.union(
+    v.object({
+      _id: v.id("members"),
+      name: v.string(),
+      notificationsEnabled: v.boolean(),
+    }),
+    v.null()
+  ),
+  handler: async (ctx, args) => {
+    const member = await ctx.db.get(args.memberId);
+    if (!member) return null;
+    return {
+      _id: member._id,
+      name: member.name,
+      notificationsEnabled: member.notificationsEnabled ?? false,
+    };
+  },
+});
+
 export const setNotificationsEnabled = mutation({
   args: { enabled: v.boolean() },
   returns: v.null(),
@@ -286,13 +308,112 @@ export const awardMuPoint = mutation({
       throw new Error("Points must be a positive number");
     }
 
+    const now = Date.now();
+
+    const members = await ctx.db.query("members").collect();
+    const nameMap = new Map<Id<"members">, string>(
+      members.map((member) => [member._id, member.name])
+    );
+    const totalsBefore = new Map<
+      Id<"members">,
+      { totalPoints: number; lastAwardedAt: number | null }
+    >();
+
+    for (const member of members) {
+      totalsBefore.set(member._id, { totalPoints: 0, lastAwardedAt: null });
+    }
+
+    const existingAwards = await ctx.db.query("muPoints").collect();
+    for (const award of existingAwards) {
+      const summary = totalsBefore.get(award.memberId);
+      if (!summary) continue;
+      summary.totalPoints += award.points;
+      summary.lastAwardedAt =
+        summary.lastAwardedAt !== null
+          ? Math.max(summary.lastAwardedAt, award.createdAt)
+          : award.createdAt;
+    }
+
+    const buildLeaderboard = (
+      totals: Map<Id<"members">, { totalPoints: number; lastAwardedAt: number | null }>
+    ) =>
+      Array.from(totals.entries())
+        .map(([memberId, summary]) => ({
+          memberId,
+          totalPoints: summary.totalPoints,
+          lastAwardedAt: summary.lastAwardedAt,
+          name: nameMap.get(memberId) ?? "",
+        }))
+        .sort((a, b) => {
+          if (b.totalPoints !== a.totalPoints) {
+            return b.totalPoints - a.totalPoints;
+          }
+          const lastAwardedDiff =
+            (b.lastAwardedAt ?? 0) - (a.lastAwardedAt ?? 0);
+          if (lastAwardedDiff !== 0) {
+            return lastAwardedDiff;
+          }
+          return a.name.localeCompare(b.name);
+        });
+
+    const leaderboardBefore = buildLeaderboard(totalsBefore);
+    const beforeIndex = leaderboardBefore.findIndex(
+      (entry) => entry.memberId === args.memberId
+    );
+
     await ctx.db.insert("muPoints", {
       memberId: args.memberId,
       assignedByMemberId: awardingMember._id,
       points: args.points,
       reason: trimmedReason,
-      createdAt: Date.now(),
+      createdAt: now,
     });
+
+    const previousSummary = totalsBefore.get(args.memberId) ?? {
+      totalPoints: 0,
+      lastAwardedAt: null,
+    };
+    const totalsAfter = new Map(totalsBefore);
+    totalsAfter.set(args.memberId, {
+      totalPoints: previousSummary.totalPoints + args.points,
+      lastAwardedAt: now,
+    });
+
+    const leaderboardAfter = buildLeaderboard(totalsAfter);
+    const afterIndex = leaderboardAfter.findIndex(
+      (entry) => entry.memberId === args.memberId
+    );
+
+    const pointsLabel = args.points === 1 ? "μpoint" : "μpoints";
+    const awardingTitle = `You earned ${args.points} ${pointsLabel}!`;
+    const awardingBody = `${trimmedReason} — awarded by ${awardingMember.name}`;
+    await ctx.scheduler.runAfter(
+      0,
+      internal.notifications.sendNotificationToMember,
+      {
+        memberId: args.memberId,
+        title: awardingTitle,
+        body: awardingBody,
+        url: "/",
+      }
+    );
+
+    const enteredTopThree =
+      afterIndex !== -1 && afterIndex <= 2 && (beforeIndex === -1 || beforeIndex > 2);
+    if (enteredTopThree) {
+      const topTitle = "You're in the top 3!";
+      const topBody = `You're now ranked #${afterIndex + 1} on the μpoints leaderboard.`;
+      await ctx.scheduler.runAfter(
+        0,
+        internal.notifications.sendNotificationToMember,
+        {
+          memberId: args.memberId,
+          title: topTitle,
+          body: topBody,
+          url: "/",
+        }
+      );
+    }
 
     return null;
   },

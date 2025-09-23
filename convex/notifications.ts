@@ -1,6 +1,7 @@
 "use node";
 import { action, internalAction } from "./_generated/server";
 import { v } from "convex/values";
+import { computeMeetingStartUtcMs } from "./lib/meetingTime";
 // web-push has no types in this project; import via require style to satisfy TS
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const webpush = require("web-push");
@@ -52,6 +53,46 @@ export const sendNotificationToAllEnabled = internalAction({
   },
 });
 
+export const sendNotificationToMember = internalAction({
+  args: {
+    memberId: v.id("members"),
+    title: v.string(),
+    body: v.string(),
+    url: v.optional(v.string()),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    configureWebPush();
+    const member = await ctx.runQuery(
+      internal.members.internalGetMemberNotificationInfo,
+      { memberId: args.memberId }
+    );
+    if (!member || !member.notificationsEnabled) {
+      return null;
+    }
+
+    const subs = await ctx.runQuery(
+      internal.members.internalListSubscriptionsForMember,
+      { memberId: args.memberId }
+    );
+    for (const sub of subs) {
+      try {
+        await webpush.sendNotification(
+          { endpoint: sub.endpoint, keys: sub.keys as any },
+          JSON.stringify({
+            title: args.title,
+            body: args.body,
+            url: args.url,
+          })
+        );
+      } catch (e) {
+        // Ignore errors from invalid or expired subscriptions
+      }
+    }
+    return null;
+  },
+});
+
 import { internal, api } from "./_generated/api";
 
 export const sendMeetingCreatedNotification = internalAction({
@@ -89,6 +130,23 @@ export const sendMeetingReminderNotification = internalAction({
       meetingId: args.meetingId,
     });
     if (!meeting) return null;
+
+    const meetingStartUtcMs = computeMeetingStartUtcMs(
+      meeting.date,
+      meeting.startTime
+    );
+    const now = Date.now();
+    const reminderLeadTimeMs = 3 * 60 * 60 * 1000;
+    const msUntilMeeting = meetingStartUtcMs - now;
+
+    if (msUntilMeeting > reminderLeadTimeMs + 30 * 1000) {
+      await ctx.scheduler.runAfter(
+        msUntilMeeting - reminderLeadTimeMs,
+        internal.notifications.sendMeetingReminderNotification,
+        { meetingId: args.meetingId }
+      );
+      return null;
+    }
 
     const title = `Reminder: ${meeting.title} in 3 hours`;
     const date = new Date(meeting.date).toLocaleDateString();
