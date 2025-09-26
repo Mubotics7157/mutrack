@@ -29,6 +29,23 @@ export function HomePage({ member }: HomePageProps) {
   const [showSelectedDate, setShowSelectedDate] = useState(false);
   const [devicePushEnabled, setDevicePushEnabled] = useState<boolean>();
 
+  const hasWindow = typeof window !== "undefined";
+  const isIOSDevice =
+    hasWindow && /iphone|ipad|ipod/i.test(window.navigator.userAgent ?? "");
+  const isStandalone =
+    hasWindow &&
+    (window.matchMedia?.("(display-mode: standalone)").matches ||
+      // @ts-expect-error: iOS Safari exposes navigator.standalone
+      window.navigator.standalone === true);
+  const hasPushManager = hasWindow && "PushManager" in window;
+  const supportsPushNotifications =
+    hasWindow &&
+    "Notification" in window &&
+    "serviceWorker" in navigator &&
+    hasPushManager;
+  const needsIOSInstallationHint =
+    isIOSDevice && (!isStandalone || !hasPushManager);
+
   const canManageMeetings =
     member.role === "admin" || member.role === "lead";
 
@@ -90,7 +107,7 @@ export function HomePage({ member }: HomePageProps) {
 
   useEffect(() => {
     const checkDeviceSubscription = async () => {
-      if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
+      if (!supportsPushNotifications) {
         setDevicePushEnabled(false);
         return;
       }
@@ -134,8 +151,14 @@ export function HomePage({ member }: HomePageProps) {
 
   const enableDeviceNotifications = async () => {
     try {
-      if (!("serviceWorker" in navigator)) {
-        toast.error("service worker not supported in this browser");
+      if (!supportsPushNotifications) {
+        if (needsIOSInstallationHint) {
+          toast.error(
+            "add this app to your iOS home screen to enable notifications"
+          );
+        } else {
+          toast.error("notifications are not supported on this device");
+        }
         return;
       }
       const reg =
@@ -189,6 +212,16 @@ export function HomePage({ member }: HomePageProps) {
                 get alerts on this device when meetings are scheduled and before
                 they start.
               </p>
+              {needsIOSInstallationHint ? (
+                <p className="text-xs text-sunset-orange mt-2">
+                  on iOS, add this app to your home screen to receive
+                  notifications.
+                </p>
+              ) : !supportsPushNotifications ? (
+                <p className="text-xs text-sunset-orange mt-2">
+                  notifications are not supported on this device.
+                </p>
+              ) : null}
             </div>
             <button className="btn-modern" onClick={enableDeviceNotifications}>
               enable
