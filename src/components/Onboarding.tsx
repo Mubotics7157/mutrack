@@ -65,6 +65,17 @@ function extractKeys(sub: PushSubscription): {
 }
 
 export function Onboarding() {
+  const isIOSDevice =
+    typeof window !== "undefined" &&
+    /iphone|ipad|ipod/i.test(window.navigator.userAgent ?? "");
+  const isStandalone =
+    typeof window !== "undefined" &&
+    (window.matchMedia?.("(display-mode: standalone)").matches ||
+      // @ts-expect-error: iOS Safari exposes navigator.standalone
+      window.navigator.standalone === true);
+  const supportsNotifications =
+    typeof window !== "undefined" && "Notification" in window;
+  const needsIOSInstallationHint = isIOSDevice && !isStandalone;
   const completeOnboarding = useMutation(api.members.completeOnboarding);
   const savePush = useMutation(api.members.savePushSubscription);
   const setNotificationsEnabled = useMutation(
@@ -74,16 +85,33 @@ export function Onboarding() {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [phone, setPhone] = useState("");
-  const [enableNotifications, setEnableNotifications] = useState(true);
+  const [enableNotifications, setEnableNotifications] = useState(
+    supportsNotifications
+  );
   const [submitting, setSubmitting] = useState(false);
   const [permissionState, setPermissionState] =
-    useState<NotificationPermission>(Notification.permission);
+    useState<NotificationPermission>(
+      supportsNotifications ? Notification.permission : "default"
+    );
 
   useEffect(() => {
-    setPermissionState(Notification.permission);
-  }, []);
+    if (supportsNotifications) {
+      setPermissionState(Notification.permission);
+    }
+  }, [supportsNotifications]);
 
   const handleEnableNotifications = async () => {
+    if (!supportsNotifications) {
+      if (needsIOSInstallationHint) {
+        toast.error(
+          "add this app to your iOS home screen to enable notifications"
+        );
+      } else {
+        toast.error("notifications are not supported on this device");
+      }
+      setEnableNotifications(false);
+      return;
+    }
     const reg = await registerServiceWorker();
     if (!reg) {
       toast.error("service worker not supported in this browser");
@@ -120,7 +148,7 @@ export function Onboarding() {
         setSubmitting(false);
         return;
       }
-      if (enableNotifications && permissionState !== "granted") {
+      if (enableNotifications && supportsNotifications && permissionState !== "granted") {
         await handleEnableNotifications();
       }
       await completeOnboarding({
@@ -128,9 +156,13 @@ export function Onboarding() {
         lastName: lastName.trim(),
         phoneNumber: phone.trim(),
         notificationsEnabled:
-          enableNotifications && permissionState === "granted",
+          enableNotifications && supportsNotifications && permissionState === "granted",
       });
-      if (enableNotifications && permissionState === "granted") {
+      if (
+        enableNotifications &&
+        supportsNotifications &&
+        permissionState === "granted"
+      ) {
         await setNotificationsEnabled({ enabled: true });
       }
       toast.success("onboarding complete");
@@ -195,6 +227,12 @@ export function Onboarding() {
             <p className="text-xs text-text-muted mt-1">
               enable web push to get reminders
             </p>
+            {needsIOSInstallationHint && (
+              <p className="text-xs text-sunset-orange mt-2">
+                on iOS, add this app to your home screen to receive
+                notifications.
+              </p>
+            )}
           </div>
           <label className="relative inline-flex items-center cursor-pointer">
             <input
@@ -202,6 +240,7 @@ export function Onboarding() {
               className="sr-only peer"
               checked={enableNotifications}
               onChange={(e) => setEnableNotifications(e.target.checked)}
+              disabled={!supportsNotifications}
             />
             <div className="w-11 h-6 bg-glass border border-border-glass peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-sunset-orange"></div>
           </label>
