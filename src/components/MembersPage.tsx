@@ -21,7 +21,11 @@ import {
   filterMembers as filterMembersHelper,
   formatHours as formatHoursHelper,
 } from "./members/helpers";
-import type { BountyBoardData, LeaderboardEntry } from "./members/types";
+import type {
+  BountyBoardData,
+  LeaderboardEntry,
+  LeaderboardRange,
+} from "./members/types";
 import { MemberWithProfile } from "../lib/members";
 import { ProfileAvatar } from "./ProfileAvatar";
 
@@ -38,6 +42,8 @@ export function MembersPage({ member }: MembersPageProps) {
   const [awardPoints, setAwardPoints] = useState("1");
   const [awardReason, setAwardReason] = useState("");
   const [isAwarding, setIsAwarding] = useState(false);
+  const [leaderboardRange, setLeaderboardRange] =
+    useState<LeaderboardRange>("allTime");
 
   const [directorySearchTerm, setDirectorySearchTerm] = useState("");
   const [directoryRoleFilter, setDirectoryRoleFilter] = useState<string>("all");
@@ -55,10 +61,11 @@ export function MembersPage({ member }: MembersPageProps) {
     () => membersQuery ?? [],
     [membersQuery]
   );
-  const leaderboardQuery = useQuery(api.members.getLeaderboard) as
-    | LeaderboardEntry[]
-    | undefined;
+  const leaderboardQuery = useQuery(api.members.getLeaderboard, {
+    range: leaderboardRange,
+  }) as LeaderboardEntry[] | undefined;
   const leaderboard = useMemo(() => leaderboardQuery ?? [], [leaderboardQuery]);
+  const isLeaderboardLoading = leaderboardQuery === undefined;
   const totalAttendanceMs = useMemo(
     () =>
       leaderboard.reduce(
@@ -418,8 +425,11 @@ export function MembersPage({ member }: MembersPageProps) {
         <LeaderboardTab
           leaderboard={leaderboard}
           leaderboardStats={leaderboardStats}
+          leaderboardRange={leaderboardRange}
+          onSelectRange={setLeaderboardRange}
           onSelectMember={openMemberDetails}
           currentMemberId={member._id}
+          isLoading={isLeaderboardLoading}
           formatPoints={formatPoints}
           formatAwardDate={formatAwardDate}
           formatHours={formatHoursHelper}

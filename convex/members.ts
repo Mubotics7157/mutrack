@@ -420,7 +420,15 @@ export const awardMuPoint = mutation({
 });
 
 export const getLeaderboard = query({
-  args: {},
+  args: {
+    range: v.optional(
+      v.union(
+        v.literal("allTime"),
+        v.literal("lastMonth"),
+        v.literal("lastWeek")
+      )
+    ),
+  },
   returns: v.array(
     v.object({
       memberId: v.id("members"),
@@ -441,9 +449,22 @@ export const getLeaderboard = query({
       lastAttendanceAt: v.union(v.number(), v.null()),
     })
   ),
-  handler: async (ctx) => {
+  handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
     if (!userId) return [];
+
+    const range = args.range ?? "allTime";
+    const now = Date.now();
+    const rangeCutoff = (() => {
+      switch (range) {
+        case "lastMonth":
+          return now - 30 * 24 * 60 * 60 * 1000;
+        case "lastWeek":
+          return now - 7 * 24 * 60 * 60 * 1000;
+        default:
+          return null;
+      }
+    })();
 
     const members = await ctx.db.query("members").collect();
     const membersWithImages = await Promise.all(
@@ -484,6 +505,7 @@ export const getLeaderboard = query({
     }
 
     for (const award of awards) {
+      if (rangeCutoff !== null && award.createdAt < rangeCutoff) continue;
       const current = totals.get(award.memberId);
       if (!current) continue;
       current.total += award.points;
@@ -496,14 +518,16 @@ export const getLeaderboard = query({
     for (const session of attendanceSessions) {
       const summary = attendanceTotals.get(session.memberId);
       if (!summary) continue;
-      const latest = session.endTime ?? session.lastSeenAt;
-      const duration = Math.max(0, latest - session.startTime);
+      const sessionLatest =
+        session.endTime ?? session.lastSeenAt ?? session.startTime;
+      if (rangeCutoff !== null && sessionLatest < rangeCutoff) continue;
+      const duration = Math.max(0, sessionLatest - session.startTime);
       summary.totalMs += duration;
       summary.sessionCount += 1;
       summary.meetings.add(session.meetingId);
       summary.lastAttendance = summary.lastAttendance
-        ? Math.max(summary.lastAttendance, latest)
-        : latest;
+        ? Math.max(summary.lastAttendance, sessionLatest)
+        : sessionLatest;
     }
 
     const leaderboard = members.map((member) => {

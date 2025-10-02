@@ -1,5 +1,7 @@
 import { type Id } from "../../../convex/_generated/dataModel";
 
+export type LeaderboardRange = "allTime" | "lastMonth" | "lastWeek";
+
 export type LeaderboardEntry = {
   memberId: Id<"members">;
   name: string;

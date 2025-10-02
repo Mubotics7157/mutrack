@@ -14,7 +14,12 @@ import {
   Timer,
 } from "lucide-react";
 import { toast } from "sonner";
-import { BountyBoardData, LeaderboardEntry, BountyEntry } from "./types";
+import {
+  BountyBoardData,
+  LeaderboardEntry,
+  LeaderboardRange,
+  BountyEntry,
+} from "./types";
 import {
   formatDateTime,
   formatAwardDate as formatAwardDateFn,
@@ -31,8 +36,11 @@ export interface LeaderboardTabProps {
     totalAwards: number;
     topMemberName: string | null;
   };
+  leaderboardRange: LeaderboardRange;
+  onSelectRange: (range: LeaderboardRange) => void;
   onSelectMember: (memberId: Id<"members">) => void;
   currentMemberId: Id<"members">;
+  isLoading: boolean;
   formatPoints?: (value: number) => string;
   formatAwardDate?: (timestamp: number | null) => string;
   formatHours?: (valueMs: number) => string;
@@ -58,8 +66,11 @@ export function LeaderboardTab(props: LeaderboardTabProps) {
   const {
     leaderboard,
     leaderboardStats,
+    leaderboardRange,
+    onSelectRange,
     onSelectMember,
     currentMemberId,
+    isLoading,
     canAwardPoints,
     bountyBoard,
     members,
@@ -77,6 +88,17 @@ export function LeaderboardTab(props: LeaderboardTabProps) {
   const topThree = leaderboard.slice(0, 3);
   const rest = leaderboard.slice(3);
   const leaderPoints = leaderboard[0]?.totalPoints ?? 0;
+  const rangeOptions: Array<{ value: LeaderboardRange; label: string }> = [
+    { value: "allTime", label: "All time" },
+    { value: "lastMonth", label: "Last Month" },
+    { value: "lastWeek", label: "Last Week" },
+  ];
+  const rangeLabelMap: Record<LeaderboardRange, string> = {
+    allTime: "All time",
+    lastMonth: "Last 30 days",
+    lastWeek: "Last 7 days",
+  };
+  const selectedRangeLabel = rangeLabelMap[leaderboardRange];
 
   const hoursLeaderboard = useMemo(() => {
     const sorted = [...leaderboard];
@@ -192,6 +214,17 @@ export function LeaderboardTab(props: LeaderboardTabProps) {
     }
   };
 
+  const showEmptyState = !isLoading && leaderboard.length === 0;
+  const displayTotalPoints = isLoading
+    ? "—"
+    : formatPoints(leaderboardStats.totalPoints);
+  const displayTotalAwards = isLoading
+    ? "—"
+    : leaderboardStats.totalAwards.toLocaleString();
+  const displayAttendanceLabel = isLoading
+    ? "—"
+    : `${totalAttendanceLabel}h`;
+
   return (
     <div className="space-y-6">
       <div className="relative overflow-hidden glass-panel p-6">
@@ -211,30 +244,57 @@ export function LeaderboardTab(props: LeaderboardTabProps) {
                 : "tap a teammate to explore their μpoint highlight reel."}
             </p>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-center">
-            <div>
-              <p className="text-2xl font-light text-sunset-orange">
-                {formatPoints(leaderboardStats.totalPoints)}
-              </p>
-              <p className="text-xs text-text-dim uppercase tracking-widest">
-                μpoints awarded
-              </p>
+          <div className="flex flex-col items-stretch gap-4 sm:items-end">
+            <div className="inline-flex items-center justify-center gap-1 rounded-full border border-white/10 bg-white/5 p-1 text-xs">
+              {rangeOptions.map((option) => {
+                const isSelected = option.value === leaderboardRange;
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => {
+                      if (!isSelected) {
+                        onSelectRange(option.value);
+                      }
+                    }}
+                    className={clsx(
+                      "px-3 py-1 rounded-full transition-colors",
+                      isSelected
+                        ? "bg-white text-text-primary shadow-sm"
+                        : "text-text-muted hover:text-text-primary"
+                    )}
+                    aria-pressed={isSelected}
+                  >
+                    {option.label}
+                  </button>
+                );
+              })}
             </div>
-            <div>
-              <p className="text-2xl font-light text-accent-purple">
-                {leaderboardStats.totalAwards}
-              </p>
-              <p className="text-xs text-text-dim uppercase tracking-widest">
-                recognitions logged
-              </p>
-            </div>
-            <div>
-              <p className="text-2xl font-light text-emerald-300">
-                {totalAttendanceLabel}h
-              </p>
-              <p className="text-xs text-text-dim uppercase tracking-widest">
-                hours tracked
-              </p>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-center">
+              <div>
+                <p className="text-2xl font-light text-sunset-orange">
+                  {displayTotalPoints}
+                </p>
+                <p className="text-xs text-text-dim uppercase tracking-widest">
+                  μpoints awarded • {selectedRangeLabel}
+                </p>
+              </div>
+              <div>
+                <p className="text-2xl font-light text-accent-purple">
+                  {displayTotalAwards}
+                </p>
+                <p className="text-xs text-text-dim uppercase tracking-widest">
+                  recognitions logged • {selectedRangeLabel}
+                </p>
+              </div>
+              <div>
+                <p className="text-2xl font-light text-emerald-300">
+                  {displayAttendanceLabel}
+                </p>
+                <p className="text-xs text-text-dim uppercase tracking-widest">
+                  hours tracked • {selectedRangeLabel}
+                </p>
+              </div>
             </div>
           </div>
         </div>
@@ -268,7 +328,7 @@ export function LeaderboardTab(props: LeaderboardTabProps) {
         )}
       </div>
 
-      {leaderboard.length === 0 ? (
+      {showEmptyState ? (
         <div className="glass-panel p-8 text-center">
           <p className="text-text-muted">
             no μpoints have been awarded yet. once recognitions are logged, the
