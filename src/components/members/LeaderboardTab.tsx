@@ -221,9 +221,7 @@ export function LeaderboardTab(props: LeaderboardTabProps) {
   const displayTotalAwards = isLoading
     ? "—"
     : leaderboardStats.totalAwards.toLocaleString();
-  const displayAttendanceLabel = isLoading
-    ? "—"
-    : `${totalAttendanceLabel}h`;
+  const displayAttendanceLabel = isLoading ? "—" : `${totalAttendanceLabel}h`;
 
   return (
     <div className="space-y-6">
@@ -260,7 +258,7 @@ export function LeaderboardTab(props: LeaderboardTabProps) {
                     className={clsx(
                       "px-3 py-1 rounded-full transition-colors",
                       isSelected
-                        ? "bg-white text-text-primary shadow-sm"
+                        ? "bg-white text-slate-900 shadow-sm"
                         : "text-text-muted hover:text-text-primary"
                     )}
                     aria-pressed={isSelected}
