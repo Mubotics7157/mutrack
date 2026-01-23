@@ -12,7 +12,8 @@ export function ActiveAttendanceStatus() {
     return () => clearInterval(id);
   }, []);
 
-  if (!activeSession) return null;
+  // undefined = still loading, null = no active session
+  if (activeSession === undefined || activeSession === null) return null;
 
   const { session, meeting } = activeSession;
   const durationMs = now - session.startTime;

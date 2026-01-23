@@ -14,6 +14,7 @@ import {
   SelectedDatePanel,
   NewMeetingModal,
 } from './home';
+import { ActiveAttendanceStatus } from './ActiveAttendanceStatus';
 import { formatHours } from './members/helpers';
 import { LeaderboardEntry } from './members/types';
 
@@ -162,6 +163,9 @@ export function HomePage({ member }: HomePageProps) {
           defaultDate={quickMeetingDate}
         />
       )}
+
+      {/* Active Attendance Status */}
+      <ActiveAttendanceStatus />
 
       {/* Welcome Header with Personal Stats */}
       <section className="space-y-4">
