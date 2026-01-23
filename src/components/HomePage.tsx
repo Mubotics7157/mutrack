@@ -3,12 +3,10 @@ import { useQuery, useMutation } from 'convex/react';
 import { api } from '../../convex/_generated/api';
 import { MemberWithProfile } from '../lib/members';
 import { toast } from 'sonner';
-import { Calendar, Check, BellOff, Trophy, Clock, TrendingUp, ChevronRight, Users } from 'lucide-react';
+import { Calendar, Check, Bell, Trophy, Clock, MapPin, Plus, ChevronRight } from 'lucide-react';
 import { Button, Badge } from './ui';
 import { cn } from '../lib/utils';
 import {
-  WelcomeHeader,
-  QuickActions,
   CalendarView,
   MeetingCard,
   SelectedDatePanel,
@@ -33,13 +31,11 @@ export function HomePage({ member }: HomePageProps) {
 
   const canManageMeetings = member.role === 'admin' || member.role === 'lead';
   const meetings = useQuery(api.meetings.getMeetings);
-  const allMembers = (useQuery(api.members.getAllMembers) as MemberWithProfile[] | undefined) || [];
   const leaderboard = useQuery(api.members.getLeaderboard, { range: 'allTime' }) as LeaderboardEntry[] | undefined;
   const rsvpToMeeting = useMutation(api.meetings.rsvpToMeeting);
   const savePush = useMutation(api.members.savePushSubscription);
   const setNotificationsEnabled = useMutation(api.members.setNotificationsEnabled);
 
-  // Get user's stats
   const myStats = useMemo(() => {
     if (!leaderboard) return null;
     const myEntry = leaderboard.find((e) => e.memberId === member._id);
@@ -48,12 +44,8 @@ export function HomePage({ member }: HomePageProps) {
     const sortedByPoints = [...leaderboard].sort((a, b) => b.totalPoints - a.totalPoints);
     const pointsRank = sortedByPoints.findIndex((e) => e.memberId === member._id) + 1;
 
-    const sortedByHours = [...leaderboard].sort((a, b) => b.totalAttendanceMs - a.totalAttendanceMs);
-    const hoursRank = sortedByHours.findIndex((e) => e.memberId === member._id) + 1;
-
     return {
       pointsRank,
-      hoursRank,
       points: myEntry.totalPoints,
       hours: myEntry.totalAttendanceMs,
       totalMembers: leaderboard.length,
@@ -81,9 +73,9 @@ export function HomePage({ member }: HomePageProps) {
     const diff = meetingDate.getTime() - now.getTime();
     const days = Math.floor(diff / (1000 * 60 * 60 * 24));
     const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-    if (days > 0) return `in ${days} day${days > 1 ? 's' : ''}`;
-    if (hours > 0) return `in ${hours} hour${hours > 1 ? 's' : ''}`;
-    return 'soon';
+    if (days > 0) return `${days}d`;
+    if (hours > 0) return `${hours}h`;
+    return 'Soon';
   };
 
   const handleQuickMeeting = (date: Date) => {
@@ -105,7 +97,6 @@ export function HomePage({ member }: HomePageProps) {
     }
   };
 
-  // Check device push notification support
   useEffect(() => {
     const checkDeviceSubscription = async () => {
       if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
@@ -153,9 +144,10 @@ export function HomePage({ member }: HomePageProps) {
     return value.toString();
   };
 
+  const allMembers = (useQuery(api.members.getAllMembers) as MemberWithProfile[] | undefined) || [];
+
   return (
-    <div className="space-y-6 pt-2">
-      {/* New Meeting Modal */}
+    <div className="space-y-5 pt-2">
       {showNewMeeting && canManageMeetings && (
         <NewMeetingModal
           onClose={() => { setShowNewMeeting(false); setQuickMeetingDate(null); }}
@@ -164,249 +156,206 @@ export function HomePage({ member }: HomePageProps) {
         />
       )}
 
-      {/* Active Attendance Status */}
       <ActiveAttendanceStatus />
 
-      {/* Welcome Header with Personal Stats */}
-      <section className="space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+      {/* Header: Greeting + Stats + Actions */}
+      <header className="flex flex-col gap-4">
+        <div className="flex items-start justify-between">
           <div>
-            <h1 className="text-2xl font-semibold text-text-primary">
-              Welcome back, {member.name?.split(' ')[0] || 'there'}
+            <h1 className="text-xl font-semibold text-text-primary">
+              {member.name?.split(' ')[0] || 'Welcome'}
             </h1>
-            <p className="text-sm text-text-muted mt-1">
-              {new Date().toLocaleDateString('en-US', {
-                weekday: 'long',
-                month: 'long',
-                day: 'numeric',
-              })}
+            <p className="text-sm text-text-muted">
+              {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
             </p>
           </div>
 
-          {/* Quick Actions for Admin/Lead */}
-          {canManageMeetings && (
-            <QuickActions onNewMeeting={() => setShowNewMeeting(true)} onQuickMeeting={handleQuickMeeting} />
-          )}
-        </div>
-
-        {/* Personal Stats Cards */}
-        {myStats && (
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <div className="bg-bg-secondary border border-border rounded-xl p-4">
-              <div className="flex items-center gap-2 mb-2">
-                <div className="p-1.5 bg-accent-orange/10 rounded-lg">
-                  <Trophy size={14} className="text-accent-orange" />
-                </div>
-                <span className="text-xs text-text-muted">Points</span>
-              </div>
-              <div className="flex items-baseline gap-2">
-                <span className="text-xl font-semibold text-text-primary">
-                  {formatPointsDisplay(myStats.points)}
-                </span>
-                {myStats.pointsRank && myStats.pointsRank <= 10 && (
+          {/* Compact Stats */}
+          {myStats && (
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-1.5 text-sm">
+                <Trophy size={14} className="text-accent-orange" />
+                <span className="font-medium text-text-primary">{formatPointsDisplay(myStats.points)}</span>
+                {myStats.pointsRank && myStats.pointsRank <= 3 && (
                   <Badge variant="warning" size="sm">#{myStats.pointsRank}</Badge>
                 )}
               </div>
-            </div>
-
-            <div className="bg-bg-secondary border border-border rounded-xl p-4">
-              <div className="flex items-center gap-2 mb-2">
-                <div className="p-1.5 bg-accent-success/10 rounded-lg">
-                  <Clock size={14} className="text-accent-success" />
-                </div>
-                <span className="text-xs text-text-muted">Hours</span>
-              </div>
-              <div className="flex items-baseline gap-2">
-                <span className="text-xl font-semibold text-text-primary">
-                  {formatHours(myStats.hours)}h
-                </span>
-                {myStats.hoursRank && myStats.hoursRank <= 10 && (
-                  <Badge variant="success" size="sm">#{myStats.hoursRank}</Badge>
-                )}
+              <div className="w-px h-4 bg-border" />
+              <div className="flex items-center gap-1.5 text-sm">
+                <Clock size={14} className="text-accent-success" />
+                <span className="font-medium text-text-primary">{formatHours(myStats.hours)}h</span>
               </div>
             </div>
-
-            <div className="bg-bg-secondary border border-border rounded-xl p-4">
-              <div className="flex items-center gap-2 mb-2">
-                <div className="p-1.5 bg-accent/10 rounded-lg">
-                  <Calendar size={14} className="text-accent" />
-                </div>
-                <span className="text-xs text-text-muted">Upcoming</span>
-              </div>
-              <span className="text-xl font-semibold text-text-primary">
-                {upcomingMeetings.length}
-              </span>
-            </div>
-
-            <div className="bg-bg-secondary border border-border rounded-xl p-4">
-              <div className="flex items-center gap-2 mb-2">
-                <div className="p-1.5 bg-accent/10 rounded-lg">
-                  <Users size={14} className="text-accent" />
-                </div>
-                <span className="text-xs text-text-muted">Team Size</span>
-              </div>
-              <span className="text-xl font-semibold text-text-primary">
-                {allMembers.length}
-              </span>
-            </div>
-          </div>
-        )}
-      </section>
-
-      {/* Notification Banner */}
-      {devicePushEnabled === false && (
-        <div className="bg-bg-secondary border border-border rounded-xl p-4 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-accent-dim rounded-lg">
-              <BellOff size={18} className="text-accent" />
-            </div>
-            <div>
-              <p className="text-sm font-medium text-text-primary">Enable notifications</p>
-              <p className="text-xs text-text-muted">Get meeting reminders</p>
-            </div>
-          </div>
-          <Button size="sm" variant="primary" onClick={enableDeviceNotifications}>
-            Enable
-          </Button>
+          )}
         </div>
-      )}
 
-      {/* Next Meeting Card */}
-      {nextMeeting && (
-        <section className="bg-bg-secondary border border-border rounded-xl overflow-hidden">
-          <div className="p-4 border-b border-border-subtle">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-medium text-accent uppercase tracking-wide">
-                Next Meeting
-              </span>
-              <span className="text-xs text-accent-success font-medium">
+        {/* Notification prompt - subtle inline */}
+        {devicePushEnabled === false && (
+          <button
+            onClick={enableDeviceNotifications}
+            className="flex items-center gap-2 text-sm text-text-secondary hover:text-text-primary transition-colors"
+          >
+            <Bell size={14} />
+            <span>Enable notifications for reminders</span>
+            <ChevronRight size={14} />
+          </button>
+        )}
+      </header>
+
+      {/* Next Meeting Hero */}
+      {nextMeeting ? (
+        <section className="bg-gradient-to-br from-accent/10 via-bg-secondary to-bg-secondary border border-accent/20 rounded-2xl overflow-hidden">
+          <div className="p-5">
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-xs font-medium text-accent uppercase tracking-wide">Next up</span>
+              <span className="text-xs text-accent-success font-medium bg-accent-success/10 px-2 py-0.5 rounded-full">
                 {getTimeUntilMeeting(new Date(getMeetingStartMs(nextMeeting)))}
               </span>
             </div>
-          </div>
 
-          <div className="p-4">
-            <h2 className="text-lg font-semibold text-text-primary mb-3">
+            <h2 className="text-xl font-semibold text-text-primary mb-2">
               {nextMeeting.title}
             </h2>
 
-            <div className="flex flex-wrap gap-4 text-sm text-text-secondary mb-4">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-text-secondary mb-5">
               <span className="flex items-center gap-1.5">
                 <Clock size={14} className="text-text-muted" />
-                {new Date(nextMeeting.date).toLocaleDateString('en-US', {
-                  weekday: 'short',
-                  month: 'short',
-                  day: 'numeric',
-                })}{' '}
-                at {nextMeeting.startTime}
+                {new Date(nextMeeting.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })} at {nextMeeting.startTime}
               </span>
               {nextMeeting.location && (
                 <span className="flex items-center gap-1.5">
-                  <TrendingUp size={14} className="text-text-muted" />
+                  <MapPin size={14} className="text-text-muted" />
                   {nextMeeting.location}
                 </span>
               )}
             </div>
 
-            {/* RSVP Buttons */}
-            <div className="flex gap-2">
+            <div className="flex gap-3">
               <Button
-                variant={currentRsvpStatus === 'attending' ? 'success' : 'secondary'}
-                size="sm"
+                variant={currentRsvpStatus === 'attending' ? 'success' : 'primary'}
+                size="md"
                 onClick={() => handleRsvp('attending')}
                 disabled={rsvpSubmitting}
-                icon={currentRsvpStatus === 'attending' ? <Check size={14} /> : undefined}
+                icon={currentRsvpStatus === 'attending' ? <Check size={16} /> : undefined}
                 className="flex-1"
               >
-                {currentRsvpStatus === 'attending' ? 'Attending' : 'RSVP Yes'}
+                {currentRsvpStatus === 'attending' ? 'Attending' : "I'm in"}
               </Button>
               <Button
-                variant={currentRsvpStatus === 'not_attending' ? 'danger' : 'ghost'}
-                size="sm"
+                variant={currentRsvpStatus === 'not_attending' ? 'danger' : 'secondary'}
+                size="md"
                 onClick={() => handleRsvp('not_attending')}
                 disabled={rsvpSubmitting}
-                icon={currentRsvpStatus === 'not_attending' ? <Check size={14} /> : undefined}
-                className="flex-1"
+                className={cn(
+                  'flex-1',
+                  currentRsvpStatus !== 'not_attending' && 'bg-bg-tertiary hover:bg-bg-hover'
+                )}
               >
-                {currentRsvpStatus === 'not_attending' ? "Can't Attend" : "Can't Make It"}
+                {currentRsvpStatus === 'not_attending' ? "Can't go" : 'Skip'}
               </Button>
             </div>
           </div>
         </section>
-      )}
-
-      {/* Calendar Section */}
-      <section className="bg-bg-secondary border border-border rounded-xl overflow-hidden">
-        <div className="flex items-center justify-between p-4 border-b border-border-subtle">
-          <div className="flex items-center gap-2">
-            <Calendar size={18} className="text-accent" />
-            <h2 className="text-base font-semibold text-text-primary">Calendar</h2>
+      ) : (
+        <section className="bg-bg-secondary border border-border rounded-2xl p-6 text-center">
+          <div className="w-12 h-12 rounded-full bg-bg-tertiary flex items-center justify-center mx-auto mb-3">
+            <Calendar size={24} className="text-text-muted" />
           </div>
-          <button
-            onClick={() => setViewMode(viewMode === 'month' ? 'week' : 'month')}
-            className="px-3 py-1.5 text-sm text-text-secondary hover:text-text-primary bg-bg-tertiary rounded-lg transition-colors"
-          >
-            {viewMode === 'month' ? 'Week' : 'Month'}
-          </button>
-        </div>
-
-        <div className="p-4">
-          <CalendarView
-            meetings={meetings || []}
-            selectedDate={selectedDate}
-            onDateSelect={(date) => { setSelectedDate(date); setShowSelectedDate(true); }}
-            onDateDoubleClick={canManageMeetings ? handleQuickMeeting : undefined}
-            viewMode={viewMode}
-          />
-        </div>
-
-        {showSelectedDate && (
-          <SelectedDatePanel
-            date={selectedDate}
-            meetings={meetings || []}
-            members={allMembers}
-            currentMember={member}
-            onClose={() => setShowSelectedDate(false)}
-          />
-        )}
-      </section>
-
-      {/* More Upcoming Meetings */}
-      {upcomingMeetings && upcomingMeetings.length > 1 && (
-        <section className="bg-bg-secondary border border-border rounded-xl overflow-hidden">
-          <div className="flex items-center justify-between p-4 border-b border-border-subtle">
-            <h2 className="text-base font-semibold text-text-primary">More Upcoming</h2>
-            <span className="text-sm text-text-muted">{upcomingMeetings.length - 1} more</span>
-          </div>
-          <div className="divide-y divide-border-subtle">
-            {upcomingMeetings.slice(1).map((meeting: any) => (
-              <MeetingCard key={meeting._id} meeting={meeting} member={member} />
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* No Meetings State */}
-      {!nextMeeting && (
-        <section className="bg-bg-secondary border border-border rounded-xl p-8 text-center">
-          <div className="w-16 h-16 rounded-full bg-bg-tertiary flex items-center justify-center mx-auto mb-4">
-            <Calendar size={32} className="text-text-muted" />
-          </div>
-          <h3 className="text-lg font-medium text-text-primary mb-2">
-            No upcoming meetings
-          </h3>
+          <h3 className="text-base font-medium text-text-primary mb-1">No upcoming meetings</h3>
           <p className="text-sm text-text-muted mb-4">
-            {canManageMeetings
-              ? 'Create a meeting to get started'
-              : 'Check back later for scheduled meetings'}
+            {canManageMeetings ? 'Schedule one to get started' : 'Check back later'}
           </p>
           {canManageMeetings && (
-            <Button variant="primary" onClick={() => setShowNewMeeting(true)}>
-              Schedule Meeting
+            <Button variant="primary" size="sm" onClick={() => setShowNewMeeting(true)} icon={<Plus size={16} />}>
+              New Meeting
             </Button>
           )}
         </section>
       )}
+
+      {/* Two Column Layout: Calendar + Upcoming */}
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
+        {/* Calendar */}
+        <section className="lg:col-span-3 bg-bg-secondary border border-border rounded-2xl overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-border-subtle">
+            <div className="flex items-center gap-2">
+              <Calendar size={16} className="text-accent" />
+              <h2 className="text-sm font-medium text-text-primary">Calendar</h2>
+            </div>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setViewMode('week')}
+                className={cn(
+                  'px-2.5 py-1 text-xs font-medium rounded-md transition-colors',
+                  viewMode === 'week' ? 'bg-accent text-white' : 'text-text-muted hover:text-text-primary'
+                )}
+              >
+                Week
+              </button>
+              <button
+                onClick={() => setViewMode('month')}
+                className={cn(
+                  'px-2.5 py-1 text-xs font-medium rounded-md transition-colors',
+                  viewMode === 'month' ? 'bg-accent text-white' : 'text-text-muted hover:text-text-primary'
+                )}
+              >
+                Month
+              </button>
+            </div>
+          </div>
+
+          <div className="p-4">
+            <CalendarView
+              meetings={meetings || []}
+              selectedDate={selectedDate}
+              onDateSelect={(date) => { setSelectedDate(date); setShowSelectedDate(true); }}
+              onDateDoubleClick={canManageMeetings ? handleQuickMeeting : undefined}
+              viewMode={viewMode}
+            />
+          </div>
+
+          {showSelectedDate && (
+            <SelectedDatePanel
+              date={selectedDate}
+              meetings={meetings || []}
+              members={allMembers}
+              currentMember={member}
+              onClose={() => setShowSelectedDate(false)}
+            />
+          )}
+        </section>
+
+        {/* Upcoming Meetings Sidebar */}
+        <section className="lg:col-span-2 bg-bg-secondary border border-border rounded-2xl overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-border-subtle">
+            <h2 className="text-sm font-medium text-text-primary">Upcoming</h2>
+            {canManageMeetings && (
+              <button
+                onClick={() => setShowNewMeeting(true)}
+                className="p-1.5 rounded-lg text-text-muted hover:text-accent hover:bg-accent/10 transition-colors"
+              >
+                <Plus size={16} />
+              </button>
+            )}
+          </div>
+
+          {upcomingMeetings.length > 0 ? (
+            <div className="divide-y divide-border-subtle max-h-80 overflow-y-auto">
+              {upcomingMeetings.map((meeting: any, index: number) => (
+                <MeetingCard
+                  key={meeting._id}
+                  meeting={meeting}
+                  member={member}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="p-6 text-center">
+              <p className="text-sm text-text-muted">No meetings scheduled</p>
+            </div>
+          )}
+        </section>
+      </div>
     </div>
   );
 }
