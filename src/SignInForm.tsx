@@ -3,11 +3,17 @@ import { useAuthActions } from "@convex-dev/auth/react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Input, Button } from "./components/ui";
+import { ResetPassword } from "./ResetPassword";
 
 export function SignInForm() {
   const { signIn } = useAuthActions();
   const [flow, setFlow] = useState<"signIn" | "signUp">("signIn");
+  const [step, setStep] = useState<"auth" | "reset">("auth");
   const [submitting, setSubmitting] = useState(false);
+
+  if (step === "reset") {
+    return <ResetPassword handleCancel={() => setStep("auth")} />;
+  }
 
   return (
     <div className="w-full">
@@ -43,7 +49,18 @@ export function SignInForm() {
           />
         </div>
         <div>
-          <label className="block mb-2 text-sm font-medium text-text-primary">Password</label>
+          <div className="flex justify-between items-center mb-2">
+            <label className="text-sm font-medium text-text-primary">Password</label>
+            {flow === "signIn" && (
+              <button
+                type="button"
+                className="text-xs text-accent hover:text-accent/80 transition-colors"
+                onClick={() => setStep("reset")}
+              >
+                Forgot password?
+              </button>
+            )}
+          </div>
           <Input
             type="password"
             name="password"
