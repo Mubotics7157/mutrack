@@ -192,6 +192,63 @@
     @apply -translate-x-1/2 -translate-y-1/2 opacity-10 animate-pulse-slow;
     content: '';
   }
+
+  /* Semantic role badges */
+  .badge-role-admin {
+    @apply bg-role-admin/10 border-role-admin/30 text-role-admin;
+  }
+
+  .badge-role-lead {
+    @apply bg-role-lead/10 border-role-lead/30 text-role-lead;
+  }
+
+  .badge-role-member {
+    @apply bg-role-member/10 border-role-member/30 text-role-member;
+  }
+
+  /* Interactive cards */
+  .card-interactive {
+    @apply card-modern cursor-pointer active:scale-[0.98] hover:-translate-y-1;
+  }
+
+  /* Touch feedback */
+  .touch-feedback {
+    @apply active:scale-[0.98] active:opacity-90 transition-transform duration-75;
+  }
+
+  /* Skeleton loading */
+  .skeleton {
+    @apply animate-pulse bg-glass rounded;
+  }
+
+  /* Section header with gradient */
+  .section-header {
+    @apply relative overflow-hidden glass-panel p-6 md:p-8;
+  }
+
+  /* Empty state */
+  .empty-state {
+    @apply flex flex-col items-center justify-center py-12 px-6 text-center;
+  }
+
+  /* Stat card */
+  .stat-card {
+    @apply bg-glass backdrop-blur-md border border-border-glass rounded-2xl p-4;
+    @apply flex flex-col items-center justify-center text-center;
+  }
+
+  /* Search input wrapper */
+  .search-input-wrapper {
+    @apply relative flex items-center;
+  }
+
+  .search-input-wrapper svg {
+    @apply absolute left-4 text-text-muted pointer-events-none;
+  }
+
+  .search-input-wrapper input {
+    @apply pl-12;
+  }
 }
 
 @layer utilities {
@@ -240,14 +297,26 @@
     @apply fixed bottom-0 left-0 right-0 z-50;
     @apply bg-glass backdrop-blur-xl border-t border-border-glass;
     @apply px-4 py-3;
+    padding-bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
   }
 
   .mobile-nav-link {
-    @apply flex flex-col items-center gap-1 p-2;
+    @apply flex flex-col items-center gap-1 p-2 relative;
     @apply text-text-muted text-xs transition-all duration-300;
   }
 
   .mobile-nav-link.active {
-    @apply text-accent-purple;
+    @apply text-sunset-orange;
+  }
+
+  .mobile-nav-link.active::after {
+    content: '';
+    @apply absolute -top-1 left-1/2 -translate-x-1/2 w-6 h-0.5 bg-sunset-orange rounded-full;
+    @apply shadow-[0_0_8px_rgba(249,115,22,0.5)];
+  }
+
+  .mobile-nav-link:active {
+    @apply scale-95 opacity-80;
+    transition: transform 75ms, opacity 75ms;
   }
 }

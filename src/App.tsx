@@ -14,7 +14,7 @@ import { PurchasesPage } from "./components/PurchasesPage";
 import { ProfilePage } from "./components/ProfilePage";
 import { Onboarding } from "./components/Onboarding";
 import { TimeTrackingPage } from "./components/TimeTrackingPage";
-import { Home, Users, ShoppingCart, User, LogOut } from "lucide-react";
+import { Home, Users, ShoppingCart, User, LogOut, Clock } from "lucide-react";
 import { useAuthActions } from "@convex-dev/auth/react";
 import { MemberWithProfile } from "./lib/members";
 

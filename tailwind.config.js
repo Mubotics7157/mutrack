@@ -28,6 +28,17 @@ export default {
         "glass-hover": "rgba(255, 255, 255, 0.05)",
         "border-glass": "rgba(255, 255, 255, 0.08)",
         "border-glass-hover": "rgba(255, 255, 255, 0.15)",
+
+        // Role colors (semantic naming)
+        "role-admin": "#dc2626",
+        "role-lead": "#eab308",
+        "role-member": "#3b82f6",
+
+        // Surface hierarchy
+        "surface-0": "#000000",
+        "surface-1": "rgba(15, 15, 15, 0.98)",
+        "surface-2": "rgba(255, 255, 255, 0.03)",
+        "surface-3": "rgba(255, 255, 255, 0.05)",
       },
       backgroundImage: {
         "gradient-radial": "radial-gradient(var(--tw-gradient-stops))",
@@ -38,6 +49,24 @@ export default {
       spacing: {
         section: "2rem",
         container: "1rem",
+        // Standardized spacing scale
+        xs: "0.25rem",  // 4px
+        sm: "0.5rem",   // 8px
+        md: "0.75rem",  // 12px
+        lg: "1rem",     // 16px
+        xl: "1.5rem",   // 24px
+        "2xl": "2rem",  // 32px
+        "3xl": "3rem",  // 48px
+      },
+      fontSize: {
+        // Typography scale
+        "heading-lg": ["1.5rem", { lineHeight: "1.33" }],
+        "heading-md": ["1.25rem", { lineHeight: "1.4" }],
+        "heading-sm": ["1.125rem", { lineHeight: "1.5" }],
+        "body-lg": ["1rem", { lineHeight: "1.5" }],
+        "body-md": ["0.875rem", { lineHeight: "1.5" }],
+        "body-sm": ["0.75rem", { lineHeight: "1.5" }],
+        label: ["0.75rem", { lineHeight: "1.33", letterSpacing: "0.05em" }],
       },
       borderRadius: {
         container: "0.75rem",
