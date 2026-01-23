@@ -41,9 +41,28 @@ export function ActiveAttendeesList({
     return () => clearInterval(id);
   }, []);
 
-  if (!meetingId) return <p className="text-text-muted text-sm">select a meeting</p>;
-  if (sessions === undefined) return <p className="text-text-muted">loading...</p>;
-  if (sessions.length === 0) return <p className="text-text-muted">no active attendees yet</p>;
+  if (!meetingId) {
+    return (
+      <div className="text-center py-8">
+        <p className="text-text-muted text-sm">Select a meeting to see active attendees</p>
+      </div>
+    );
+  }
+  if (sessions === undefined) {
+    return (
+      <div className="text-center py-8">
+        <p className="text-text-muted text-sm">Loading...</p>
+      </div>
+    );
+  }
+  if (sessions.length === 0) {
+    return (
+      <div className="text-center py-8">
+        <p className="text-text-muted text-sm">No active attendees yet</p>
+        <p className="text-text-dim text-xs mt-1">Start scanning to detect beacons</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-2">

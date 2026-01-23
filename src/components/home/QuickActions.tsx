@@ -1,5 +1,6 @@
 import React from 'react';
-import { Plus } from 'lucide-react';
+import { Plus, Calendar } from 'lucide-react';
+import { Button } from '../ui';
 
 interface QuickActionsProps {
   onNewMeeting: () => void;
@@ -22,28 +23,34 @@ export function QuickActions({ onNewMeeting, onQuickMeeting }: QuickActionsProps
   };
 
   return (
-    <div className="flex gap-2 flex-wrap">
-      <button
-        className="btn-modern btn-primary flex items-center gap-2 touch-feedback"
+    <section className="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4 md:mx-0 md:px-0 md:flex-wrap scrollbar-hide">
+      <Button
+        variant="primary"
+        size="sm"
+        icon={<Plus size={16} />}
         onClick={onNewMeeting}
+        className="shrink-0"
       >
-        <Plus size={16} />
-        <span>schedule meeting</span>
-      </button>
-      <button
-        className="btn-modern flex items-center gap-2 touch-feedback"
+        New Meeting
+      </Button>
+      <Button
+        variant="secondary"
+        size="sm"
+        icon={<Calendar size={16} />}
         onClick={handleTomorrow}
+        className="shrink-0"
       >
-        <Plus size={16} />
-        <span>quick: tomorrow 4pm</span>
-      </button>
-      <button
-        className="btn-modern flex items-center gap-2 touch-feedback"
+        Tomorrow 4pm
+      </Button>
+      <Button
+        variant="secondary"
+        size="sm"
+        icon={<Calendar size={16} />}
         onClick={handleNextWeek}
+        className="shrink-0"
       >
-        <Plus size={16} />
-        <span>quick: next week</span>
-      </button>
-    </div>
+        Next Week
+      </Button>
+    </section>
   );
 }

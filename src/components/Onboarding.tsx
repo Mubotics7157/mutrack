@@ -1,7 +1,9 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { toast } from "sonner";
+import { Bell, CheckCircle } from "lucide-react";
+import { Input, Button, Toggle } from "./ui";
 
 type SubscriptionKeys = { p256dh: string; auth: string };
 
@@ -139,7 +141,7 @@ export function Onboarding() {
     setPermissionState("granted");
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
     try {
@@ -174,94 +176,108 @@ export function Onboarding() {
   };
 
   return (
-    <div className="glass-panel p-8 max-w-xl mx-auto">
-      <h2 className="text-2xl font-light mb-2">complete your onboarding</h2>
-      <p className="text-sm text-text-muted mb-6">
-        please use your{" "}
-        <span className="font-medium">real first and last name</span>. phone
-        numbers are used strictly for team contact purposes.
-      </p>
-      <form onSubmit={handleSubmit} className="space-y-4">
+    <div className="bg-bg-secondary border border-border rounded-2xl p-6 md:p-8 max-w-xl mx-auto">
+      {/* Header */}
+      <div className="text-center mb-6">
+        <h2 className="text-2xl font-semibold text-text-primary mb-2">Complete Your Profile</h2>
+        <p className="text-sm text-text-muted">
+          Please use your <span className="font-medium text-text-primary">real name</span>. Phone numbers are used strictly for team contact.
+        </p>
+      </div>
+
+      <form onSubmit={handleSubmit} className="space-y-5">
+        {/* Name Fields */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="block mb-2 text-sm text-text-muted">
-              first name (real)
+            <label className="block mb-2 text-sm font-medium text-text-primary">
+              First Name
             </label>
-            <input
-              className="input-modern"
+            <Input
               value={firstName}
               onChange={(e) => setFirstName(e.target.value)}
+              placeholder="John"
               required
             />
           </div>
           <div>
-            <label className="block mb-2 text-sm text-text-muted">
-              last name (real)
+            <label className="block mb-2 text-sm font-medium text-text-primary">
+              Last Name
             </label>
-            <input
-              className="input-modern"
+            <Input
               value={lastName}
               onChange={(e) => setLastName(e.target.value)}
+              placeholder="Doe"
               required
             />
           </div>
         </div>
+
+        {/* Phone */}
         <div>
-          <label className="block mb-2 text-sm text-text-muted">
-            phone number (team contact only)
+          <label className="block mb-2 text-sm font-medium text-text-primary">
+            Phone Number
           </label>
-          <input
-            className="input-modern"
+          <Input
             type="tel"
-            placeholder="for team contact only"
+            placeholder="(555) 555-5555"
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
             required
           />
+          <p className="text-xs text-text-dim mt-1">For team contact only</p>
         </div>
-        <div className="flex items-center justify-between p-4 bg-glass border border-border-glass rounded-xl">
-          <div>
-            <h3 className="text-sm font-medium text-text-primary">
-              meeting notifications
-            </h3>
-            <p className="text-xs text-text-muted mt-1">
-              enable web push to get reminders
-            </p>
-            {needsIOSInstallationHint && (
-              <p className="text-xs text-sunset-orange mt-2">
-                on iOS, add this app to your home screen to receive
-                notifications.
-              </p>
-            )}
-          </div>
-          <label className="relative inline-flex items-center cursor-pointer">
-            <input
-              type="checkbox"
-              className="sr-only peer"
-              checked={enableNotifications}
-              onChange={(e) => setEnableNotifications(e.target.checked)}
+
+        {/* Notifications */}
+        <div className="bg-bg-tertiary border border-border rounded-xl p-4">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-lg bg-accent/10 flex items-center justify-center shrink-0">
+                <Bell size={20} className="text-accent" />
+              </div>
+              <div>
+                <h3 className="text-sm font-medium text-text-primary">
+                  Meeting Notifications
+                </h3>
+                <p className="text-xs text-text-muted mt-0.5">
+                  Get push notifications for meeting reminders
+                </p>
+                {needsIOSInstallationHint && (
+                  <p className="text-xs text-accent-orange mt-2">
+                    On iOS, add this app to your home screen first.
+                  </p>
+                )}
+              </div>
+            </div>
+            <Toggle
+              enabled={enableNotifications}
+              onChange={setEnableNotifications}
               disabled={!supportsNotifications}
             />
-            <div className="w-11 h-6 bg-glass border border-border-glass peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-sunset-orange"></div>
-          </label>
+          </div>
         </div>
+
         {enableNotifications && permissionState !== "granted" && (
-          <button
+          <Button
             type="button"
-            className="btn-modern"
+            variant="secondary"
             onClick={handleEnableNotifications}
+            className="w-full"
+            icon={<Bell size={16} />}
           >
-            enable notifications
-          </button>
+            Enable Notifications
+          </Button>
         )}
 
-        <button
+        {/* Submit */}
+        <Button
           type="submit"
-          className="btn-modern btn-primary w-full"
+          variant="primary"
           disabled={submitting}
+          className="w-full"
+          icon={<CheckCircle size={16} />}
         >
-          finish onboarding
-        </button>
+          {submitting ? "Finishing..." : "Finish Setup"}
+        </Button>
       </form>
     </div>
   );

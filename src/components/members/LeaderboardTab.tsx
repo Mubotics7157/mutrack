@@ -117,7 +117,7 @@ export function LeaderboardTab(props: LeaderboardTabProps) {
   const displayAttendanceLabel = isLoading ? '—' : `${formatHours(totalAttendanceMs)}h`;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <LeaderboardHeader
         leaderboardRange={leaderboardRange}
         onSelectRange={onSelectRange}
@@ -131,15 +131,16 @@ export function LeaderboardTab(props: LeaderboardTabProps) {
       />
 
       {showEmptyState ? (
-        <div className="glass-panel p-8 text-center">
+        <div className="bg-bg-secondary border border-border rounded-xl p-8 text-center">
           <p className="text-text-muted">
-            no μpoints have been awarded yet. once recognitions are logged, the leaderboard will sparkle here.
+            No points have been awarded yet. Once recognitions are logged, the leaderboard will appear here.
           </p>
         </div>
       ) : (
         <>
+          {/* Top 3 Spotlight */}
           {topThree.length > 0 && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               {topThree.map((entry, index) => (
                 <SpotlightCard
                   key={entry.memberId}
@@ -157,6 +158,7 @@ export function LeaderboardTab(props: LeaderboardTabProps) {
             </div>
           )}
 
+          {/* Attendance Leaderboard */}
           <AttendanceLeaderboard
             entries={attendanceShowcase}
             formatHours={formatHours}
@@ -166,6 +168,7 @@ export function LeaderboardTab(props: LeaderboardTabProps) {
             pointsRoyaltyIds={pointsTopSet}
           />
 
+          {/* Bounty Board */}
           <BountyBoard
             bountyBoard={bountyBoard}
             canManageBounties={canManageBounties}
@@ -174,23 +177,26 @@ export function LeaderboardTab(props: LeaderboardTabProps) {
             onClickComplete={(b) => setSelectedBounty(b)}
           />
 
+          {/* Rest of Leaderboard */}
           {rest.length > 0 && (
-            <div className="space-y-3">
-              {rest.map((entry, index) => (
-                <LeaderboardRow
-                  key={entry.memberId}
-                  entry={entry}
-                  rank={index + topThree.length + 1}
-                  leaderPoints={leaderPoints}
-                  formatPoints={formatPoints}
-                  formatAwardDate={formatAwardDate}
-                  formatHours={formatHours}
-                  isYou={entry.memberId === currentMemberId}
-                  isHoursHero={topHoursSet.has(entry.memberId)}
-                  isDoubleChampion={doubleChampionId === entry.memberId}
-                  onSelect={() => onSelectMember(entry.memberId)}
-                />
-              ))}
+            <div className="bg-bg-secondary border border-border rounded-xl overflow-hidden">
+              <div className="divide-y divide-border-subtle">
+                {rest.map((entry, index) => (
+                  <LeaderboardRow
+                    key={entry.memberId}
+                    entry={entry}
+                    rank={index + topThree.length + 1}
+                    leaderPoints={leaderPoints}
+                    formatPoints={formatPoints}
+                    formatAwardDate={formatAwardDate}
+                    formatHours={formatHours}
+                    isYou={entry.memberId === currentMemberId}
+                    isHoursHero={topHoursSet.has(entry.memberId)}
+                    isDoubleChampion={doubleChampionId === entry.memberId}
+                    onSelect={() => onSelectMember(entry.memberId)}
+                  />
+                ))}
+              </div>
             </div>
           )}
         </>

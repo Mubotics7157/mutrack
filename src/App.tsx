@@ -14,9 +14,18 @@ import { PurchasesPage } from "./components/PurchasesPage";
 import { ProfilePage } from "./components/ProfilePage";
 import { Onboarding } from "./components/Onboarding";
 import { TimeTrackingPage } from "./components/TimeTrackingPage";
-import { Home, Users, ShoppingCart, User, LogOut, Clock } from "lucide-react";
+import {
+  Home,
+  Users,
+  ShoppingCart,
+  User,
+  LogOut,
+  Clock,
+  Loader2,
+} from "lucide-react";
 import { useAuthActions } from "@convex-dev/auth/react";
 import { MemberWithProfile } from "./lib/members";
+import { cn } from "./lib/utils";
 
 type PageType = "home" | "members" | "purchases" | "profile" | "time";
 
@@ -24,7 +33,7 @@ export default function App() {
   const [currentPage, setCurrentPage] = useState<PageType>("home");
 
   return (
-    <div className="min-h-screen bg-void-black relative overflow-hidden">
+    <div className="min-h-screen bg-bg-primary">
       <Authenticated>
         <NavigationBar
           currentPage={currentPage}
@@ -39,13 +48,12 @@ export default function App() {
 
       <Toaster
         theme="dark"
+        position="top-center"
         toastOptions={{
           style: {
-            background: "rgba(15, 15, 15, 0.98)",
-            backdropFilter: "blur(24px)",
-            border: "1px solid rgba(255, 255, 255, 0.08)",
-            color: "#fff",
-            boxShadow: "0 0 40px rgba(136, 58, 234, 0.2)",
+            background: "#18181b",
+            border: "1px solid #27272a",
+            color: "#fafafa",
           },
         }}
       />
@@ -59,134 +67,111 @@ interface NavigationBarProps {
 }
 
 function NavigationBar({ currentPage, onPageChange }: NavigationBarProps) {
-  const currentMember =
-    useQuery(api.members.getCurrentMember) as
-      | MemberWithProfile
-      | null
-      | undefined;
+  const currentMember = useQuery(api.members.getCurrentMember) as
+    | MemberWithProfile
+    | null
+    | undefined;
   const { signOut } = useAuthActions();
+
+  const isAdmin = currentMember?.role === "admin";
+  const isLead = currentMember?.role === "lead";
+  const canAccessTime = isAdmin || isLead;
+
+  const navItems = [
+    { id: "home" as PageType, label: "Home", icon: Home },
+    { id: "members" as PageType, label: "Members", icon: Users },
+    { id: "purchases" as PageType, label: "Purchases", icon: ShoppingCart },
+    ...(canAccessTime
+      ? [{ id: "time" as PageType, label: "Time", icon: Clock }]
+      : []),
+    { id: "profile" as PageType, label: "Profile", icon: User },
+  ];
 
   return (
     <>
-      {/* Mobile Header */}
-      <div className="md:hidden fixed top-0 left-0 right-0 z-50 bg-dark-bg/95 backdrop-blur-2xl border-b border-border-glass">
-        <div className="h-16 px-4 flex items-center justify-center">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-gradient-orange-red rounded-xl flex items-center justify-center font-bold text-void-black shadow-glow">
-              μ
-            </div>
-            <div className="flex items-baseline gap-2">
-              <h1 className="text-lg font-light text-gradient leading-none">
-                mutrack
-              </h1>
-              <span className="text-xs text-text-dim font-mono leading-none">
-                by frc 7157
-              </span>
-            </div>
-          </div>
-        </div>
-      </div>
-
       {/* Desktop Navigation */}
-      <nav className="nav-bar hidden md:block">
-        <div className="max-w-7xl mx-auto px-8 h-20 flex items-center justify-between">
+      <nav className="hidden md:block fixed top-0 left-0 right-0 z-50 bg-bg-primary/80 backdrop-blur-lg border-b border-border-subtle">
+        <div className="max-w-5xl mx-auto px-6 h-16 flex items-center justify-between">
           {/* Brand */}
-          <div className="flex items-center gap-4">
-            <div className="w-10 h-10 bg-gradient-orange-red rounded-xl flex items-center justify-center font-bold text-lg text-void-black shadow-glow">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 bg-gradient-accent rounded-xl flex items-center justify-center font-bold text-white text-sm shadow-glow-accent">
               μ
             </div>
             <div className="flex items-baseline gap-2">
-              <h1 className="text-xl font-light text-gradient leading-none">
+              <span className="text-lg font-semibold text-text-primary">
                 mutrack
-              </h1>
-              <span className="text-xs text-text-dim font-mono leading-none">
-                by frc 7157
               </span>
+              <span className="text-xs text-text-muted">7157</span>
             </div>
           </div>
 
           {/* Navigation Links */}
-          <div className="flex gap-2 p-1 bg-glass backdrop-blur-md border border-border-glass rounded-full">
-            <button
-              className={`nav-link ${currentPage === "home" ? "active" : ""}`}
-              onClick={() => onPageChange("home")}
-            >
-              home
-            </button>
-            <button
-              className={`nav-link ${currentPage === "members" ? "active" : ""}`}
-              onClick={() => onPageChange("members")}
-            >
-              members
-            </button>
-            <button
-              className={`nav-link ${currentPage === "purchases" ? "active" : ""}`}
-              onClick={() => onPageChange("purchases")}
-            >
-              purchases
-            </button>
-            {currentMember &&
-              (currentMember.role === "admin" ||
-                currentMember.role === "lead") && (
-                <button
-                  className={`nav-link ${currentPage === "time" ? "active" : ""}`}
-                  onClick={() => onPageChange("time")}
-                >
-                  time tracking
-                </button>
-              )}
-            <button
-              className={`nav-link ${currentPage === "profile" ? "active" : ""}`}
-              onClick={() => onPageChange("profile")}
-            >
-              profile
-            </button>
+          <div className="flex items-center gap-1">
+            {navItems.map((item) => (
+              <button
+                key={item.id}
+                onClick={() => onPageChange(item.id)}
+                className={cn(
+                  "px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200",
+                  currentPage === item.id
+                    ? "bg-bg-tertiary text-text-primary"
+                    : "text-text-secondary hover:text-text-primary hover:bg-bg-hover"
+                )}
+              >
+                {item.label}
+              </button>
+            ))}
           </div>
 
           {/* User Actions */}
-          <div className="flex items-center gap-4">
-            <button
-              onClick={() => void signOut()}
-              className="px-4 py-2 text-sm text-text-muted hover:text-text-primary transition-all duration-300 flex items-center gap-2"
-            >
-              <LogOut size={16} />
-              <span>sign out</span>
-            </button>
-          </div>
+          <button
+            onClick={() => void signOut()}
+            className="flex items-center gap-2 px-3 py-2 text-sm text-text-muted hover:text-text-primary transition-colors rounded-lg hover:bg-bg-hover"
+          >
+            <LogOut size={16} />
+            <span>Sign out</span>
+          </button>
         </div>
       </nav>
 
-      {/* Mobile Navigation */}
-      <nav className="mobile-nav md:hidden">
-        <div className="flex justify-around">
-          <button
-            className={`mobile-nav-link ${currentPage === "home" ? "active" : ""}`}
-            onClick={() => onPageChange("home")}
-          >
-            <Home size={20} />
-            <span>home</span>
-          </button>
-          <button
-            className={`mobile-nav-link ${currentPage === "members" ? "active" : ""}`}
-            onClick={() => onPageChange("members")}
-          >
-            <Users size={20} />
-            <span>members</span>
-          </button>
-          <button
-            className={`mobile-nav-link ${currentPage === "purchases" ? "active" : ""}`}
-            onClick={() => onPageChange("purchases")}
-          >
-            <ShoppingCart size={20} />
-            <span>purchases</span>
-          </button>
-          <button
-            className={`mobile-nav-link ${currentPage === "profile" ? "active" : ""}`}
-            onClick={() => onPageChange("profile")}
-          >
-            <User size={20} />
-            <span>profile</span>
-          </button>
+      {/* Mobile Header */}
+      <header className="md:hidden fixed top-0 left-0 right-0 z-50 bg-bg-primary/95 backdrop-blur-lg border-b border-border-subtle safe-top">
+        <div className="h-14 px-4 flex items-center justify-center">
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 bg-gradient-accent rounded-lg flex items-center justify-center font-bold text-white text-xs">
+              μ
+            </div>
+            <span className="text-base font-semibold text-text-primary">
+              mutrack
+            </span>
+          </div>
+        </div>
+      </header>
+
+      {/* Mobile Bottom Navigation */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-bg-primary/95 backdrop-blur-xl border-t border-border-subtle">
+        <div
+          className="flex justify-around items-center px-2"
+          style={{ paddingBottom: "max(8px, env(safe-area-inset-bottom))" }}
+        >
+          {navItems.map((item) => {
+            const Icon = item.icon;
+            const isActive = currentPage === item.id;
+
+            return (
+              <button
+                key={item.id}
+                onClick={() => onPageChange(item.id)}
+                className={cn(
+                  "flex flex-col items-center justify-center gap-1 py-2 px-4 min-w-[64px] transition-colors duration-200",
+                  isActive ? "text-accent" : "text-text-muted"
+                )}
+              >
+                <Icon size={22} strokeWidth={isActive ? 2.5 : 2} />
+                <span className="text-[11px] font-medium">{item.label}</span>
+              </button>
+            );
+          })}
         </div>
       </nav>
     </>
@@ -198,11 +183,10 @@ interface MainContentProps {
 }
 
 function MainContent({ currentPage }: MainContentProps) {
-  const currentMember =
-    useQuery(api.members.getCurrentMember) as
-      | MemberWithProfile
-      | null
-      | undefined;
+  const currentMember = useQuery(api.members.getCurrentMember) as
+    | MemberWithProfile
+    | null
+    | undefined;
   const createMember = useMutation(api.members.createMemberIfNotExists);
 
   // Auto-create member if logged in but no member record exists
@@ -212,40 +196,41 @@ function MainContent({ currentPage }: MainContentProps) {
     }
   }, [currentMember, createMember]);
 
+  // Loading state
   if (currentMember === undefined) {
     return (
-      <main className="pt-20 md:pt-24 px-4 md:px-8 pb-24 md:pb-8 max-w-7xl mx-auto">
-        <div className="glass-panel p-8 text-center">
-          <div className="loading-spinner mx-auto mb-4" />
-          <p className="text-text-muted">loading mutrack...</p>
+      <main className="min-h-screen flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="w-8 h-8 text-accent animate-spin" />
+          <p className="text-text-muted text-sm">Loading mutrack...</p>
         </div>
       </main>
     );
   }
 
+  // Creating member record
   if (!currentMember) {
     return (
-      <main className="pt-20 md:pt-24 px-4 md:px-8 pb-24 md:pb-8 max-w-7xl mx-auto">
-        <div className="glass-panel p-8 text-center">
-          <h2 className="text-xl font-light mb-4">
-            setting up your profile...
-          </h2>
-          <div className="loading-spinner mx-auto" />
+      <main className="min-h-screen flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="w-8 h-8 text-accent animate-spin" />
+          <p className="text-text-muted text-sm">Setting up your profile...</p>
         </div>
       </main>
     );
   }
 
+  // Onboarding required
   if (!currentMember.onboardingCompleted) {
     return (
-      <main className="pt-20 md:pt-24 px-4 md:px-8 pb-24 md:pb-8 max-w-7xl mx-auto">
+      <main className="pt-16 md:pt-20 pb-24 md:pb-8 px-4 max-w-2xl mx-auto">
         <Onboarding />
       </main>
     );
   }
 
   return (
-    <main className="pt-20 md:pt-24 px-4 md:px-8 pb-24 md:pb-8 max-w-7xl mx-auto">
+    <main className="pt-16 md:pt-20 pb-24 md:pb-8 px-4 md:px-6 max-w-5xl mx-auto">
       <div className="animate-fade-in">
         {currentPage === "home" && <HomePage member={currentMember} />}
         {currentPage === "members" && <MembersPage member={currentMember} />}
@@ -254,7 +239,8 @@ function MainContent({ currentPage }: MainContentProps) {
         )}
         {currentPage === "profile" && <ProfilePage member={currentMember} />}
         {currentPage === "time" &&
-          (currentMember.role === "admin" || currentMember.role === "lead") && (
+          (currentMember.role === "admin" ||
+            currentMember.role === "lead") && (
             <TimeTrackingPage member={currentMember} />
           )}
       </div>
@@ -264,20 +250,25 @@ function MainContent({ currentPage }: MainContentProps) {
 
 function AuthScreen() {
   return (
-    <div className="min-h-screen flex items-center justify-center px-4">
-      <div className="glass-panel p-8 md:p-10 max-w-md w-full">
+    <div className="min-h-screen flex items-center justify-center px-4 py-12">
+      <div className="w-full max-w-sm">
+        {/* Logo */}
         <div className="text-center mb-8">
-          <div className="w-20 h-20 bg-gradient-orange-red rounded-2xl flex items-center justify-center font-bold text-3xl text-void-black shadow-glow mx-auto mb-6">
+          <div className="w-16 h-16 bg-gradient-accent rounded-2xl flex items-center justify-center font-bold text-2xl text-white shadow-glow-accent mx-auto mb-6">
             μ
           </div>
-          <h2 className="text-3xl font-light mb-2 text-gradient">
-            welcome to mutrack
-          </h2>
-          <p className="text-text-muted text-sm">
-            internal tool for frc team 7157
+          <h1 className="text-2xl font-semibold text-text-primary mb-2">
+            Welcome to mutrack
+          </h1>
+          <p className="text-sm text-text-secondary">
+            Team management for FRC 7157
           </p>
         </div>
-        <SignInForm />
+
+        {/* Sign In Form */}
+        <div className="bg-bg-secondary border border-border rounded-2xl p-6">
+          <SignInForm />
+        </div>
       </div>
     </div>
   );

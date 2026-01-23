@@ -1,5 +1,7 @@
-import React, { useState } from 'react';
-import { ChevronLeft, ChevronRight, Clock, MapPin } from 'lucide-react';
+import { useState } from 'react';
+import { ChevronLeft, ChevronRight, Clock, MapPin, Calendar } from 'lucide-react';
+import { Button } from '../ui';
+import { cn } from '../../lib/utils';
 
 interface PastMeetingsCalendarProps {
   meetings: Array<{
@@ -72,72 +74,84 @@ export function PastMeetingsCalendar({ meetings }: PastMeetingsCalendarProps) {
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-6">
-        <button
-          className="btn-modern w-10 h-10 p-0 flex items-center justify-center touch-feedback"
-          onClick={handlePrevious}
-        >
-          <ChevronLeft size={16} />
-        </button>
+      {/* Header */}
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <button
+            className="w-9 h-9 rounded-lg flex items-center justify-center text-text-muted hover:text-text-primary hover:bg-bg-hover transition-colors"
+            onClick={handlePrevious}
+          >
+            <ChevronLeft size={18} />
+          </button>
+          <h3 className="text-base font-medium text-text-primary min-w-[140px] text-center">
+            {selectedDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+          </h3>
+          <button
+            className="w-9 h-9 rounded-lg flex items-center justify-center text-text-muted hover:text-text-primary hover:bg-bg-hover transition-colors"
+            onClick={handleNext}
+          >
+            <ChevronRight size={18} />
+          </button>
+        </div>
 
-        <h3 className="text-lg font-mono text-text-secondary">
-          {selectedDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }).toLowerCase()}
-        </h3>
-
-        <button
-          className="btn-modern w-10 h-10 p-0 flex items-center justify-center touch-feedback"
-          onClick={handleNext}
+        <Button
+          variant="ghost"
+          size="sm"
+          icon={<Calendar size={14} />}
+          onClick={() => setViewMode(viewMode === 'month' ? 'week' : 'month')}
         >
-          <ChevronRight size={16} />
-        </button>
+          {viewMode === 'month' ? 'Week' : 'Month'}
+        </Button>
       </div>
 
-      <div className="flex justify-end mb-4">
-        <button className="btn-modern touch-feedback" onClick={() => setViewMode(viewMode === 'month' ? 'week' : 'month')}>
-          {viewMode === 'month' ? 'week view' : 'month view'}
-        </button>
-      </div>
-
+      {/* Day Headers */}
       <div className="grid grid-cols-7 gap-1 mb-2">
-        {['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'].map((day) => (
-          <div key={day} className="text-center text-xs text-text-muted font-mono py-1 md:py-2">
+        {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
+          <div key={day} className="text-center text-xs text-text-muted py-2">
             <span className="hidden md:inline">{day}</span>
             <span className="md:hidden">{day.charAt(0)}</span>
           </div>
         ))}
       </div>
 
-      <div className="grid grid-cols-7 gap-0.5 md:gap-1 bg-border-glass p-0.5 md:p-1 rounded-xl">
+      {/* Calendar Grid */}
+      <div className="grid grid-cols-7 gap-1">
         {days.map((date, index) => {
           const dayMeetings = date ? getMeetingsForDate(date) : [];
+          const hasMeetings = dayMeetings.length > 0;
+
           return (
             <div
               key={index}
-              className={`
-                calendar-day relative
-                ${date && isToday(date) ? 'today' : ''}
-                ${dayMeetings.length > 0 ? 'has-event' : ''}
-              `}
-              style={{
-                cursor: date ? 'pointer' : 'default',
-                opacity: date ? 1 : 0.3,
-              }}
+              className={cn(
+                'min-h-[60px] md:min-h-[80px] p-1.5 rounded-lg transition-colors',
+                date ? 'bg-bg-tertiary hover:bg-bg-hover cursor-pointer' : 'opacity-30',
+                date && isToday(date) && 'ring-2 ring-accent bg-accent/10',
+                hasMeetings && 'border border-accent-success/30'
+              )}
             >
               {date && (
                 <>
-                  <span className="text-xs md:text-sm font-light">{date.getDate()}</span>
-                  {dayMeetings.length > 0 && (
+                  <span
+                    className={cn(
+                      'text-xs font-medium',
+                      isToday(date) ? 'text-accent' : 'text-text-primary'
+                    )}
+                  >
+                    {date.getDate()}
+                  </span>
+                  {hasMeetings && (
                     <div className="mt-1 space-y-0.5">
                       {dayMeetings.slice(0, 2).map((m, idx) => (
-                        <div key={idx} className="text-[9px] md:text-[10px] text-accent-green">
-                          <div className="font-mono">
-                            <Clock size={10} className="inline mr-1" />
-                            {m.startTime}
+                        <div key={idx} className="text-[9px] md:text-[10px] text-accent-success">
+                          <div className="flex items-center gap-0.5">
+                            <Clock size={8} className="shrink-0" />
+                            <span>{m.startTime}</span>
                           </div>
                           {m.location && (
-                            <div className="text-text-dim truncate hidden md:block">
-                              <MapPin size={10} className="inline mr-1" />
-                              {m.location}
+                            <div className="text-text-dim truncate hidden md:flex items-center gap-0.5">
+                              <MapPin size={8} className="shrink-0" />
+                              <span className="truncate">{m.location}</span>
                             </div>
                           )}
                         </div>

@@ -6,13 +6,16 @@ interface Tab {
   label: string;
   icon?: React.ReactNode;
   count?: number;
+  disabled?: boolean;
 }
 
 interface TabsProps {
   tabs: Tab[];
   activeTab: string;
   onChange: (tabId: string) => void;
-  variant?: 'default' | 'pills' | 'underline';
+  variant?: 'default' | 'pills' | 'underline' | 'segment';
+  size?: 'sm' | 'md';
+  fullWidth?: boolean;
   className?: string;
 }
 
@@ -21,60 +24,86 @@ export function Tabs({
   activeTab,
   onChange,
   variant = 'default',
+  size = 'md',
+  fullWidth = false,
   className,
 }: TabsProps) {
-  const baseClasses = 'flex gap-2';
-
-  const tabBaseClasses = {
-    default: 'px-4 py-2 rounded-lg text-body-md transition-all duration-300',
-    pills: 'px-4 py-2 rounded-full text-body-md transition-all duration-300',
-    underline: 'px-4 py-3 text-body-md transition-all duration-300 border-b-2 -mb-px',
+  const containerClasses = {
+    default: 'flex gap-1',
+    pills: 'flex gap-2',
+    underline: 'flex gap-4 border-b border-border-subtle',
+    segment: 'flex gap-1 p-1 bg-bg-tertiary rounded-lg',
   };
 
-  const tabActiveClasses = {
-    default: 'bg-glass-hover text-text-primary',
-    pills: 'bg-gradient-orange-purple text-void-black font-medium',
-    underline: 'border-sunset-orange text-text-primary',
+  const tabClasses = {
+    default: {
+      base: 'px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200',
+      active: 'bg-bg-tertiary text-text-primary',
+      inactive: 'text-text-muted hover:text-text-primary hover:bg-bg-hover',
+    },
+    pills: {
+      base: 'px-4 py-2 rounded-full text-sm font-medium transition-all duration-200',
+      active: 'bg-accent text-white',
+      inactive: 'text-text-muted hover:text-text-primary hover:bg-bg-hover',
+    },
+    underline: {
+      base: 'px-1 py-3 text-sm font-medium transition-all duration-200 border-b-2 -mb-px',
+      active: 'border-accent text-text-primary',
+      inactive: 'border-transparent text-text-muted hover:text-text-primary hover:border-text-muted',
+    },
+    segment: {
+      base: 'flex-1 px-4 py-2 rounded-md text-sm font-medium transition-all duration-200 text-center',
+      active: 'bg-bg-primary text-text-primary shadow-sm',
+      inactive: 'text-text-muted hover:text-text-primary',
+    },
   };
 
-  const tabInactiveClasses = {
-    default: 'text-text-muted hover:text-text-primary hover:bg-glass',
-    pills: 'text-text-muted hover:text-text-primary',
-    underline: 'border-transparent text-text-muted hover:text-text-primary',
+  const sizeClasses = {
+    sm: 'min-h-[36px]',
+    md: 'min-h-[44px]',
   };
 
   return (
-    <div className={cn(
-      baseClasses,
-      variant === 'underline' && 'border-b border-border-glass',
-      className
-    )}>
+    <div
+      className={cn(
+        containerClasses[variant],
+        fullWidth && 'w-full',
+        className
+      )}
+      role="tablist"
+    >
       {tabs.map((tab) => (
         <button
           key={tab.id}
-          onClick={() => onChange(tab.id)}
+          onClick={() => !tab.disabled && onChange(tab.id)}
+          role="tab"
+          aria-selected={activeTab === tab.id}
+          aria-disabled={tab.disabled}
           className={cn(
-            tabBaseClasses[variant],
+            tabClasses[variant].base,
+            sizeClasses[size],
             activeTab === tab.id
-              ? tabActiveClasses[variant]
-              : tabInactiveClasses[variant],
-            'touch-feedback'
+              ? tabClasses[variant].active
+              : tabClasses[variant].inactive,
+            tab.disabled && 'opacity-50 cursor-not-allowed',
+            fullWidth && variant !== 'segment' && 'flex-1',
+            'flex items-center justify-center gap-2'
           )}
         >
-          <span className="flex items-center gap-2">
-            {tab.icon}
-            <span className="lowercase tracking-wider">{tab.label}</span>
-            {tab.count !== undefined && (
-              <span className={cn(
-                'ml-1 px-2 py-0.5 rounded-full text-xs',
+          {tab.icon}
+          <span>{tab.label}</span>
+          {tab.count !== undefined && (
+            <span
+              className={cn(
+                'px-1.5 py-0.5 rounded-full text-xs',
                 activeTab === tab.id
-                  ? 'bg-white/20'
-                  : 'bg-glass'
-              )}>
-                {tab.count}
-              </span>
-            )}
-          </span>
+                  ? variant === 'pills' ? 'bg-white/20' : 'bg-accent-dim text-accent'
+                  : 'bg-bg-tertiary text-text-muted'
+              )}
+            >
+              {tab.count}
+            </span>
+          )}
         </button>
       ))}
     </div>

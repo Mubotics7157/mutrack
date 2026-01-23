@@ -252,55 +252,70 @@ export function TimeTrackingPage({ member }: TimeTrackingPageProps) {
 
   return (
     <div className="space-y-6">
-      <div className="glass-panel p-6">
-        <h2 className="text-2xl font-light mb-4">time tracking</h2>
-        <p className="text-text-muted text-sm">
-          use this page to scan iBeacon tags during a meeting. attendees with paired beacons are tracked automatically.
-        </p>
-      </div>
+      {/* Header */}
+      <section className="space-y-4 pt-2">
+        <div>
+          <h1 className="text-2xl font-semibold text-text-primary">Time Tracking</h1>
+          <p className="text-sm text-text-muted mt-1">
+            Scan iBeacon tags during meetings to track attendance automatically
+          </p>
+        </div>
+      </section>
 
       {!canOperate && (
-        <div className="glass-panel p-4">
-          <p className="text-error-red text-sm">only admins or leads can run the scanner.</p>
+        <div className="bg-accent-error/10 border border-accent-error/30 rounded-xl p-4">
+          <p className="text-accent-error text-sm font-medium">Only admins or leads can run the scanner.</p>
         </div>
       )}
 
-      <div className="glass-panel p-6 space-y-4">
-        <ScannerControls
-          selectedMeetingId={selectedMeetingId}
-          onMeetingChange={setSelectedMeetingId}
-          meetings={meetings as any}
-          scanState={scanState}
-          canOperate={canOperate}
-          onStartScan={startScan}
-          onStopScan={stopScan}
-        />
-        <ScannerStatus
-          scanState={scanState}
-          isRunning={isRunning}
-          lastAdvRef={lastAdvRef.current}
-          nowMs={nowMs}
-          activeCount={activeSessions?.length ?? 0}
-          wakeLockActive={wakeLockActive}
-          errorText={errorText}
-        />
-      </div>
+      {/* Scanner Controls */}
+      <section className="bg-bg-secondary border border-border rounded-xl overflow-hidden">
+        <div className="px-6 py-4 border-b border-border-subtle">
+          <h2 className="text-lg font-semibold text-text-primary">Scanner</h2>
+        </div>
+        <div className="p-6 space-y-4">
+          <ScannerControls
+            selectedMeetingId={selectedMeetingId}
+            onMeetingChange={setSelectedMeetingId}
+            meetings={meetings as any}
+            scanState={scanState}
+            canOperate={canOperate}
+            onStartScan={startScan}
+            onStopScan={stopScan}
+          />
+          <ScannerStatus
+            scanState={scanState}
+            isRunning={isRunning}
+            lastAdvRef={lastAdvRef.current}
+            nowMs={nowMs}
+            activeCount={activeSessions?.length ?? 0}
+            wakeLockActive={wakeLockActive}
+            errorText={errorText}
+          />
+        </div>
+      </section>
 
-      <div className="glass-panel p-6">
-        <h3 className="text-xl font-light mb-4">active attendees</h3>
-        <ActiveAttendeesList
-          meetingId={selectedMeetingId}
-          durations={durations as any}
-          ephemeralLastSeen={ephemeralLastSeenRef.current}
-        />
-        {canOperate && (
-          <div className="mt-4">
-            <button className="btn-modern touch-feedback" onClick={() => setAssignOpen(true)}>
-              assign beacon to member
+      {/* Active Attendees */}
+      <section className="bg-bg-secondary border border-border rounded-xl overflow-hidden">
+        <div className="px-6 py-4 border-b border-border-subtle flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-text-primary">Active Attendees</h2>
+          {canOperate && (
+            <button
+              className="text-sm text-accent hover:text-accent/80 transition-colors font-medium"
+              onClick={() => setAssignOpen(true)}
+            >
+              Assign Beacon
             </button>
-          </div>
-        )}
-      </div>
+          )}
+        </div>
+        <div className="p-6">
+          <ActiveAttendeesList
+            meetingId={selectedMeetingId}
+            durations={durations as any}
+            ephemeralLastSeen={ephemeralLastSeenRef.current}
+          />
+        </div>
+      </section>
 
       <AssignBeaconModal
         open={assignOpen}

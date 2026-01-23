@@ -1,7 +1,7 @@
-import React from 'react';
+import { Pencil, LogOut, X } from 'lucide-react';
 import { ProfileAvatar } from '../ProfileAvatar';
 import { MemberWithProfile } from '../../lib/members';
-import { Badge } from '../ui';
+import { Badge, Button } from '../ui';
 
 interface ProfileHeaderProps {
   member: MemberWithProfile;
@@ -31,43 +31,53 @@ export function ProfileHeader({
   const getRoleBadgeVariant = () => {
     switch (member.role) {
       case 'admin':
-        return 'admin';
+        return 'error';
       case 'lead':
-        return 'lead';
+        return 'warning';
       default:
-        return 'member';
+        return 'default';
     }
   };
 
   return (
-    <div className="glass-panel p-8">
+    <section className="bg-bg-secondary border border-border rounded-xl p-6">
       <div className="flex flex-col md:flex-row items-start md:items-center gap-6">
         <ProfileAvatar
           name={member.name}
           imageUrl={displayedProfileImageUrl}
           size="2xl"
-          className="shadow-[0_0_25px_rgba(136,58,234,0.25)] border-2 border-border-glass"
+          className="ring-4 ring-accent/20"
         />
 
-        <div className="flex-1">
-          <h1 className="text-3xl font-light mb-2">{member.name}</h1>
+        <div className="flex-1 min-w-0">
+          <h1 className="text-2xl font-semibold text-text-primary mb-1">{member.name}</h1>
           <p className="text-text-muted mb-3">{member.email}</p>
-          <div className="flex flex-wrap items-center gap-4">
-            <Badge variant={getRoleBadgeVariant()}>{member.role}</Badge>
-            <span className="text-sm text-text-dim">member since {formatDate(member.joinedAt)}</span>
-            <span className="text-sm text-text-dim">id: {member._id.slice(-8)}</span>
+          <div className="flex flex-wrap items-center gap-3">
+            <Badge variant={getRoleBadgeVariant()} size="sm">{member.role}</Badge>
+            <span className="text-sm text-text-muted">Member since {formatDate(member.joinedAt)}</span>
+            <span className="text-xs text-text-dim font-mono">#{member._id.slice(-8)}</span>
           </div>
         </div>
 
-        <div className="flex gap-2">
-          <button onClick={onEditToggle} className="btn-modern touch-feedback">
-            {isEditing ? 'cancel' : 'edit profile'}
-          </button>
-          <button onClick={onSignOut} className="btn-modern btn-danger touch-feedback">
-            sign out
-          </button>
+        <div className="flex gap-2 shrink-0">
+          <Button
+            variant={isEditing ? 'ghost' : 'secondary'}
+            size="sm"
+            icon={isEditing ? <X size={16} /> : <Pencil size={16} />}
+            onClick={onEditToggle}
+          >
+            {isEditing ? 'Cancel' : 'Edit'}
+          </Button>
+          <Button
+            variant="danger"
+            size="sm"
+            icon={<LogOut size={16} />}
+            onClick={onSignOut}
+          >
+            Sign Out
+          </Button>
         </div>
       </div>
-    </div>
+    </section>
   );
 }

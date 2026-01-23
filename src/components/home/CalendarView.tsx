@@ -1,5 +1,6 @@
 import React from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { cn } from '../../lib/utils';
 
 interface CalendarViewProps {
   meetings: any[];
@@ -63,6 +64,11 @@ export function CalendarView({
     return new Date().toDateString() === date.toDateString();
   };
 
+  const isSelected = (date: Date | null) => {
+    if (!date) return false;
+    return selectedDate.toDateString() === date.toDateString();
+  };
+
   const handlePrevious = () => {
     const newDate = new Date(selectedDate);
     if (viewMode === 'month') {
@@ -86,37 +92,35 @@ export function CalendarView({
   return (
     <div>
       {/* Month/Week Header */}
-      <div className="flex justify-between items-center mb-6">
+      <div className="flex justify-between items-center mb-4">
         <button
-          className="btn-modern w-10 h-10 p-0 flex items-center justify-center touch-feedback"
+          className="w-10 h-10 flex items-center justify-center rounded-lg bg-bg-tertiary text-text-secondary hover:text-text-primary hover:bg-bg-hover transition-colors"
           onClick={handlePrevious}
         >
-          <ChevronLeft size={16} />
+          <ChevronLeft size={18} />
         </button>
 
-        <h3 className="text-lg font-mono text-text-secondary">
-          {selectedDate
-            .toLocaleDateString('en-US', {
-              month: 'long',
-              year: 'numeric',
-            })
-            .toLowerCase()}
+        <h3 className="text-base font-medium text-text-primary">
+          {selectedDate.toLocaleDateString('en-US', {
+            month: 'long',
+            year: 'numeric',
+          })}
         </h3>
 
         <button
-          className="btn-modern w-10 h-10 p-0 flex items-center justify-center touch-feedback"
+          className="w-10 h-10 flex items-center justify-center rounded-lg bg-bg-tertiary text-text-secondary hover:text-text-primary hover:bg-bg-hover transition-colors"
           onClick={handleNext}
         >
-          <ChevronRight size={16} />
+          <ChevronRight size={18} />
         </button>
       </div>
 
       {/* Day Labels */}
       <div className="grid grid-cols-7 gap-1 mb-2">
-        {['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'].map((day) => (
+        {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
           <div
             key={day}
-            className="text-center text-xs text-text-muted font-mono py-1 md:py-2"
+            className="text-center text-xs font-medium text-text-muted py-2"
           >
             <span className="hidden md:inline">{day}</span>
             <span className="md:hidden">{day.charAt(0)}</span>
@@ -125,54 +129,49 @@ export function CalendarView({
       </div>
 
       {/* Calendar Days */}
-      <div className="grid grid-cols-7 gap-0.5 md:gap-1 bg-border-glass p-0.5 md:p-1 rounded-xl">
+      <div className="grid grid-cols-7 gap-1">
         {days.map((date, index) => {
           const dayMeetings = date ? getMeetingsForDate(date) : [];
+          const hasMeetings = dayMeetings.length > 0;
+
           return (
-            <div
+            <button
               key={index}
-              className={`
-                calendar-day relative touch-feedback
-                ${date && isToday(date) ? 'today' : ''}
-                ${dayMeetings.length > 0 ? 'has-event' : ''}
-              `}
               onClick={() => date && onDateSelect(date)}
               onDoubleClick={() => date && onDateDoubleClick?.(date)}
-              style={{
-                cursor: date ? 'pointer' : 'default',
-                opacity: date ? 1 : 0.3,
-              }}
+              disabled={!date}
               title={
                 date && onDateDoubleClick
                   ? `Double-click to add meeting on ${date.toLocaleDateString()}`
                   : undefined
               }
+              className={cn(
+                'aspect-square flex flex-col items-center justify-center rounded-lg transition-all duration-200',
+                'text-sm font-medium',
+                // Base state
+                date ? 'hover:bg-bg-hover cursor-pointer' : 'opacity-0 cursor-default',
+                // Today
+                date && isToday(date) && 'bg-accent text-white hover:bg-accent/90',
+                // Selected (not today)
+                date && isSelected(date) && !isToday(date) && 'bg-bg-tertiary ring-2 ring-accent/50',
+                // Has meetings (not today)
+                date && hasMeetings && !isToday(date) && 'text-accent-success',
+                // Default text
+                date && !isToday(date) && !hasMeetings && 'text-text-secondary'
+              )}
             >
               {date && (
                 <>
-                  <span className="text-xs md:text-sm font-light">{date.getDate()}</span>
-                  {dayMeetings.length > 0 && (
-                    <div className="mt-1 space-y-0.5">
-                      {dayMeetings.slice(0, 2).map((m: any, idx: number) => (
-                        <div key={idx} className="text-[9px] md:text-[10px] text-accent-green">
-                          <div className="font-mono">{m.startTime}</div>
-                          {m.location && (
-                            <div className="text-text-dim truncate hidden md:block">
-                              {m.location}
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                      {dayMeetings.length > 2 && (
-                        <div className="text-[9px] text-text-dim">
-                          +{dayMeetings.length - 2} more
-                        </div>
-                      )}
-                    </div>
+                  <span>{date.getDate()}</span>
+                  {hasMeetings && !isToday(date) && (
+                    <span className="w-1 h-1 rounded-full bg-accent-success mt-0.5" />
+                  )}
+                  {hasMeetings && isToday(date) && (
+                    <span className="w-1 h-1 rounded-full bg-white mt-0.5" />
                   )}
                 </>
               )}
-            </div>
+            </button>
           );
         })}
       </div>

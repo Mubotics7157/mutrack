@@ -3,6 +3,7 @@ import { type Id } from "../../../convex/_generated/dataModel";
 import { formatDateYMD } from "./helpers";
 import { MemberWithProfile } from "../../lib/members";
 import { ProfileAvatar } from "../ProfileAvatar";
+import { SearchInput, Select, Button, Badge } from "../ui";
 
 export interface ManagementTabProps {
   members: Array<MemberWithProfile>;
@@ -19,6 +20,19 @@ export interface ManagementTabProps {
   onRemoveMember: (member: MemberWithProfile) => Promise<void>;
 }
 
+const filterOptions = [
+  { value: "all", label: "All Roles" },
+  { value: "admin", label: "Admins" },
+  { value: "lead", label: "Leads" },
+  { value: "member", label: "Members" },
+];
+
+const roleOptions = [
+  { value: "member", label: "Member" },
+  { value: "lead", label: "Lead" },
+  { value: "admin", label: "Admin" },
+];
+
 export function ManagementTab(props: ManagementTabProps) {
   const {
     members,
@@ -32,74 +46,72 @@ export function ManagementTab(props: ManagementTabProps) {
     onRemoveMember,
   } = props;
   const formatJoin = formatJoinDate ?? formatDateYMD;
+
   return (
-    <div className="space-y-6">
-      <div className="glass-panel p-6 border border-yellow-500/30">
-        <div className="flex flex-col md:flex-row gap-4">
-          <input
-            type="text"
-            placeholder="search by name or email..."
-            className="input-modern flex-1"
+    <div className="space-y-4">
+      {/* Search and Filter */}
+      <div className="bg-bg-secondary border border-accent-warning/30 rounded-xl p-4">
+        <div className="flex flex-col md:flex-row gap-3">
+          <SearchInput
+            placeholder="Search by name or email..."
             value={searchTerm}
             onChange={(e) => onSearchTermChange(e.target.value)}
+            onClear={() => onSearchTermChange("")}
+            className="flex-1"
           />
-          <select
-            className="input-modern md:w-48"
+          <Select
             value={roleFilter}
             onChange={(e) => onRoleFilterChange(e.target.value)}
-          >
-            <option value="all">all roles</option>
-            <option value="admin">admins only</option>
-            <option value="lead">leads only</option>
-            <option value="member">members only</option>
-          </select>
+            options={filterOptions}
+            className="md:w-40"
+          />
         </div>
-        <p className="text-xs text-text-muted mt-4">
-          adjust roles, remove members, and keep access tidy. changes apply
-          instantly.
+        <p className="text-xs text-text-muted mt-3">
+          Adjust roles, remove members, and manage access. Changes apply instantly.
         </p>
       </div>
 
-      <div className="space-y-4">
+      {/* Member List */}
+      <div className="bg-bg-secondary border border-border rounded-xl overflow-hidden">
         {members.length === 0 ? (
-          <div className="glass-panel p-8 text-center">
+          <div className="p-8 text-center">
             <p className="text-text-muted">
-              no members match your filters right now.
+              No members match your filters.
             </p>
           </div>
         ) : (
-          members.map((teamMember) => (
-            <div
-              key={teamMember._id}
-              className="card-modern border border-white/10"
-            >
-              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                <div className="flex items-center gap-4">
+          <div className="divide-y divide-border-subtle">
+            {members.map((teamMember) => (
+              <div
+                key={teamMember._id}
+                className="flex flex-col md:flex-row md:items-center gap-4 p-4"
+              >
+                <div className="flex items-center gap-4 flex-1 min-w-0">
                   <ProfileAvatar
                     name={teamMember.name}
                     imageUrl={teamMember.profileImageUrl}
-                    size="lg"
-                    className="border-2 border-border-glass"
+                    size="md"
                   />
-                  <div>
-                    <h4 className="font-light text-lg text-text-primary flex items-center gap-2">
-                      {teamMember.name}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <h4 className="font-medium text-text-primary truncate">
+                        {teamMember.name}
+                      </h4>
                       {teamMember._id === currentMemberId && (
-                        <span className="text-xs text-sunset-orange bg-sunset-orange-dim px-2 py-0.5 rounded-full">
-                          you
-                        </span>
+                        <Badge variant="accent" size="sm">You</Badge>
                       )}
-                    </h4>
-                    <p className="text-sm text-text-muted">
+                    </div>
+                    <p className="text-sm text-text-muted truncate">
                       {teamMember.email}
                     </p>
-                    <p className="text-xs text-text-dim mt-1">
-                      joined {formatJoin(teamMember.joinedAt)}
+                    <p className="text-xs text-text-dim mt-0.5">
+                      Joined {formatJoin(teamMember.joinedAt)}
                     </p>
                   </div>
                 </div>
-                <div className="flex items-center gap-3">
-                  <select
+
+                <div className="flex items-center gap-2 ml-auto">
+                  <Select
                     value={teamMember.role}
                     onChange={(e) =>
                       onRoleChange(
@@ -107,44 +119,43 @@ export function ManagementTab(props: ManagementTabProps) {
                         e.target.value as "admin" | "lead" | "member"
                       )
                     }
-                    className="input-modern py-2 px-4 text-sm"
+                    options={roleOptions}
                     disabled={teamMember._id === currentMemberId}
-                  >
-                    <option value="member">member</option>
-                    <option value="lead">lead</option>
-                    <option value="admin">admin</option>
-                  </select>
+                    className="w-28"
+                  />
                   {teamMember._id !== currentMemberId && (
-                    <button
-                      className="btn-modern btn-danger p-2"
-                      title="Remove member"
+                    <Button
+                      variant="danger"
+                      size="sm"
                       onClick={() => {
                         void onRemoveMember(teamMember);
                       }}
+                      icon={<Trash2 size={16} />}
                     >
-                      <Trash2 size={16} />
-                    </button>
+                      <span className="sr-only">Remove</span>
+                    </Button>
                   )}
                 </div>
               </div>
-            </div>
-          ))
+            ))}
+          </div>
         )}
       </div>
 
-      <div className="glass-panel p-6 border border-yellow-500/30">
+      {/* Admin Warning */}
+      <div className="bg-bg-secondary border border-accent-warning/30 rounded-xl p-4">
         <div className="flex items-start gap-3">
           <AlertTriangle
-            size={20}
-            className="text-yellow-400 flex-shrink-0 mt-0.5"
+            size={18}
+            className="text-accent-warning shrink-0 mt-0.5"
           />
           <div>
-            <h4 className="text-sm font-mono text-yellow-400 mb-2">
-              admin note
+            <h4 className="text-sm font-medium text-accent-warning mb-1">
+              Admin Note
             </h4>
             <p className="text-sm text-text-muted">
-              be careful when changing member roles. admins have full access to
-              all system features. you cannot change your own role for security
+              Be careful when changing member roles. Admins have full access to
+              all system features. You cannot change your own role for security
               reasons.
             </p>
           </div>

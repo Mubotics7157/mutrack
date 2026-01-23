@@ -1,8 +1,8 @@
 import { type Id } from "../../../convex/_generated/dataModel";
-import { filterMembers, formatDateYMD } from "./helpers";
-import { RoleBadge } from "./RoleBadge";
+import { formatDateYMD } from "./helpers";
 import { MemberWithProfile } from "../../lib/members";
 import { ProfileAvatar } from "../ProfileAvatar";
+import { SearchInput, Select, Badge } from "../ui";
 
 export interface DirectoryTabProps {
   filteredMembers: Array<MemberWithProfile>;
@@ -14,6 +14,13 @@ export interface DirectoryTabProps {
   roleStats: { admin: number; lead: number; member: number };
 }
 
+const roleOptions = [
+  { value: "all", label: "All Roles" },
+  { value: "admin", label: "Admins" },
+  { value: "lead", label: "Leads" },
+  { value: "member", label: "Members" },
+];
+
 export function DirectoryTab(props: DirectoryTabProps) {
   const {
     filteredMembers,
@@ -24,92 +31,103 @@ export function DirectoryTab(props: DirectoryTabProps) {
     currentMemberId,
     roleStats,
   } = props;
+
   return (
-    <div className="space-y-6">
-      <div className="glass-panel p-6">
-        <div className="flex flex-col md:flex-row gap-4">
-          <input
-            type="text"
-            placeholder="search by name or email..."
-            className="input-modern flex-1"
+    <div className="space-y-4">
+      {/* Search and Filter */}
+      <div className="bg-bg-secondary border border-border rounded-xl p-4">
+        <div className="flex flex-col md:flex-row gap-3">
+          <SearchInput
+            placeholder="Search by name or email..."
             value={searchTerm}
             onChange={(e) => onSearchTermChange(e.target.value)}
+            onClear={() => onSearchTermChange("")}
+            className="flex-1"
           />
-          <select
-            className="input-modern md:w-48"
+          <Select
             value={roleFilter}
             onChange={(e) => onRoleFilterChange(e.target.value)}
-          >
-            <option value="all">all roles</option>
-            <option value="admin">admins only</option>
-            <option value="lead">leads only</option>
-            <option value="member">members only</option>
-          </select>
+            options={roleOptions}
+            className="md:w-40"
+          />
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="card-modern text-center">
-          <div className="text-2xl font-light text-error-red mb-1">
+      {/* Role Stats */}
+      <div className="grid grid-cols-3 gap-3">
+        <div className="bg-bg-secondary border border-border rounded-xl p-3 text-center">
+          <div className="text-xl font-semibold text-accent-error">
             {roleStats.admin}
           </div>
-          <div className="text-sm text-text-muted">admins</div>
+          <div className="text-xs text-text-muted">Admins</div>
         </div>
-        <div className="card-modern text-center">
-          <div className="text-2xl font-light text-yellow-400 mb-1">
+        <div className="bg-bg-secondary border border-border rounded-xl p-3 text-center">
+          <div className="text-xl font-semibold text-accent-warning">
             {roleStats.lead}
           </div>
-          <div className="text-sm text-text-muted">leads</div>
+          <div className="text-xs text-text-muted">Leads</div>
         </div>
-        <div className="card-modern text-center">
-          <div className="text-2xl font-light text-blue-400 mb-1">
+        <div className="bg-bg-secondary border border-border rounded-xl p-3 text-center">
+          <div className="text-xl font-semibold text-accent">
             {roleStats.member}
           </div>
-          <div className="text-sm text-text-muted">members</div>
+          <div className="text-xs text-text-muted">Members</div>
         </div>
       </div>
 
-      <div className="space-y-4">
+      {/* Member List */}
+      <div className="bg-bg-secondary border border-border rounded-xl overflow-hidden">
         {filteredMembers.length === 0 ? (
-          <div className="glass-panel p-8 text-center">
+          <div className="p-8 text-center">
             <p className="text-text-muted">
               {searchTerm || roleFilter !== "all"
-                ? "no members found matching your criteria"
-                : "no members found"}
+                ? "No members found matching your criteria"
+                : "No members found"}
             </p>
           </div>
         ) : (
-          filteredMembers.map((teamMember) => (
-            <div key={teamMember._id} className="card-modern">
-              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                <div className="flex items-center gap-4">
-                  <ProfileAvatar
-                    name={teamMember.name}
-                    imageUrl={teamMember.profileImageUrl}
-                    size="lg"
-                    className="border-2 border-border-glass"
-                  />
-                  <div>
-                    <h4 className="font-light text-lg text-text-primary flex items-center gap-2">
+          <div className="divide-y divide-border-subtle">
+            {filteredMembers.map((teamMember) => (
+              <div
+                key={teamMember._id}
+                className="flex items-center gap-4 p-4 hover:bg-bg-hover transition-colors"
+              >
+                <ProfileAvatar
+                  name={teamMember.name}
+                  imageUrl={teamMember.profileImageUrl}
+                  size="md"
+                />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <h4 className="font-medium text-text-primary truncate">
                       {teamMember.name}
-                      {teamMember._id === currentMemberId && (
-                        <span className="text-xs text-sunset-orange bg-sunset-orange-dim px-2 py-0.5 rounded-full">
-                          you
-                        </span>
-                      )}
                     </h4>
-                    <p className="text-sm text-text-muted">
-                      {teamMember.email}
-                    </p>
-                    <p className="text-xs text-text-dim mt-1">
-                      joined {formatDateYMD(teamMember.joinedAt)}
-                    </p>
+                    {teamMember._id === currentMemberId && (
+                      <Badge variant="accent" size="sm">You</Badge>
+                    )}
                   </div>
+                  <p className="text-sm text-text-muted truncate">
+                    {teamMember.email}
+                  </p>
+                  <p className="text-xs text-text-dim mt-0.5">
+                    Joined {formatDateYMD(teamMember.joinedAt)}
+                  </p>
                 </div>
-                <RoleBadge role={teamMember.role} />
+                <Badge
+                  variant={
+                    teamMember.role === "admin"
+                      ? "error"
+                      : teamMember.role === "lead"
+                      ? "warning"
+                      : "default"
+                  }
+                  size="sm"
+                >
+                  {teamMember.role}
+                </Badge>
               </div>
-            </div>
-          ))
+            ))}
+          </div>
         )}
       </div>
     </div>

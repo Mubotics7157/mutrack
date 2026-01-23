@@ -1,3 +1,6 @@
+import { Plus, Package } from 'lucide-react';
+import { Tabs, Button } from '../ui';
+
 type ViewType = 'requests' | 'orders' | 'summary';
 type SortType = 'recent' | 'vendor';
 
@@ -26,82 +29,72 @@ export function PurchaseViewToggle({
   onNewRequest,
   onCreateOrder,
 }: PurchaseViewToggleProps) {
+  const tabs = [
+    { id: 'requests', label: `Requests (${requestsCount})` },
+    { id: 'orders', label: `Orders (${ordersCount})` },
+    { id: 'summary', label: `Outstanding (${outstandingCount})` },
+  ];
+
   return (
-    <div className="glass-panel p-6">
+    <div className="bg-bg-secondary border border-border rounded-xl p-4">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div className="flex flex-col gap-3">
-          <div className="flex flex-nowrap gap-1 p-1 bg-glass backdrop-blur-md border border-border-glass rounded-full w-full">
-            <button
-              onClick={() => onViewChange('requests')}
-              className={`flex-1 px-3 md:px-6 py-2 rounded-full text-xs md:text-sm font-mono text-center whitespace-nowrap transition-all touch-feedback ${
-                activeView === 'requests'
-                  ? 'bg-sunset-orange text-void-black'
-                  : 'text-text-muted hover:text-text-primary'
-              }`}
-            >
-              requests ({requestsCount})
-            </button>
-            <button
-              onClick={() => onViewChange('orders')}
-              className={`flex-1 px-3 md:px-6 py-2 rounded-full text-xs md:text-sm font-mono text-center whitespace-nowrap transition-all touch-feedback ${
-                activeView === 'orders'
-                  ? 'bg-sunset-orange text-void-black'
-                  : 'text-text-muted hover:text-text-primary'
-              }`}
-            >
-              orders ({ordersCount})
-            </button>
-            <button
-              onClick={() => onViewChange('summary')}
-              className={`flex-1 px-3 md:px-6 py-2 rounded-full text-xs md:text-sm font-mono text-center whitespace-nowrap transition-all touch-feedback ${
-                activeView === 'summary'
-                  ? 'bg-sunset-orange text-void-black'
-                  : 'text-text-muted hover:text-text-primary'
-              }`}
-            >
-              outstanding ({outstandingCount})
-            </button>
-          </div>
+        <div className="flex flex-col gap-3 w-full md:w-auto">
+          <Tabs
+            tabs={tabs}
+            activeTab={activeView}
+            onTabChange={(id) => onViewChange(id as ViewType)}
+            variant="segment"
+          />
 
           {activeView === 'requests' && (
-            <div className="flex flex-wrap items-center gap-2 text-xs uppercase tracking-wide text-text-muted">
-              <span>sort</span>
-              <div className="flex overflow-hidden rounded-full border border-border-glass">
+            <div className="flex items-center gap-2 text-xs text-text-muted">
+              <span>Sort:</span>
+              <div className="flex overflow-hidden rounded-lg border border-border">
                 <button
                   type="button"
                   onClick={() => onSortChange('recent')}
-                  className={`px-3 py-1 text-xs font-mono transition-colors touch-feedback ${
+                  className={`px-3 py-1.5 text-xs font-medium transition-colors ${
                     requestSort === 'recent'
-                      ? 'bg-sunset-orange text-void-black'
-                      : 'text-text-muted hover:text-text-primary'
+                      ? 'bg-accent text-white'
+                      : 'text-text-muted hover:text-text-primary hover:bg-bg-hover'
                   }`}
                 >
-                  recent
+                  Recent
                 </button>
                 <button
                   type="button"
                   onClick={() => onSortChange('vendor')}
-                  className={`px-3 py-1 text-xs font-mono transition-colors touch-feedback ${
+                  className={`px-3 py-1.5 text-xs font-medium transition-colors ${
                     requestSort === 'vendor'
-                      ? 'bg-sunset-orange text-void-black'
-                      : 'text-text-muted hover:text-text-primary'
+                      ? 'bg-accent text-white'
+                      : 'text-text-muted hover:text-text-primary hover:bg-bg-hover'
                   }`}
                 >
-                  vendor
+                  Vendor
                 </button>
               </div>
             </div>
           )}
         </div>
 
-        <div className="flex gap-2">
-          <button onClick={onNewRequest} className="btn-modern btn-primary touch-feedback">
-            + new request
-          </button>
+        <div className="flex gap-2 shrink-0">
+          <Button
+            variant="primary"
+            size="sm"
+            icon={<Plus size={16} />}
+            onClick={onNewRequest}
+          >
+            New Request
+          </Button>
           {canManageOrders && activeView === 'requests' && (
-            <button onClick={onCreateOrder} className="btn-modern touch-feedback">
-              create order
-            </button>
+            <Button
+              variant="secondary"
+              size="sm"
+              icon={<Package size={16} />}
+              onClick={onCreateOrder}
+            >
+              Create Order
+            </Button>
           )}
         </div>
       </div>

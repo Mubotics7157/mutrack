@@ -208,10 +208,14 @@ export function ProfilePage({ member }: ProfilePageProps) {
         onUnpairBeacon={handleUnpairBeacon}
       />
 
-      <div className="glass-panel p-8">
-        <h2 className="text-xl font-light mb-6">your past meetings</h2>
-        <PastMeetingsCalendar meetings={pastMeetings || []} />
-      </div>
+      <section className="bg-bg-secondary border border-border rounded-xl overflow-hidden">
+        <div className="px-6 py-4 border-b border-border-subtle">
+          <h2 className="text-lg font-semibold text-text-primary">Your Past Meetings</h2>
+        </div>
+        <div className="p-6">
+          <PastMeetingsCalendar meetings={pastMeetings || []} />
+        </div>
+      </section>
 
       <BeaconScanModal
         isOpen={pairModalOpen}

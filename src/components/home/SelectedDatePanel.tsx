@@ -4,6 +4,7 @@ import { api } from '../../../convex/_generated/api';
 import { MemberWithProfile } from '../../lib/members';
 import { toast } from 'sonner';
 import { Clock, MapPin, Trash2, Users, CheckCircle, XCircle, X } from 'lucide-react';
+import { Button } from '../ui';
 
 interface SelectedDatePanelProps {
   date: Date;
@@ -30,41 +31,40 @@ export function SelectedDatePanel({
   if (meetingsForDate.length === 0) return null;
 
   return (
-    <div className="mt-6 p-6 bg-glass border border-border-glass rounded-xl">
-      <div className="flex justify-between items-center mb-4">
-        <h3 className="text-lg font-light">
-          meetings for{' '}
-          {date
-            .toLocaleDateString('en-US', {
+    <div className="border-t border-border-subtle">
+      <div className="p-4">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-base font-semibold text-text-primary">
+            {date.toLocaleDateString('en-US', {
               weekday: 'long',
               month: 'long',
               day: 'numeric',
-            })
-            .toLowerCase()}
-        </h3>
-        <button
-          onClick={onClose}
-          className="text-text-muted hover:text-text-primary touch-feedback"
-        >
-          <X size={16} />
-        </button>
-      </div>
+            })}
+          </h3>
+          <button
+            onClick={onClose}
+            className="w-8 h-8 flex items-center justify-center rounded-lg text-text-muted hover:text-text-primary hover:bg-bg-hover transition-colors"
+          >
+            <X size={16} />
+          </button>
+        </div>
 
-      <div className="space-y-4">
-        {meetingsForDate.map((meeting: any) => (
-          <MeetingWithRsvps
-            key={meeting._id}
-            meeting={meeting}
-            members={members}
-            currentMember={currentMember}
-            onDelete={async () => {
-              if (confirm(`Delete "${meeting.title}"?`)) {
-                await deleteMeeting({ meetingId: meeting._id });
-                toast.success('meeting deleted');
-              }
-            }}
-          />
-        ))}
+        <div className="space-y-4">
+          {meetingsForDate.map((meeting: any) => (
+            <MeetingWithRsvps
+              key={meeting._id}
+              meeting={meeting}
+              members={members}
+              currentMember={currentMember}
+              onDelete={async () => {
+                if (confirm(`Delete "${meeting.title}"?`)) {
+                  await deleteMeeting({ meetingId: meeting._id });
+                  toast.success('Meeting deleted');
+                }
+              }}
+            />
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -79,16 +79,17 @@ interface MeetingWithRsvpsProps {
 
 function MeetingWithRsvps({ meeting, members, currentMember, onDelete }: MeetingWithRsvpsProps) {
   const rsvps = useQuery(api.meetings.getRsvpsForMeeting, { meetingId: meeting._id });
+  const canManage = currentMember.role === 'admin' || currentMember.role === 'lead';
 
   const attending = rsvps?.filter((r: any) => r.status === 'attending') || [];
   const notAttending = rsvps?.filter((r: any) => r.status === 'not_attending') || [];
 
   return (
-    <div className="space-y-3">
-      <div className="flex justify-between items-start">
-        <div>
+    <div className="bg-bg-tertiary rounded-lg p-4 space-y-3">
+      <div className="flex justify-between items-start gap-4">
+        <div className="flex-1 min-w-0">
           <h4 className="font-medium text-text-primary">{meeting.title}</h4>
-          <div className="flex items-center gap-4 text-sm text-text-muted mt-1">
+          <div className="flex flex-wrap items-center gap-3 text-sm text-text-muted mt-1">
             <span className="flex items-center gap-1">
               <Clock size={12} />
               {meeting.startTime} - {meeting.endTime}
@@ -104,56 +105,64 @@ function MeetingWithRsvps({ meeting, members, currentMember, onDelete }: Meeting
             <p className="text-sm text-text-muted mt-2">{meeting.description}</p>
           )}
         </div>
-        {(currentMember.role === 'admin' || currentMember.role === 'lead') && (
-          <button
-            className="btn-modern btn-danger p-2 touch-feedback"
+        {canManage && (
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={onDelete}
-            title="Delete meeting"
+            className="shrink-0 text-text-muted hover:text-accent-error"
+            icon={<Trash2 size={14} />}
           >
-            <Trash2 size={14} />
-          </button>
+            <span className="sr-only">Delete</span>
+          </Button>
         )}
       </div>
 
-      {rsvps && (
-        <div className="pl-4 border-l-2 border-border-glass">
-          <div className="flex items-center gap-2 mb-2">
+      {rsvps && (rsvps.length > 0) && (
+        <div className="pt-3 border-t border-border-subtle">
+          <div className="flex items-center gap-2 mb-3">
             <Users size={14} className="text-text-muted" />
-            <span className="text-sm font-mono text-text-secondary">rsvps</span>
+            <span className="text-sm font-medium text-text-secondary">RSVPs</span>
           </div>
 
           <div className="grid grid-cols-2 gap-4 text-sm">
             <div>
-              <div className="flex items-center gap-1 text-accent-green mb-1">
+              <div className="flex items-center gap-1 text-accent-success mb-2">
                 <CheckCircle size={12} />
-                <span className="font-mono">attending ({attending.length})</span>
+                <span className="font-medium">Attending ({attending.length})</span>
               </div>
               <div className="space-y-1">
                 {attending.map((rsvp: any) => {
                   const member = members.find((m: any) => m._id === rsvp.memberId);
                   return member ? (
-                    <div key={rsvp._id} className="text-text-muted">
+                    <div key={rsvp._id} className="text-text-muted text-sm">
                       {member.name}
                     </div>
                   ) : null;
                 })}
+                {attending.length === 0 && (
+                  <div className="text-text-dim text-sm">No responses yet</div>
+                )}
               </div>
             </div>
 
             <div>
-              <div className="flex items-center gap-1 text-error-red mb-1">
+              <div className="flex items-center gap-1 text-accent-error mb-2">
                 <XCircle size={12} />
-                <span className="font-mono">not attending ({notAttending.length})</span>
+                <span className="font-medium">Not Attending ({notAttending.length})</span>
               </div>
               <div className="space-y-1">
                 {notAttending.map((rsvp: any) => {
                   const member = members.find((m: any) => m._id === rsvp.memberId);
                   return member ? (
-                    <div key={rsvp._id} className="text-text-muted">
+                    <div key={rsvp._id} className="text-text-muted text-sm">
                       {member.name}
                     </div>
                   ) : null;
                 })}
+                {notAttending.length === 0 && (
+                  <div className="text-text-dim text-sm">-</div>
+                )}
               </div>
             </div>
           </div>

@@ -4,6 +4,7 @@ import { api } from '../../../convex/_generated/api';
 import { MemberWithProfile } from '../../lib/members';
 import { toast } from 'sonner';
 import { Clock, MapPin, Trash2 } from 'lucide-react';
+import { Button } from '../ui';
 
 interface MeetingCardProps {
   meeting: any;
@@ -12,50 +13,62 @@ interface MeetingCardProps {
 
 export function MeetingCard({ meeting, member }: MeetingCardProps) {
   const deleteMeeting = useMutation(api.meetings.deleteMeeting);
+  const canManage = member.role === 'admin' || member.role === 'lead';
 
   const handleDelete = async () => {
     if (confirm(`Are you sure you want to delete "${meeting.title}"?`)) {
       await deleteMeeting({ meetingId: meeting._id });
-      toast.success('meeting deleted successfully');
+      toast.success('Meeting deleted');
     }
   };
 
   return (
-    <div className="card-modern flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-      <div>
-        <h3 className="text-lg font-light mb-1">{meeting.title}</h3>
-        <div className="flex items-center gap-4 text-sm text-text-muted">
+    <div className="flex items-center gap-4 p-4 hover:bg-bg-hover transition-colors">
+      {/* Time indicator */}
+      <div className="shrink-0 w-12 text-center">
+        <div className="text-sm font-medium text-text-primary">{meeting.startTime}</div>
+        <div className="text-xs text-text-muted">
+          {new Date(meeting.date).toLocaleDateString('en-US', { weekday: 'short' })}
+        </div>
+      </div>
+
+      {/* Divider */}
+      <div className="w-0.5 h-10 bg-accent rounded-full shrink-0" />
+
+      {/* Meeting details */}
+      <div className="flex-1 min-w-0">
+        <h3 className="text-sm font-medium text-text-primary truncate">
+          {meeting.title}
+        </h3>
+        <div className="flex items-center gap-3 mt-1 text-xs text-text-muted">
           <span className="flex items-center gap-1">
-            <Clock size={14} />
-            {new Date(meeting.date)
-              .toLocaleDateString('en-US', {
-                weekday: 'short',
-                month: 'short',
-                day: 'numeric',
-              })
-              .toLowerCase()}{' '}
-            at {meeting.startTime}
+            <Clock size={12} />
+            {new Date(meeting.date).toLocaleDateString('en-US', {
+              month: 'short',
+              day: 'numeric',
+            })}
           </span>
           {meeting.location && (
-            <span className="flex items-center gap-1">
-              <MapPin size={14} />
+            <span className="flex items-center gap-1 truncate">
+              <MapPin size={12} />
               {meeting.location}
             </span>
           )}
         </div>
       </div>
 
-      <div className="flex gap-2">
-        {(member.role === 'admin' || member.role === 'lead') && (
-          <button
-            className="btn-modern btn-danger p-2 touch-feedback"
-            onClick={handleDelete}
-            title="Delete meeting"
-          >
-            <Trash2 size={16} />
-          </button>
-        )}
-      </div>
+      {/* Delete button (admin/lead only) */}
+      {canManage && (
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={handleDelete}
+          className="shrink-0 text-text-muted hover:text-accent-error"
+          icon={<Trash2 size={16} />}
+        >
+          <span className="sr-only">Delete</span>
+        </Button>
+      )}
     </div>
   );
 }

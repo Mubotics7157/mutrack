@@ -1,4 +1,6 @@
+import { Play, Square, AlertCircle } from 'lucide-react';
 import { Id } from '../../../convex/_generated/dataModel';
+import { Select, Button } from '../ui';
 import type { ScanState } from './utils';
 import { canScan } from './utils';
 
@@ -27,44 +29,52 @@ export function ScannerControls({
   onStartScan,
   onStopScan,
 }: ScannerControlsProps) {
-  return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
-      <div>
-        <label className="block mb-2 text-sm text-text-muted">meeting</label>
-        <select
-          className="input-modern"
-          value={selectedMeetingId || ''}
-          onChange={(e) => onMeetingChange((e.target.value || '') as any)}
-        >
-          <option value="">select meeting</option>
-          {meetings.map((m) => (
-            <option key={m._id} value={m._id}>
-              {new Date(m.date).toLocaleDateString()} {m.title}
-            </option>
-          ))}
-        </select>
-      </div>
+  const meetingOptions = [
+    { value: '', label: 'Select meeting' },
+    ...meetings.map((m) => ({
+      value: m._id,
+      label: `${new Date(m.date).toLocaleDateString()} - ${m.title}`,
+    })),
+  ];
 
-      <div className="flex gap-2">
-        <button
-          disabled={!canOperate || scanState === 'scanning'}
-          onClick={onStartScan}
-          className="btn-modern btn-primary flex-1 touch-feedback"
-        >
-          start scanning
-        </button>
-        <button
-          disabled={scanState !== 'scanning'}
-          onClick={onStopScan}
-          className="btn-modern flex-1 touch-feedback"
-        >
-          stop
-        </button>
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label className="block mb-2 text-sm font-medium text-text-primary">Meeting</label>
+          <Select
+            value={selectedMeetingId || ''}
+            onChange={(e) => onMeetingChange((e.target.value || '') as any)}
+            options={meetingOptions}
+          />
+        </div>
+
+        <div className="flex items-end gap-2">
+          <Button
+            variant="primary"
+            disabled={!canOperate || scanState === 'scanning'}
+            onClick={onStartScan}
+            icon={<Play size={16} />}
+            className="flex-1"
+          >
+            Start Scanning
+          </Button>
+          <Button
+            variant="secondary"
+            disabled={scanState !== 'scanning'}
+            onClick={onStopScan}
+            icon={<Square size={16} />}
+            className="flex-1"
+          >
+            Stop
+          </Button>
+        </div>
       </div>
 
       {!canScan && (
-        <div className="text-sm text-error-red">
-          web bluetooth scanning not supported in this browser
+        <div className="flex items-center gap-2 text-sm text-accent-error">
+          <AlertCircle size={16} />
+          <span>Web Bluetooth scanning not supported in this browser</span>
         </div>
       )}
     </div>

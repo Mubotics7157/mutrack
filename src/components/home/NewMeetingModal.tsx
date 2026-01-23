@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import ReactDOM from 'react-dom';
 import { useMutation } from 'convex/react';
 import { api } from '../../../convex/_generated/api';
 import { MemberWithProfile } from '../../lib/members';
 import { toast } from 'sonner';
 import { Plus, MapPin, X } from 'lucide-react';
+import { Button, Input, Textarea } from '../ui';
 
 interface NewMeetingModalProps {
   onClose: () => void;
@@ -13,7 +14,7 @@ interface NewMeetingModalProps {
 }
 
 export function NewMeetingModal({ onClose, member, defaultDate }: NewMeetingModalProps) {
-  const [title, setTitle] = useState('team meeting');
+  const [title, setTitle] = useState('Team Meeting');
   const [date, setDate] = useState(() => {
     if (defaultDate) {
       return defaultDate.toISOString().split('T')[0];
@@ -38,22 +39,41 @@ export function NewMeetingModal({ onClose, member, defaultDate }: NewMeetingModa
     }
     return '18:00';
   });
-  const [location, setLocation] = useState('bohs');
+  const [location, setLocation] = useState('BOHS');
   const [description, setDescription] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const createMeeting = useMutation(api.meetings.createMeeting);
+
+  // Lock body scroll when modal is open
+  useEffect(() => {
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, []);
+
+  // Close on Escape key
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, [onClose]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!title || !date || !startTime || !endTime) {
-      toast.error('please fill in all required fields');
+      toast.error('Please fill in all required fields');
       return;
     }
 
     const meetingDate = new Date(date + 'T00:00:00');
 
     try {
+      setIsSubmitting(true);
       await createMeeting({
         title,
         date: meetingDate.getTime(),
@@ -63,125 +83,134 @@ export function NewMeetingModal({ onClose, member, defaultDate }: NewMeetingModa
         description,
       });
 
-      toast.success('meeting scheduled successfully');
+      toast.success('Meeting scheduled');
       onClose();
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'failed to schedule meeting';
+      const message = error instanceof Error ? error.message : 'Failed to schedule meeting';
       toast.error(message);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   return ReactDOM.createPortal(
     <>
+      {/* Backdrop */}
       <div
-        className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[9998]"
+        className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50"
         onClick={onClose}
       />
 
-      <div className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-[9999] w-full max-w-lg p-4">
-        <div className="glass-panel p-8 max-h-[85vh] overflow-y-auto">
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="text-2xl font-light">
-              {defaultDate
-                ? `schedule meeting for ${defaultDate.toLocaleDateString()}`
-                : 'schedule new meeting'}
-            </h2>
+      {/* Modal - Bottom sheet on mobile, centered on desktop */}
+      <div className="fixed inset-x-0 bottom-0 md:inset-0 md:flex md:items-center md:justify-center z-50 p-0 md:p-4">
+        <div className="bg-bg-secondary border-t md:border border-border rounded-t-2xl md:rounded-xl w-full md:max-w-lg max-h-[85vh] overflow-hidden flex flex-col">
+          {/* Header */}
+          <div className="flex items-center justify-between p-4 border-b border-border-subtle shrink-0">
+            <div>
+              <h2 className="text-lg font-semibold text-text-primary">
+                Schedule Meeting
+              </h2>
+              {defaultDate && (
+                <p className="text-sm text-text-muted">
+                  {defaultDate.toLocaleDateString('en-US', {
+                    weekday: 'long',
+                    month: 'long',
+                    day: 'numeric',
+                  })}
+                </p>
+              )}
+            </div>
             <button
               onClick={onClose}
-              className="text-text-muted hover:text-text-primary touch-feedback"
+              className="w-8 h-8 flex items-center justify-center rounded-lg text-text-muted hover:text-text-primary hover:bg-bg-hover transition-colors"
             >
               <X size={20} />
             </button>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block mb-2 text-sm text-text-muted">meeting title *</label>
-              <input
+          {/* Form */}
+          <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto">
+            <div className="p-4 space-y-4">
+              <Input
+                label="Meeting Title"
                 type="text"
-                className="input-modern"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                placeholder="e.g., weekly team meeting"
+                placeholder="e.g., Weekly Team Meeting"
+                required
                 autoFocus
               />
-            </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block mb-2 text-sm text-text-muted">date *</label>
-                <input
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Input
+                  label="Date"
                   type="date"
-                  className="input-modern"
                   value={date}
                   onChange={(e) => setDate(e.target.value)}
+                  required
                 />
-              </div>
-
-              <div>
-                <label className="block mb-2 text-sm text-text-muted">start time *</label>
-                <input
+                <Input
+                  label="Start Time"
                   type="time"
-                  className="input-modern"
                   value={startTime}
                   onChange={(e) => setStartTime(e.target.value)}
+                  required
                 />
               </div>
-            </div>
 
-            <div>
-              <label className="block mb-2 text-sm text-text-muted">end time *</label>
-              <input
+              <Input
+                label="End Time"
                 type="time"
-                className="input-modern"
                 value={endTime}
                 onChange={(e) => setEndTime(e.target.value)}
+                required
               />
-            </div>
 
-            <div>
-              <label className="block mb-2 text-sm text-text-muted">location</label>
               <div className="relative">
-                <MapPin
-                  size={16}
-                  className="absolute left-3 top-1/2 -translate-y-1/2 text-text-dim"
-                />
-                <input
+                <Input
+                  label="Location"
                   type="text"
-                  className="input-modern pl-10"
                   value={location}
                   onChange={(e) => setLocation(e.target.value)}
-                  placeholder="e.g., bohs"
+                  placeholder="e.g., BOHS"
+                  className="pl-10"
+                />
+                <MapPin
+                  size={16}
+                  className="absolute left-3 top-[38px] text-text-dim pointer-events-none"
                 />
               </div>
-            </div>
 
-            <div>
-              <label className="block mb-2 text-sm text-text-muted">description</label>
-              <textarea
-                className="input-modern resize-none"
+              <Textarea
+                label="Description"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                placeholder="meeting agenda and notes..."
+                placeholder="Meeting agenda and notes..."
                 rows={3}
               />
             </div>
 
-            <div className="flex gap-4 pt-4">
-              <button
-                type="submit"
-                className="btn-modern btn-primary flex-1 flex items-center justify-center gap-2 touch-feedback"
-              >
-                <Plus size={16} />
-                <span>schedule meeting</span>
-              </button>
-              <button
-                type="button"
-                className="btn-modern flex-1 touch-feedback"
-                onClick={onClose}
-              >
-                cancel
-              </button>
+            {/* Footer */}
+            <div className="p-4 border-t border-border-subtle bg-bg-secondary shrink-0" style={{ paddingBottom: 'max(16px, env(safe-area-inset-bottom))' }}>
+              <div className="flex gap-3">
+                <Button
+                  type="submit"
+                  variant="primary"
+                  fullWidth
+                  loading={isSubmitting}
+                  icon={<Plus size={16} />}
+                >
+                  Schedule Meeting
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={onClose}
+                  className="shrink-0"
+                >
+                  Cancel
+                </Button>
+              </div>
             </div>
           </form>
         </div>

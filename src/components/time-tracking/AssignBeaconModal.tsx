@@ -1,7 +1,9 @@
-import React, { useRef, useState } from 'react';
+import { useRef, useState } from 'react';
+import { Bluetooth, RefreshCw, Square } from 'lucide-react';
 import { Modal } from '../Modal';
 import { MemberWithProfile } from '../../lib/members';
 import { parseIbeaconFromAdvertisement, BeaconData } from './utils';
+import { Select, Button } from '../ui';
 
 interface AssignBeaconModalProps {
   open: boolean;
@@ -55,7 +57,7 @@ export function AssignBeaconModal({ open, onClose, members, onAssign }: AssignBe
         } catch {}
       };
     } catch {
-      setError('failed to start scan');
+      setError('Failed to start scan');
       setScanning(false);
     }
   };
@@ -78,57 +80,70 @@ export function AssignBeaconModal({ open, onClose, members, onAssign }: AssignBe
     handleClose();
   };
 
+  const memberOptions = [
+    { value: '', label: 'Select member' },
+    ...members.map((m) => ({ value: m._id, label: m.name })),
+  ];
+
   return (
-    <Modal isOpen={open} onClose={handleClose} title="assign beacon to member" maxWidthClassName="max-w-2xl">
+    <Modal isOpen={open} onClose={handleClose} title="Assign Beacon to Member" maxWidthClassName="max-w-2xl">
       <div className="space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="block mb-2 text-sm text-text-muted">member</label>
-            <select
-              className="input-modern"
+            <label className="block mb-2 text-sm font-medium text-text-primary">Member</label>
+            <Select
               value={memberId}
               onChange={(e) => setMemberId(e.target.value)}
-            >
-              <option value="">select member</option>
-              {members.map((m) => (
-                <option key={m._id} value={m._id}>
-                  {m.name}
-                </option>
-              ))}
-            </select>
+              options={memberOptions}
+            />
           </div>
-          <div className="flex gap-2">
-            <button className="btn-modern touch-feedback" onClick={scanning ? stopScan : startScan}>
-              {scanning ? 'stop' : 'rescan'}
-            </button>
-          </div>
-          <div className="text-sm text-text-muted">
-            {scanning ? 'scanning for beacons...' : error || 'stopped'}
+          <div className="flex flex-col justify-end gap-2">
+            <div className="flex items-center gap-2">
+              <Button
+                variant="secondary"
+                size="sm"
+                icon={scanning ? <Square size={14} /> : <RefreshCw size={14} />}
+                onClick={scanning ? stopScan : startScan}
+              >
+                {scanning ? 'Stop' : 'Scan'}
+              </Button>
+              <div className="flex items-center gap-2 text-sm text-text-muted">
+                {scanning && <div className="w-2 h-2 rounded-full bg-accent-success animate-pulse" />}
+                <span>{scanning ? 'Scanning...' : error || 'Ready'}</span>
+              </div>
+            </div>
           </div>
         </div>
 
         <div className="space-y-2">
           {beacons.length === 0 && (
-            <div className="text-sm text-text-muted">no beacons yet — keep the tag close or rescan</div>
+            <div className="flex flex-col items-center justify-center py-8 text-center">
+              <div className="w-12 h-12 rounded-full bg-bg-tertiary flex items-center justify-center mb-3">
+                <Bluetooth size={24} className="text-text-muted" />
+              </div>
+              <p className="text-sm text-text-muted">No beacons found yet</p>
+              <p className="text-xs text-text-dim mt-1">Keep your beacon tag close and scan</p>
+            </div>
           )}
           {beacons.map((b) => (
             <div
               key={b.key}
-              className="flex items-center justify-between p-3 bg-glass border border-border-glass rounded-lg"
+              className="flex items-center justify-between p-4 bg-bg-tertiary border border-border rounded-lg"
             >
-              <div>
-                <div className="font-medium">{b.uuid}</div>
-                <div className="text-xs text-text-dim">
-                  major: {b.major} · minor: {b.minor}
+              <div className="min-w-0">
+                <div className="text-sm font-medium text-text-primary font-mono truncate">{b.uuid}</div>
+                <div className="text-xs text-text-muted mt-0.5">
+                  Major: {b.major} · Minor: {b.minor}
                 </div>
               </div>
-              <button
-                className="btn-modern btn-primary touch-feedback"
+              <Button
+                variant="primary"
+                size="sm"
                 disabled={!memberId}
                 onClick={() => handleAssign(b)}
               >
-                assign
-              </button>
+                Assign
+              </Button>
             </div>
           ))}
         </div>

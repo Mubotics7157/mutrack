@@ -2,6 +2,7 @@
 import { useAuthActions } from "@convex-dev/auth/react";
 import { useState } from "react";
 import { toast } from "sonner";
+import { Input, Button } from "./components/ui";
 
 export function SignInForm() {
   const { signIn } = useAuthActions();
@@ -32,35 +33,39 @@ export function SignInForm() {
           });
         }}
       >
-        <input
-          className="input-modern"
-          type="email"
-          name="email"
-          placeholder="email"
-          required
-        />
-        <input
-          className="input-modern"
-          type="password"
-          name="password"
-          placeholder="password"
-          required
-        />
-        <button className="btn-modern btn-primary w-full" type="submit" disabled={submitting}>
-          {flow === "signIn" ? "sign in" : "sign up"}
-        </button>
+        <div>
+          <label className="block mb-2 text-sm font-medium text-text-primary">Email</label>
+          <Input
+            type="email"
+            name="email"
+            placeholder="you@example.com"
+            required
+          />
+        </div>
+        <div>
+          <label className="block mb-2 text-sm font-medium text-text-primary">Password</label>
+          <Input
+            type="password"
+            name="password"
+            placeholder="••••••••"
+            required
+          />
+        </div>
+        <Button variant="primary" type="submit" disabled={submitting} className="w-full">
+          {flow === "signIn" ? "Sign In" : "Sign Up"}
+        </Button>
         <div className="text-center text-sm text-text-muted">
           <span>
             {flow === "signIn"
-              ? "don't have an account? "
-              : "already have an account? "}
+              ? "Don't have an account? "
+              : "Already have an account? "}
           </span>
           <button
             type="button"
-            className="text-accent-purple hover:text-sunset-orange hover:underline font-medium cursor-pointer transition-colors duration-300"
+            className="text-accent hover:text-accent/80 font-medium transition-colors"
             onClick={() => setFlow(flow === "signIn" ? "signUp" : "signIn")}
           >
-            {flow === "signIn" ? "sign up instead" : "sign in instead"}
+            {flow === "signIn" ? "Sign up" : "Sign in"}
           </button>
         </div>
       </form>

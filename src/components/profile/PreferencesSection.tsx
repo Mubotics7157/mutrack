@@ -1,5 +1,5 @@
-import React from 'react';
-import { Toggle } from '../ui';
+import { Bell, Bluetooth, Moon, Pencil, Trash2 } from 'lucide-react';
+import { Toggle, Button } from '../ui';
 
 interface PreferencesSectionProps {
   onEnableNotifications: () => void;
@@ -17,65 +17,96 @@ export function PreferencesSection({
   onUnpairBeacon,
 }: PreferencesSectionProps) {
   return (
-    <div className="glass-panel p-8">
-      <h2 className="text-xl font-light mb-6">preferences</h2>
+    <section className="bg-bg-secondary border border-border rounded-xl overflow-hidden">
+      <div className="px-6 py-4 border-b border-border-subtle">
+        <h2 className="text-lg font-semibold text-text-primary">Preferences</h2>
+      </div>
 
-      <div className="space-y-4">
-        <div className="flex justify-between items-center p-4 bg-glass border border-border-glass rounded-xl">
-          <div>
-            <h3 className="text-sm font-medium text-text-primary">meeting reminders</h3>
-            <p className="text-xs text-text-muted mt-1">enable web push on this device</p>
+      <div className="divide-y divide-border-subtle">
+        {/* Meeting Reminders */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4">
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 rounded-lg bg-accent/10 flex items-center justify-center shrink-0">
+              <Bell size={20} className="text-accent" />
+            </div>
+            <div>
+              <h3 className="text-sm font-medium text-text-primary">Meeting Reminders</h3>
+              <p className="text-xs text-text-muted mt-0.5">Enable web push notifications on this device</p>
+            </div>
           </div>
-          <button onClick={onEnableNotifications} className="btn-modern touch-feedback">
-            enable on this device
-          </button>
+          <Button variant="secondary" size="sm" onClick={onEnableNotifications}>
+            Enable
+          </Button>
         </div>
 
-        <div className="p-4 bg-glass border border-border-glass rounded-xl">
-          <div className="flex items-center justify-between mb-2">
-            <div>
-              <h3 className="text-sm font-medium text-text-primary">beacon pairing</h3>
-              <p className="text-xs text-text-muted mt-1">pair your iBeacon tag to your account</p>
+        {/* Beacon Pairing */}
+        <div className="p-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-lg bg-accent-orange/10 flex items-center justify-center shrink-0">
+                <Bluetooth size={20} className="text-accent-orange" />
+              </div>
+              <div>
+                <h3 className="text-sm font-medium text-text-primary">Beacon Pairing</h3>
+                <p className="text-xs text-text-muted mt-0.5">Pair your iBeacon tag to your account</p>
+              </div>
             </div>
-            <button className="btn-modern touch-feedback" onClick={onScanAndPair}>
-              pair new beacon
-            </button>
+            <Button variant="secondary" size="sm" onClick={onScanAndPair}>
+              Pair New
+            </Button>
           </div>
-          <div className="space-y-2">
-            {myBeacons?.length ? (
-              myBeacons.map((b: any) => (
+
+          {myBeacons?.length ? (
+            <div className="space-y-2 ml-0 sm:ml-[52px]">
+              {myBeacons.map((b: any) => (
                 <div
                   key={b._id}
-                  className="flex items-center justify-between p-3 bg-glass border border-border-glass rounded-lg"
+                  className="flex items-center justify-between p-3 bg-bg-tertiary border border-border rounded-lg"
                 >
-                  <div>
-                    <div className="font-medium">{b.label || b.key}</div>
-                    <div className="text-xs text-text-dim">{b.key}</div>
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium text-text-primary truncate">{b.label || b.key}</div>
+                    <div className="text-xs text-text-dim font-mono truncate">{b.key}</div>
                   </div>
-                  <div className="flex gap-2">
-                    <button className="btn-modern touch-feedback" onClick={() => onRenameBeacon(b)}>
-                      rename
-                    </button>
-                    <button className="btn-modern btn-danger touch-feedback" onClick={() => onUnpairBeacon(b)}>
-                      unpair
-                    </button>
+                  <div className="flex gap-2 shrink-0">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      icon={<Pencil size={14} />}
+                      onClick={() => onRenameBeacon(b)}
+                    >
+                      <span className="sr-only sm:not-sr-only">Rename</span>
+                    </Button>
+                    <Button
+                      variant="danger"
+                      size="sm"
+                      icon={<Trash2 size={14} />}
+                      onClick={() => onUnpairBeacon(b)}
+                    >
+                      <span className="sr-only sm:not-sr-only">Unpair</span>
+                    </Button>
                   </div>
                 </div>
-              ))
-            ) : (
-              <div className="text-sm text-text-muted">no beacons paired</div>
-            )}
-          </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-text-muted ml-0 sm:ml-[52px]">No beacons paired yet</p>
+          )}
         </div>
 
-        <div className="flex justify-between items-center p-4 bg-glass border border-border-glass rounded-xl">
-          <div>
-            <h3 className="text-sm font-medium text-text-primary">dark mode</h3>
-            <p className="text-xs text-text-muted mt-1">always enabled for optimal experience</p>
+        {/* Dark Mode */}
+        <div className="flex items-center justify-between gap-4 p-4">
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 rounded-lg bg-text-dim/10 flex items-center justify-center shrink-0">
+              <Moon size={20} className="text-text-muted" />
+            </div>
+            <div>
+              <h3 className="text-sm font-medium text-text-primary">Dark Mode</h3>
+              <p className="text-xs text-text-muted mt-0.5">Always enabled for optimal experience</p>
+            </div>
           </div>
           <Toggle enabled={true} onChange={() => {}} disabled />
         </div>
       </div>
-    </div>
+    </section>
   );
 }

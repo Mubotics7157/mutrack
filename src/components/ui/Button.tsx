@@ -1,60 +1,79 @@
 import React from 'react';
 import { cn } from '../../lib/utils';
+import { Loader2 } from 'lucide-react';
 
-export type ButtonVariant = 'default' | 'primary' | 'secondary' | 'success' | 'danger' | 'ghost';
+export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'success';
 export type ButtonSize = 'sm' | 'md' | 'lg';
 
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: ButtonVariant;
   size?: ButtonSize;
   loading?: boolean;
+  icon?: React.ReactNode;
+  iconPosition?: 'left' | 'right';
+  fullWidth?: boolean;
   children: React.ReactNode;
 }
 
 const variantClasses: Record<ButtonVariant, string> = {
-  default: 'btn-modern',
-  primary: 'btn-modern btn-primary',
-  secondary: 'btn-modern btn-secondary',
-  success: 'btn-modern btn-success',
-  danger: 'btn-modern btn-danger',
-  ghost: 'bg-transparent border-transparent hover:bg-glass hover:border-border-glass text-text-secondary hover:text-text-primary',
+  primary: 'bg-accent text-white hover:bg-accent/90 active:bg-accent/80',
+  secondary: 'bg-bg-tertiary text-text-primary border border-border hover:bg-bg-hover hover:border-border-glass-hover',
+  ghost: 'bg-transparent text-text-secondary hover:bg-bg-hover hover:text-text-primary',
+  danger: 'bg-accent-error text-white hover:bg-accent-error/90 active:bg-accent-error/80',
+  success: 'bg-accent-success text-white hover:bg-accent-success/90 active:bg-accent-success/80',
 };
 
 const sizeClasses: Record<ButtonSize, string> = {
-  sm: 'px-4 py-2 text-xs',
-  md: 'px-6 py-3 text-sm',
-  lg: 'px-8 py-4 text-base',
+  sm: 'min-h-[36px] px-3 text-sm gap-1.5',
+  md: 'min-h-[44px] px-4 text-sm gap-2',
+  lg: 'min-h-[52px] px-6 text-base gap-2',
 };
 
 export function Button({
-  variant = 'default',
+  variant = 'secondary',
   size = 'md',
   loading = false,
+  icon,
+  iconPosition = 'left',
+  fullWidth = false,
   disabled,
   className,
   children,
   ...props
 }: ButtonProps) {
+  const isDisabled = disabled || loading;
+
   return (
     <button
       className={cn(
+        // Base styles
+        'inline-flex items-center justify-center font-medium rounded-lg',
+        'transition-all duration-200 ease-out',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-bg-primary',
+        'active:scale-[0.98]',
+        // Variant
         variantClasses[variant],
+        // Size
         sizeClasses[size],
-        'touch-feedback',
-        loading && 'opacity-70 cursor-wait',
-        disabled && 'opacity-50 cursor-not-allowed',
+        // States
+        isDisabled && 'opacity-50 cursor-not-allowed pointer-events-none',
+        fullWidth && 'w-full',
         className
       )}
-      disabled={disabled || loading}
+      disabled={isDisabled}
       {...props}
     >
       {loading ? (
-        <span className="flex items-center gap-2">
-          <span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-          {children}
-        </span>
+        <>
+          <Loader2 className="w-4 h-4 animate-spin" />
+          <span>{children}</span>
+        </>
       ) : (
-        children
+        <>
+          {icon && iconPosition === 'left' && icon}
+          <span>{children}</span>
+          {icon && iconPosition === 'right' && icon}
+        </>
       )}
     </button>
   );

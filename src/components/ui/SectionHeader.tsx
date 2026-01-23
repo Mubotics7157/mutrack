@@ -5,43 +5,59 @@ interface SectionHeaderProps {
   title: string;
   subtitle?: string;
   action?: React.ReactNode;
-  gradient?: boolean;
   className?: string;
-  children?: React.ReactNode;
 }
 
 export function SectionHeader({
   title,
   subtitle,
   action,
-  gradient = false,
   className,
-  children,
 }: SectionHeaderProps) {
   return (
-    <div className={cn('section-header', className)}>
-      {gradient && (
-        <div className="absolute inset-0 bg-gradient-to-br from-sunset-orange/5 to-accent-purple/5 pointer-events-none" />
-      )}
-      <div className="relative z-10">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h2 className={cn(
-              'text-heading-lg font-semibold',
-              gradient ? 'text-gradient' : 'text-text-primary'
-            )}>
-              {title}
-            </h2>
-            {subtitle && (
-              <p className="text-body-md text-text-muted mt-1">{subtitle}</p>
-            )}
-          </div>
-          {action && (
-            <div className="flex-shrink-0">{action}</div>
-          )}
-        </div>
-        {children}
+    <div className={cn('flex items-start justify-between gap-4 mb-4', className)}>
+      <div>
+        <h2 className="text-lg font-semibold text-text-primary">
+          {title}
+        </h2>
+        {subtitle && (
+          <p className="text-sm text-text-muted mt-0.5">{subtitle}</p>
+        )}
       </div>
+      {action && (
+        <div className="shrink-0">{action}</div>
+      )}
+    </div>
+  );
+}
+
+interface PageHeaderProps {
+  title: string;
+  subtitle?: string;
+  backButton?: React.ReactNode;
+  actions?: React.ReactNode;
+  className?: string;
+}
+
+export function PageHeader({
+  title,
+  subtitle,
+  backButton,
+  actions,
+  className,
+}: PageHeaderProps) {
+  return (
+    <div className={cn('mb-6', className)}>
+      <div className="flex items-center gap-3 mb-1">
+        {backButton}
+        <h1 className="text-2xl font-semibold text-text-primary">{title}</h1>
+      </div>
+      {subtitle && (
+        <p className="text-sm text-text-secondary">{subtitle}</p>
+      )}
+      {actions && (
+        <div className="flex items-center gap-2 mt-4">{actions}</div>
+      )}
     </div>
   );
 }

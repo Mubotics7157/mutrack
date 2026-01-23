@@ -88,10 +88,10 @@ export function PurchasesPage({ member }: PurchasesPageProps) {
   );
 
   const heroStats = [
-    { label: 'pending requests', value: stats.pending, color: 'text-amber-300' },
-    { label: 'approved queue', value: stats.approved, color: 'text-emerald-300' },
-    { label: 'awaiting placement', value: stats.awaitingPlacement, color: 'text-sky-300' },
-    { label: 'orders placed', value: stats.placed, color: 'text-rose-300' },
+    { label: 'Pending', value: stats.pending, color: 'text-accent-warning' },
+    { label: 'Approved', value: stats.approved, color: 'text-accent-success' },
+    { label: 'Awaiting', value: stats.awaitingPlacement, color: 'text-accent' },
+    { label: 'Placed', value: stats.placed, color: 'text-accent-orange' },
   ];
 
   const sortedRequests = useMemo(() => {
