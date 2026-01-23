@@ -60,13 +60,34 @@ const applicationTables = {
     startTime: v.number(),
     lastSeenAt: v.number(),
     endTime: v.union(v.null(), v.number()), // null while active, number when ended
-    scannerMemberId: v.id("members"), // admin/lead operating the scanner
+    scannerMemberId: v.optional(v.id("members")), // admin/lead operating the scanner (for web scanning)
+    scannerDeviceId: v.optional(v.id("scanners")), // device scanner (for companion app)
     isManual: v.optional(v.boolean()), // true for manual sign-ins, undefined/false for beacon
   })
     .index("by_meeting", ["meetingId"])
     .index("by_member", ["memberId"])
     .index("by_meeting_and_member", ["meetingId", "memberId"]) // one active session per meeting/member
     .index("by_meeting_and_endTime", ["meetingId", "endTime"]),
+
+  scanners: defineTable({
+    name: v.string(), // Human-readable name (e.g., "Lab Room Scanner")
+    apiKeyHash: v.string(), // SHA-256 hash of API key
+    apiKeyPrefix: v.string(), // First 8 chars for display (e.g., "msk_abc1...")
+    location: v.optional(v.string()), // Physical location description
+    registeredBy: v.id("members"), // Admin who registered this scanner
+    createdAt: v.number(),
+    lastSeenAt: v.optional(v.number()), // Last heartbeat/sighting timestamp
+    isActive: v.boolean(), // Can be disabled without deletion
+    metadata: v.optional(
+      v.object({
+        platform: v.optional(v.string()), // "raspberrypi", "macos", etc.
+        version: v.optional(v.string()), // Scanner app version
+        hostname: v.optional(v.string()), // Device hostname
+      })
+    ),
+  })
+    .index("by_apiKeyHash", ["apiKeyHash"]) // For authentication lookup
+    .index("by_isActive", ["isActive"]),
 
   purchaseRequests: defineTable({
     title: v.string(),

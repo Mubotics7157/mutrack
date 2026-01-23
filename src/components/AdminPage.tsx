@@ -1,11 +1,12 @@
 import { useState } from "react";
-import { Clock, ShieldCheck } from "lucide-react";
+import { Clock, Radio, ShieldCheck } from "lucide-react";
 import { MemberWithProfile } from "../lib/members";
 import { Tabs } from "./ui";
 import { TimeTrackingContent } from "./admin/TimeTrackingContent";
+import { ScannersContent } from "./admin/ScannersContent";
 import { MemberManagementContent } from "./admin/MemberManagementContent";
 
-type TabKey = "time" | "members";
+type TabKey = "time" | "scanners" | "members";
 
 interface AdminPageProps {
   member: MemberWithProfile;
@@ -16,6 +17,7 @@ export function AdminPage({ member }: AdminPageProps) {
 
   const tabs = [
     { id: "time" as const, label: "Time Tracking", icon: <Clock size={16} /> },
+    { id: "scanners" as const, label: "Scanners", icon: <Radio size={16} /> },
     { id: "members" as const, label: "Member Management", icon: <ShieldCheck size={16} /> },
   ];
 
@@ -39,6 +41,7 @@ export function AdminPage({ member }: AdminPageProps) {
       </section>
 
       {activeTab === "time" && <TimeTrackingContent member={member} />}
+      {activeTab === "scanners" && <ScannersContent member={member} />}
       {activeTab === "members" && <MemberManagementContent member={member} />}
     </div>
   );

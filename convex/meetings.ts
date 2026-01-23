@@ -1,9 +1,27 @@
-import { query, mutation } from "./_generated/server";
+import { query, mutation, internalQuery } from "./_generated/server";
 import type { MutationCtx } from "./_generated/server";
 import { v } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { internal } from "./_generated/api";
 import { computeMeetingStartUtcMs } from "./lib/meetingTime";
+
+function computeMeetingEndUtcMs(dateMs: number, endTime: string): number {
+  const [hoursPart, minutesPart] = endTime.split(":");
+  const hours = Number.parseInt(hoursPart ?? "", 10);
+  const minutes = Number.parseInt(minutesPart ?? "", 10);
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) {
+    throw new Error(`Invalid endTime format: ${endTime}`);
+  }
+
+  const date = new Date(dateMs);
+  const year = date.getUTCFullYear();
+  const month = date.getUTCMonth();
+  const day = date.getUTCDate();
+
+  // Use same timezone offset logic as computeMeetingStartUtcMs
+  const timezoneOffsetMs = dateMs - Date.UTC(year, month, day);
+  return Date.UTC(year, month, day, hours, minutes) + timezoneOffsetMs;
+}
 
 export const getMeetings = query({
   args: {},
@@ -346,5 +364,49 @@ export const getRsvpedMeetingsForCurrentMember = query({
     }
     meetings.sort((a, b) => b.date - a.date);
     return meetings;
+  },
+});
+
+// Internal query for scanner API to find active meetings
+export const getActiveMeetings = internalQuery({
+  args: {},
+  handler: async (ctx) => {
+    const now = Date.now();
+    const BUFFER_MS = 30 * 60 * 1000; // 30 minute buffer before/after meeting
+
+    // Get meetings from recent days (to catch any ongoing)
+    const recentMeetings = await ctx.db
+      .query("meetings")
+      .withIndex("by_date")
+      .order("desc")
+      .take(100);
+
+    const activeMeetings = [];
+
+    for (const meeting of recentMeetings) {
+      try {
+        const meetingStart = computeMeetingStartUtcMs(
+          meeting.date,
+          meeting.startTime
+        );
+        const meetingEnd = computeMeetingEndUtcMs(meeting.date, meeting.endTime);
+
+        // Check if meeting is currently active (with buffer)
+        if (now >= meetingStart - BUFFER_MS && now <= meetingEnd + BUFFER_MS) {
+          activeMeetings.push({
+            _id: meeting._id,
+            title: meeting.title,
+            date: meeting.date,
+            startTime: meeting.startTime,
+            endTime: meeting.endTime,
+          });
+        }
+      } catch {
+        // Skip meetings with invalid time formats
+        continue;
+      }
+    }
+
+    return activeMeetings;
   },
 });

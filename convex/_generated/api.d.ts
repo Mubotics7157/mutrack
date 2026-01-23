@@ -25,6 +25,8 @@ import type * as members from "../members.js";
 import type * as notifications from "../notifications.js";
 import type * as purchases from "../purchases.js";
 import type * as router from "../router.js";
+import type * as scannerApi from "../scannerApi.js";
+import type * as scanners from "../scanners.js";
 
 /**
  * A utility for referencing Convex functions in your app's API.
@@ -47,6 +49,8 @@ declare const fullApi: ApiFromModules<{
   notifications: typeof notifications;
   purchases: typeof purchases;
   router: typeof router;
+  scannerApi: typeof scannerApi;
+  scanners: typeof scanners;
 }>;
 export declare const api: FilterApi<
   typeof fullApi,

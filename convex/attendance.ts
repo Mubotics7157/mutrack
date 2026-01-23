@@ -1,4 +1,4 @@
-import { query, mutation, internalQuery } from "./_generated/server";
+import { query, mutation, internalQuery, internalMutation } from "./_generated/server";
 import { v } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { internal } from "./_generated/api";
@@ -83,7 +83,8 @@ export const getActiveSessionsForMeeting = query({
       startTime: v.number(),
       lastSeenAt: v.number(),
       endTime: v.union(v.null(), v.number()),
-      scannerMemberId: v.id("members"),
+      scannerMemberId: v.optional(v.id("members")),
+      scannerDeviceId: v.optional(v.id("scanners")),
       isManual: v.optional(v.boolean()),
     })
   ),
@@ -178,7 +179,8 @@ export const getSessionsForMeeting = query({
       startTime: v.number(),
       lastSeenAt: v.number(),
       endTime: v.union(v.null(), v.number()),
-      scannerMemberId: v.id("members"),
+      scannerMemberId: v.optional(v.id("members")),
+      scannerDeviceId: v.optional(v.id("scanners")),
     })
   ),
   handler: async (ctx, args) => {
@@ -342,6 +344,64 @@ export const manualSignOut = mutation({
     if (session.endTime !== null) throw new Error("Session already ended");
 
     await ctx.db.patch(args.sessionId, { endTime: Date.now() });
+    return null;
+  },
+});
+
+// Internal mutation for scanner device beacon sightings (no user auth required)
+export const handleDeviceBeaconSighting = internalMutation({
+  args: {
+    meetingId: v.id("meetings"),
+    uuid: v.string(),
+    major: v.number(),
+    minor: v.number(),
+    scannerId: v.id("scanners"),
+  },
+  handler: async (ctx, args) => {
+    const key: string = await ctx.runQuery(
+      internal.beacons.buildKeyForIbeacon,
+      {
+        uuid: args.uuid,
+        major: args.major,
+        minor: args.minor,
+      }
+    );
+
+    const memberId = await ctx.runQuery(
+      internal.beacons.findMemberByBeaconKey,
+      { key }
+    );
+    if (!memberId) {
+      return null; // unknown beacon, ignore silently
+    }
+
+    // Find existing active session for this meeting/member
+    const existing = await ctx.db
+      .query("attendanceSessions")
+      .withIndex("by_meeting_and_member", (q) =>
+        q.eq("meetingId", args.meetingId).eq("memberId", memberId)
+      )
+      .collect();
+
+    const now = Date.now();
+    const active = existing.find((s) => s.endTime === null);
+    if (active) {
+      // Throttle updates to once per minute
+      if (now - active.lastSeenAt >= MIN_UPDATE_MS) {
+        await ctx.db.patch(active._id, { lastSeenAt: now });
+      }
+      return null;
+    }
+
+    // No active session; create a new one
+    await ctx.db.insert("attendanceSessions", {
+      meetingId: args.meetingId,
+      memberId,
+      startTime: now,
+      lastSeenAt: now,
+      endTime: null,
+      scannerDeviceId: args.scannerId,
+    });
     return null;
   },
 });
