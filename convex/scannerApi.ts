@@ -62,25 +62,7 @@ export const handleBeaconSightings = httpAction(async (ctx, request) => {
   // Find active meetings
   const activeMeetings = await ctx.runQuery(internal.meetings.getActiveMeetings, {});
 
-  if (activeMeetings.length === 0) {
-    // No active meetings, still update heartbeat and return success
-    await ctx.runMutation(internal.scanners.updateHeartbeat, {
-      scannerId: scanner._id,
-    });
-    return new Response(
-      JSON.stringify({
-        success: true,
-        processed: 0,
-        message: "No active meetings",
-      }),
-      {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      }
-    );
-  }
-
-  // Process each sighting
+  // Process each sighting - always track unpaired beacons, log attendance only if meetings active
   let processed = 0;
   for (const sighting of sightings) {
     if (
@@ -98,7 +80,7 @@ export const handleBeaconSightings = httpAction(async (ctx, request) => {
     });
 
     if (memberId) {
-      // Known beacon - log attendance for active meetings
+      // Known beacon - log attendance for active meetings (if any)
       for (const meeting of activeMeetings) {
         await ctx.runMutation(internal.attendance.handleDeviceBeaconSighting, {
           meetingId: meeting._id,
@@ -109,7 +91,7 @@ export const handleBeaconSightings = httpAction(async (ctx, request) => {
         });
       }
     } else {
-      // Unknown beacon - track it for admin to pair later
+      // Unknown beacon - always track it for admin to pair later
       await ctx.runMutation(internal.scanners.trackUnpairedBeacon, {
         uuid: sighting.uuid,
         major: sighting.major,
