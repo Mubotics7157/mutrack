@@ -86,6 +86,82 @@ export const createMeeting = mutation({
   },
 });
 
+export const createScheduledMeetings = mutation({
+  args: {
+    title: v.string(),
+    location: v.optional(v.string()),
+    startWeekDate: v.number(),
+    weeks: v.number(),
+    slots: v.array(
+      v.object({
+        dayIndex: v.number(), // 0 = Sunday, 1 = Monday, etc.
+        startTime: v.string(),
+        endTime: v.string(),
+      })
+    ),
+  },
+  handler: async (ctx, args) => {
+    const { userId } = await requireMeetingManager(ctx);
+
+    const { title, location, startWeekDate, weeks, slots } = args;
+
+    // Get the Sunday of the starting week
+    const startDate = new Date(startWeekDate);
+    const startSunday = new Date(startDate);
+    startSunday.setDate(startDate.getDate() - startDate.getDay());
+
+    const meetingIds = [];
+
+    // For each week
+    for (let week = 0; week < weeks; week++) {
+      // For each slot in the weekly schedule
+      for (const slot of slots) {
+        // Calculate the date for this slot
+        const meetingDate = new Date(startSunday);
+        meetingDate.setDate(startSunday.getDate() + week * 7 + slot.dayIndex);
+
+        // Skip if meeting date is before startWeekDate
+        if (meetingDate.getTime() < startWeekDate) continue;
+
+        const meetingId = await ctx.db.insert("meetings", {
+          title,
+          date: meetingDate.getTime(),
+          startTime: slot.startTime,
+          endTime: slot.endTime,
+          location,
+          createdBy: userId,
+          createdAt: Date.now(),
+        });
+        meetingIds.push(meetingId);
+
+        // Schedule reminder
+        const meetingStartUtcMs = computeMeetingStartUtcMs(
+          meetingDate.getTime(),
+          slot.startTime
+        );
+        const reminderTimeMs = meetingStartUtcMs - 3 * 60 * 60 * 1000;
+        const delayMs = Math.max(0, reminderTimeMs - Date.now());
+        await ctx.scheduler.runAfter(
+          delayMs,
+          internal.notifications.sendMeetingReminderNotification,
+          { meetingId }
+        );
+      }
+    }
+
+    // Send one notification for the series
+    if (meetingIds.length > 0) {
+      await ctx.scheduler.runAfter(
+        0,
+        internal.notifications.sendMeetingCreatedNotification,
+        { meetingId: meetingIds[0] }
+      );
+    }
+
+    return meetingIds.length;
+  },
+});
+
 export const updateMeeting = mutation({
   args: {
     meetingId: v.id("meetings"),
