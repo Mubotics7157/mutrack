@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
-import { toast } from "sonner";
-import ProductAutocomplete, {
-  ProductSuggestion,
-} from "./ProductAutocomplete";
+import { useEffect, useMemo, useState } from 'react';
+import { toast } from 'sonner';
+import { Plus, X } from 'lucide-react';
+import ProductAutocomplete, { ProductSuggestion } from './ProductAutocomplete';
+import { Input, Textarea, Select, Button } from '../ui';
+import { cn } from '../../lib/utils';
 
-type Priority = "low" | "medium" | "high";
+type Priority = 'low' | 'medium' | 'high';
 
 type BulkRequestRow = {
   id: string;
@@ -46,18 +47,22 @@ interface BulkRequestFormProps {
   onComplete: () => void;
 }
 
-const PRIORITY_OPTIONS: Priority[] = ["low", "medium", "high"];
+const priorityOptions = [
+  { value: 'low', label: 'Low' },
+  { value: 'medium', label: 'Medium' },
+  { value: 'high', label: 'High' },
+];
 
 function createEmptyRow(): BulkRequestRow {
   return {
     id: Math.random().toString(36).slice(2),
-    title: "",
-    description: "",
-    vendorName: "",
-    link: "",
-    quantity: "1",
-    estimatedCost: "",
-    priority: "medium",
+    title: '',
+    description: '',
+    vendorName: '',
+    link: '',
+    quantity: '1',
+    estimatedCost: '',
+    priority: 'medium',
   };
 }
 
@@ -96,7 +101,7 @@ export function BulkRequestForm({
           row.quantity,
           row.estimatedCost,
         ];
-        return fields.some((value) => value.trim() !== "");
+        return fields.some((value) => value.trim() !== '');
       }),
     [rows]
   );
@@ -108,12 +113,7 @@ export function BulkRequestForm({
   ) => {
     setRows((prev) =>
       prev.map((row) =>
-        row.id === rowId
-          ? {
-              ...row,
-              [key]: value,
-            }
-          : row
+        row.id === rowId ? { ...row, [key]: value } : row
       )
     );
   };
@@ -151,31 +151,31 @@ export function BulkRequestForm({
     const errors: RowErrorMap = {};
 
     if (activeRows.length === 0) {
-      toast.error("add at least one row with data");
+      toast.error('Add at least one row with data');
       return errors;
     }
 
     activeRows.forEach((row) => {
       const missing: string[] = [];
-      if (row.title.trim() === "") missing.push("item name");
-      if (row.description.trim() === "") missing.push("description");
-      if (row.vendorName.trim() === "") missing.push("vendor");
-      if (row.link.trim() === "") missing.push("link");
-      if (row.estimatedCost.trim() === "") missing.push("estimated cost");
-      if (row.quantity.trim() === "") missing.push("quantity");
+      if (row.title.trim() === '') missing.push('item name');
+      if (row.description.trim() === '') missing.push('description');
+      if (row.vendorName.trim() === '') missing.push('vendor');
+      if (row.link.trim() === '') missing.push('link');
+      if (row.estimatedCost.trim() === '') missing.push('estimated cost');
+      if (row.quantity.trim() === '') missing.push('quantity');
 
       const cost = parseFloat(row.estimatedCost);
       const quantity = parseInt(row.quantity, 10);
 
       if (!Number.isFinite(cost) || cost <= 0) {
-        missing.push("valid cost");
+        missing.push('valid cost');
       }
       if (!Number.isFinite(quantity) || quantity <= 0) {
-        missing.push("valid quantity");
+        missing.push('valid quantity');
       }
 
       if (missing.length > 0) {
-        errors[row.id] = `Missing ${missing.join(", ")}`;
+        errors[row.id] = `Missing ${missing.join(', ')}`;
       }
     });
 
@@ -186,7 +186,7 @@ export function BulkRequestForm({
     const errors = validateRows();
     if (Object.keys(errors).length > 0) {
       setRowErrors(errors);
-      toast.error("check the rows for missing information");
+      toast.error('Check the rows for missing information');
       return;
     }
 
@@ -217,7 +217,7 @@ export function BulkRequestForm({
             vendorId,
           });
         } catch (error) {
-          console.warn("ensureProduct failed for bulk row", error);
+          console.warn('ensureProduct failed for bulk row', error);
         }
 
         await createRequest({
@@ -233,11 +233,11 @@ export function BulkRequestForm({
         created += 1;
       }
 
-      toast.success(`created ${created} request${created === 1 ? "" : "s"}`);
+      toast.success(`Created ${created} request${created === 1 ? '' : 's'}`);
       onComplete();
     } catch (error) {
-      console.error("bulk request creation failed", error);
-      toast.error("failed to create all requests");
+      console.error('bulk request creation failed', error);
+      toast.error('Failed to create all requests');
     } finally {
       setIsSubmitting(false);
     }
@@ -256,56 +256,54 @@ export function BulkRequestForm({
           return (
             <div
               key={row.id}
-              className={`rounded-2xl border bg-void-black/40 p-4 md:p-6 ${
-                hasError ? "border-sunset-orange/60" : "border-border-glass"
-              }`}
+              className={cn(
+                'rounded-xl border bg-bg-tertiary p-4 md:p-6',
+                hasError ? 'border-accent-error/60' : 'border-border'
+              )}
             >
-              <div className="flex flex-wrap items-center justify-between gap-2 pb-4">
-                <div className="text-xs uppercase tracking-wide text-text-muted">
-                  item {index + 1}
-                </div>
+              <div className="flex items-center justify-between pb-4">
+                <span className="text-sm font-medium text-text-primary">
+                  Item {index + 1}
+                </span>
                 <button
                   type="button"
                   onClick={() => handleRemoveRow(row.id)}
-                  className="text-xs uppercase tracking-wide text-text-muted hover:text-text-primary"
+                  className="text-xs text-text-muted hover:text-accent-error transition-colors disabled:opacity-50"
                   disabled={rows.length === 1}
                 >
-                  remove
+                  <X size={16} />
                 </button>
               </div>
 
               <div className="grid gap-4 md:grid-cols-2">
                 <ProductAutocomplete
-                  label="item name *"
+                  label="Item Name *"
                   value={row.title}
-                  onChange={(value) => handleRowChange(row.id, "title", value)}
+                  onChange={(value) => handleRowChange(row.id, 'title', value)}
                   onProductSelect={(product) => handleProductSelect(row.id, product)}
                   vendorFilter={row.vendorName}
-                  placeholder="search saved products"
+                  placeholder="Search saved products"
                 />
-                <div className="space-y-2">
-                  <label className="block text-sm text-text-muted">
-                    vendor *
+                <div>
+                  <label className="block mb-2 text-sm font-medium text-text-primary">
+                    Vendor *
                   </label>
-                  <input
+                  <Input
                     value={row.vendorName}
                     onChange={(event) =>
-                      handleRowChange(row.id, "vendorName", event.target.value)
+                      handleRowChange(row.id, 'vendorName', event.target.value)
                     }
-                    className="input-modern"
                     list="bulk-vendor-suggestions"
-                    placeholder="e.g. amazon"
+                    placeholder="e.g. Amazon"
                   />
                   {vendorSuggestions.length > 0 && (
-                    <div className="flex flex-wrap gap-2 text-xs text-text-muted">
+                    <div className="flex flex-wrap gap-2 mt-2">
                       {vendorSuggestions.slice(0, 5).map((vendor) => (
                         <button
                           type="button"
                           key={`${row.id}-${vendor}`}
-                          onClick={() =>
-                            handleRowChange(row.id, "vendorName", vendor)
-                          }
-                          className="rounded-full border border-border-glass px-3 py-1 text-xs text-text-secondary hover:border-sunset-orange hover:text-sunset-orange"
+                          onClick={() => handleRowChange(row.id, 'vendorName', vendor)}
+                          className="rounded-full border border-border px-2 py-0.5 text-xs text-text-muted hover:border-accent hover:text-accent transition-colors"
                         >
                           {vendor}
                         </button>
@@ -315,88 +313,71 @@ export function BulkRequestForm({
                 </div>
               </div>
 
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <label className="block text-sm text-text-muted">
-                    description *
+              <div className="grid gap-4 md:grid-cols-2 mt-4">
+                <div>
+                  <label className="block mb-2 text-sm font-medium text-text-primary">
+                    Description *
                   </label>
-                  <textarea
+                  <Textarea
                     value={row.description}
                     onChange={(event) =>
-                      handleRowChange(row.id, "description", event.target.value)
+                      handleRowChange(row.id, 'description', event.target.value)
                     }
-                    className="input-modern h-24 resize-y"
-                    placeholder="details, specs, intended use"
+                    rows={3}
+                    placeholder="Details, specs, intended use"
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <label className="block text-sm text-text-muted">
-                      quantity *
+                  <div>
+                    <label className="block mb-2 text-sm font-medium text-text-primary">
+                      Quantity *
                     </label>
-                    <input
+                    <Input
                       type="number"
                       min={1}
                       step={1}
                       value={row.quantity}
                       onChange={(event) =>
-                        handleRowChange(row.id, "quantity", event.target.value)
+                        handleRowChange(row.id, 'quantity', event.target.value)
                       }
-                      className="input-modern"
                     />
                   </div>
-                  <div className="space-y-2">
-                    <label className="block text-sm text-text-muted">
-                      estimated cost *
+                  <div>
+                    <label className="block mb-2 text-sm font-medium text-text-primary">
+                      Est. Cost *
                     </label>
-                    <input
+                    <Input
                       type="number"
                       min={0}
                       step="0.01"
                       value={row.estimatedCost}
                       onChange={(event) =>
-                        handleRowChange(
-                          row.id,
-                          "estimatedCost",
-                          event.target.value
-                        )
+                        handleRowChange(row.id, 'estimatedCost', event.target.value)
                       }
-                      className="input-modern"
                       placeholder="0.00"
                     />
                   </div>
-                  <div className="space-y-2">
-                    <label className="block text-sm text-text-muted">
-                      priority
+                  <div>
+                    <label className="block mb-2 text-sm font-medium text-text-primary">
+                      Priority
                     </label>
-                    <select
+                    <Select
                       value={row.priority}
                       onChange={(event) =>
-                        handleRowChange(
-                          row.id,
-                          "priority",
-                          event.target.value as Priority
-                        )
+                        handleRowChange(row.id, 'priority', event.target.value as Priority)
                       }
-                      className="input-modern"
-                    >
-                      {PRIORITY_OPTIONS.map((priority) => (
-                        <option key={priority} value={priority}>
-                          {priority}
-                        </option>
-                      ))}
-                    </select>
+                      options={priorityOptions}
+                    />
                   </div>
-                  <div className="space-y-2">
-                    <label className="block text-sm text-text-muted">
-                      item link *
+                  <div>
+                    <label className="block mb-2 text-sm font-medium text-text-primary">
+                      Item Link *
                     </label>
-                    <input
+                    <Input
                       value={row.link}
                       onChange={(event) =>
-                        handleRowChange(row.id, "link", event.target.value)
+                        handleRowChange(row.id, 'link', event.target.value)
                       }
-                      className="input-modern"
                       placeholder="https://..."
                     />
                   </div>
@@ -404,7 +385,7 @@ export function BulkRequestForm({
               </div>
 
               {hasError && (
-                <p className="text-xs text-sunset-orange">{rowErrors[row.id]}</p>
+                <p className="mt-3 text-xs text-accent-error">{rowErrors[row.id]}</p>
               )}
             </div>
           );
@@ -420,30 +401,33 @@ export function BulkRequestForm({
       )}
 
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <button type="button" onClick={handleAddRow} className="btn-modern w-full md:w-auto">
-          + add row
-        </button>
+        <Button
+          type="button"
+          variant="secondary"
+          icon={<Plus size={16} />}
+          onClick={handleAddRow}
+        >
+          Add Row
+        </Button>
         <div className="flex flex-col-reverse gap-3 md:flex-row md:items-center">
-          <button
+          <Button
             type="button"
+            variant="ghost"
             onClick={onCancel}
-            className="btn-modern"
             disabled={isSubmitting}
           >
-            back to single form
-          </button>
-          <button
+            Back to Single Form
+          </Button>
+          <Button
             type="button"
+            variant="primary"
             onClick={handleSubmit}
-            className="btn-modern btn-primary"
             disabled={isSubmitting}
           >
             {isSubmitting
-              ? "saving..."
-              : `create ${activeRows.length || "0"} request${
-                  activeRows.length === 1 ? "" : "s"
-                }`}
-          </button>
+              ? 'Saving...'
+              : `Create ${activeRows.length || '0'} Request${activeRows.length === 1 ? '' : 's'}`}
+          </Button>
         </div>
       </div>
     </div>

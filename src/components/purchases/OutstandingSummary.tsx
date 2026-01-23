@@ -1,4 +1,7 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState } from 'react';
+import { ExternalLink, Package } from 'lucide-react';
+import { cn } from '../../lib/utils';
+import { Badge } from '../ui';
 
 type PurchaseRequest = {
   _id: string;
@@ -21,11 +24,11 @@ export function OutstandingSummary({ requests }: OutstandingSummaryProps) {
     () =>
       requests.filter(
         (request) =>
-          request.status === "pending" || request.status === "approved"
+          request.status === 'pending' || request.status === 'approved'
       ),
     [requests]
   );
-  const [sortMode, setSortMode] = useState<"total" | "alpha">("total");
+  const [sortMode, setSortMode] = useState<'total' | 'alpha'>('total');
 
   const vendorSummaries = useMemo(() => {
     const grouped = new Map<
@@ -34,7 +37,7 @@ export function OutstandingSummary({ requests }: OutstandingSummaryProps) {
     >();
 
     outstanding.forEach((request) => {
-      const vendorName = request.vendorName || "unknown vendor";
+      const vendorName = request.vendorName || 'Unknown Vendor';
       if (!grouped.has(vendorName)) {
         grouped.set(vendorName, {
           vendorName,
@@ -54,12 +57,11 @@ export function OutstandingSummary({ requests }: OutstandingSummaryProps) {
 
   const sortedVendors = useMemo(() => {
     const entries = [...vendorSummaries];
-    if (sortMode === "alpha") {
+    if (sortMode === 'alpha') {
       return entries.sort((a, b) =>
         a.vendorName.toLowerCase().localeCompare(b.vendorName.toLowerCase())
       );
     }
-
     return entries.sort((a, b) => b.total - a.total);
   }, [vendorSummaries, sortMode]);
 
@@ -69,18 +71,21 @@ export function OutstandingSummary({ requests }: OutstandingSummaryProps) {
   );
 
   const pendingCount = useMemo(
-    () => outstanding.filter((request) => request.status === "pending").length,
+    () => outstanding.filter((request) => request.status === 'pending').length,
     [outstanding]
   );
 
   if (outstanding.length === 0) {
     return (
-      <div className="glass-panel p-8 text-center">
+      <div className="bg-bg-secondary border border-border rounded-xl p-8 text-center">
+        <div className="w-12 h-12 rounded-full bg-bg-tertiary flex items-center justify-center mx-auto mb-3">
+          <Package size={24} className="text-text-muted" />
+        </div>
         <p className="text-text-muted">
-          all purchase requests are either ordered or fulfilled
+          All purchase requests are either ordered or fulfilled
         </p>
         <p className="mt-2 text-sm text-text-dim">
-          once new requests are submitted or approved, they will appear here with a cost breakdown.
+          Once new requests are submitted or approved, they will appear here with a cost breakdown.
         </p>
       </div>
     );
@@ -88,61 +93,63 @@ export function OutstandingSummary({ requests }: OutstandingSummaryProps) {
 
   return (
     <div className="space-y-6">
-      <div className="glass-panel p-6">
+      {/* Summary Header */}
+      <div className="bg-bg-secondary border border-border rounded-xl p-6">
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
-            <h2 className="text-2xl font-light mb-1">outstanding summary</h2>
-            <p className="text-sm text-text-muted">
-              {outstanding.length} requests awaiting purchase; {pendingCount} still pending approval.
+            <h2 className="text-xl font-semibold text-text-primary">Outstanding Summary</h2>
+            <p className="text-sm text-text-muted mt-1">
+              {outstanding.length} requests awaiting purchase · {pendingCount} still pending approval
             </p>
           </div>
           <div className="text-right">
-            <span className="text-xs uppercase tracking-wide text-text-muted">
-              estimated spend
-            </span>
-            <div className="text-3xl font-mono text-text-secondary">
+            <span className="text-xs text-text-muted">Estimated Spend</span>
+            <div className="text-2xl font-semibold text-accent-orange">
               ${overallTotal.toFixed(2)}
             </div>
           </div>
         </div>
 
-        <div className="mt-4 flex flex-wrap items-center gap-3 text-xs uppercase tracking-wide text-text-muted">
-          <span>sort vendors by</span>
-          <div className="flex overflow-hidden rounded-full border border-border-glass">
+        <div className="mt-4 flex items-center gap-3">
+          <span className="text-sm text-text-muted">Sort by:</span>
+          <div className="flex rounded-lg border border-border overflow-hidden bg-bg-tertiary">
             <button
               type="button"
-              onClick={() => setSortMode("total")}
-              className={`px-4 py-1 text-xs font-mono transition-colors ${
-                sortMode === "total"
-                  ? "bg-sunset-orange text-void-black"
-                  : "text-text-muted hover:text-text-primary"
-              }`}
+              onClick={() => setSortMode('total')}
+              className={cn(
+                'px-4 py-2 text-sm font-medium transition-colors',
+                sortMode === 'total'
+                  ? 'bg-accent text-white'
+                  : 'text-text-muted hover:text-text-primary hover:bg-bg-hover'
+              )}
             >
-              value
+              Value
             </button>
             <button
               type="button"
-              onClick={() => setSortMode("alpha")}
-              className={`px-4 py-1 text-xs font-mono transition-colors ${
-                sortMode === "alpha"
-                  ? "bg-sunset-orange text-void-black"
-                  : "text-text-muted hover:text-text-primary"
-              }`}
+              onClick={() => setSortMode('alpha')}
+              className={cn(
+                'px-4 py-2 text-sm font-medium transition-colors',
+                sortMode === 'alpha'
+                  ? 'bg-accent text-white'
+                  : 'text-text-muted hover:text-text-primary hover:bg-bg-hover'
+              )}
             >
-              name
+              Name
             </button>
           </div>
         </div>
       </div>
 
+      {/* Vendor Cards */}
       <div className="space-y-4">
         {sortedVendors.map((vendor) => {
           const vendorRequests = [...vendor.requests].sort((a, b) => {
             const statusBucket = (status: string) => {
               switch (status) {
-                case "approved":
+                case 'approved':
                   return 0;
-                case "pending":
+                case 'pending':
                   return 1;
                 default:
                   return 2;
@@ -154,28 +161,27 @@ export function OutstandingSummary({ requests }: OutstandingSummaryProps) {
           });
 
           return (
-            <div key={vendor.vendorName} className="card-modern p-0 overflow-hidden">
-              <div className="flex flex-col gap-3 border-b border-border-glass px-6 py-4 md:flex-row md:items-center md:justify-between">
+            <div key={vendor.vendorName} className="bg-bg-secondary border border-border rounded-xl overflow-hidden">
+              {/* Vendor Header */}
+              <div className="flex flex-col gap-3 border-b border-border-subtle px-6 py-4 md:flex-row md:items-center md:justify-between">
                 <div>
-                  <h3 className="text-xl font-light capitalize">
+                  <h3 className="text-lg font-semibold text-text-primary capitalize">
                     {vendor.vendorName}
                   </h3>
                   <p className="text-xs text-text-muted">
-                    {vendor.requests.length} outstanding request
-                    {vendor.requests.length === 1 ? "" : "s"}
+                    {vendor.requests.length} outstanding request{vendor.requests.length === 1 ? '' : 's'}
                   </p>
                 </div>
                 <div className="text-right">
-                  <span className="text-xs uppercase tracking-wide text-text-muted">
-                    estimated total
-                  </span>
-                  <div className="text-2xl font-mono text-text-secondary">
+                  <span className="text-xs text-text-muted">Estimated Total</span>
+                  <div className="text-xl font-semibold text-text-primary">
                     ${vendor.total.toFixed(2)}
                   </div>
                 </div>
               </div>
 
-              <div className="divide-y divide-border-glass">
+              {/* Request Items */}
+              <div className="divide-y divide-border-subtle">
                 {vendorRequests.map((request) => {
                   const quantity = request.quantity ?? 1;
                   const subtotal = request.estimatedCost * quantity;
@@ -189,28 +195,40 @@ export function OutstandingSummary({ requests }: OutstandingSummaryProps) {
                       className="flex flex-col gap-3 px-6 py-4 text-sm md:flex-row md:items-center md:justify-between"
                     >
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-text-secondary">
-                          {request.title}
-                        </p>
-                        <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-text-muted">
-                          <span className="capitalize">status: {request.status}</span>
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium text-text-primary truncate">
+                            {request.title}
+                          </p>
+                          <Badge variant={request.status === 'approved' ? 'success' : 'warning'}>
+                            {request.status}
+                          </Badge>
+                        </div>
+                        <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-text-muted">
                           <span>qty {quantity}</span>
+                          <span>·</span>
                           <span>${request.estimatedCost.toFixed(2)} ea</span>
+                          <span>·</span>
                           <span>by {request.requesterName}</span>
-                          {requestedDate && <span>{requestedDate}</span>}
+                          {requestedDate && (
+                            <>
+                              <span>·</span>
+                              <span>{requestedDate}</span>
+                            </>
+                          )}
                         </div>
                         {request.link && (
                           <a
                             href={request.link}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="mt-2 inline-flex items-center text-xs text-sunset-orange hover:text-sunset-orange/80"
+                            className="mt-2 inline-flex items-center gap-1 text-xs text-accent hover:text-accent/80 transition-colors"
                           >
-                            view item →
+                            <ExternalLink size={12} />
+                            View Item
                           </a>
                         )}
                       </div>
-                      <div className="text-right font-mono text-text-secondary">
+                      <div className="text-right font-mono font-medium text-text-primary">
                         ${subtotal.toFixed(2)}
                       </div>
                     </div>

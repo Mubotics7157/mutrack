@@ -1,6 +1,7 @@
-import { useMemo, useState } from "react";
-import { useQuery } from "convex/react";
-import { api } from "../../../convex/_generated/api";
+import { useMemo, useState } from 'react';
+import { useQuery } from 'convex/react';
+import { api } from '../../../convex/_generated/api';
+import { Input } from '../ui';
 
 interface VendorAutocompleteProps {
   label?: string;
@@ -19,7 +20,7 @@ export function VendorAutocomplete({
   onChange,
   onSelect,
   quickPicks = [],
-  placeholder = "e.g., amazon, mcmaster-carr",
+  placeholder = 'e.g., Amazon, McMaster-Carr',
   required,
   disabled,
 }: VendorAutocompleteProps) {
@@ -46,13 +47,13 @@ export function VendorAutocomplete({
   return (
     <div className="space-y-2">
       {label && (
-        <label className="block text-sm text-text-muted">
+        <label className="block text-sm font-medium text-text-primary">
           {label}
-          {required ? " *" : ""}
+          {required ? ' *' : ''}
         </label>
       )}
       <div className="relative">
-        <input
+        <Input
           type="text"
           value={value}
           onChange={(e) => onChange(e.target.value)}
@@ -61,20 +62,19 @@ export function VendorAutocomplete({
             // delay blur to allow click on suggestion
             setTimeout(() => setIsFocused(false), 150);
           }}
-          className="input-modern"
           placeholder={placeholder}
           required={required}
           disabled={disabled}
         />
         {value && isFocused && suggestions.length > 0 && (
-          <div className="absolute z-20 mt-1 max-h-48 w-full overflow-auto rounded-xl border border-border-glass bg-void-black/95 shadow-xl">
+          <div className="absolute z-20 mt-1 max-h-48 w-full overflow-auto rounded-lg border border-border bg-bg-elevated shadow-xl">
             {suggestions.map((vendor: any) => (
               <button
                 type="button"
                 key={vendor._id}
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => handleSelect(vendor.name)}
-                className="block w-full px-3 py-2 text-left text-sm text-text-secondary hover:bg-white/10"
+                className="block w-full px-3 py-2 text-left text-sm text-text-secondary hover:bg-bg-hover"
               >
                 {vendor.name}
               </button>
@@ -85,15 +85,15 @@ export function VendorAutocomplete({
 
       {normalizedQuickPicks.length > 0 && (
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs uppercase tracking-wide text-text-muted">
-            quick picks
+          <span className="text-xs text-text-muted">
+            Quick picks:
           </span>
           {normalizedQuickPicks.slice(0, 6).map((vendor) => (
             <button
               type="button"
               key={vendor.toLowerCase()}
               onClick={() => handleSelect(vendor)}
-              className="rounded-full border border-border-glass px-3 py-1 text-xs text-text-secondary hover:border-sunset-orange hover:text-sunset-orange"
+              className="rounded-full border border-border px-3 py-1 text-xs text-text-secondary hover:border-accent hover:text-accent transition-colors"
             >
               {vendor}
             </button>

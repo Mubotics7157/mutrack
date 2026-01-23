@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
-import { Modal } from "../Modal";
+import { useEffect, useState } from 'react';
+import { Modal } from '../Modal';
+import { Input, Textarea, Button } from '../ui';
 
 interface OrderPlacementModalProps {
   order: any | null;
@@ -19,16 +20,16 @@ export function OrderPlacementModal({
   onClose,
   onSubmit,
 }: OrderPlacementModalProps) {
-  const [placementNotes, setPlacementNotes] = useState("");
-  const [placementTotal, setPlacementTotal] = useState("");
+  const [placementNotes, setPlacementNotes] = useState('');
+  const [placementTotal, setPlacementTotal] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     if (order && isOpen) {
-      setPlacementNotes(order.placementNotes || "");
+      setPlacementNotes(order.placementNotes || '');
       setPlacementTotal(
-        typeof order.totalCost === "number" ? order.totalCost.toFixed(2) : ""
+        typeof order.totalCost === 'number' ? order.totalCost.toFixed(2) : ''
       );
       setFile(null);
       setIsSubmitting(false);
@@ -55,7 +56,7 @@ export function OrderPlacementModal({
     setIsSubmitting(true);
 
     const parsedTotal =
-      placementTotal.trim() === "" ? null : parseFloat(placementTotal);
+      placementTotal.trim() === '' ? null : parseFloat(placementTotal);
 
     try {
       await onSubmit({
@@ -76,105 +77,103 @@ export function OrderPlacementModal({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={`place order - ${order.vendor}`}
+      title={`Place Order - ${order.vendor}`}
       maxWidthClassName="max-w-4xl"
     >
       <form onSubmit={handleSubmit} className="space-y-6">
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <div className="rounded-xl border border-border-glass px-4 py-3">
-            <h4 className="text-xs uppercase tracking-wide text-text-muted">
-              overview
+          <div className="rounded-lg border border-border bg-bg-tertiary px-4 py-3">
+            <h4 className="text-xs uppercase tracking-wide text-text-muted mb-3">
+              Overview
             </h4>
-            <div className="mt-3 space-y-2 text-sm">
+            <div className="space-y-2 text-sm">
               <div className="flex justify-between gap-4">
-                <span className="text-text-dim">vendor</span>
-                <span className="text-text-secondary capitalize">
+                <span className="text-text-muted">Vendor</span>
+                <span className="text-text-primary capitalize">
                   {order.vendor}
                 </span>
               </div>
               <div className="flex justify-between gap-4">
-                <span className="text-text-dim">created</span>
-                <span className="text-text-secondary">
+                <span className="text-text-muted">Created</span>
+                <span className="text-text-primary">
                   {new Date(order.orderedAt).toLocaleDateString()}
                 </span>
               </div>
               <div className="flex justify-between gap-4">
-                <span className="text-text-dim">line items total</span>
-                <span className="font-mono text-text-secondary">
+                <span className="text-text-muted">Line Items Total</span>
+                <span className="font-mono text-text-primary">
                   ${lineItemsTotal.toFixed(2)}
                 </span>
               </div>
             </div>
           </div>
 
-          <div className="space-y-2 rounded-xl border border-border-glass px-4 py-3">
-            <label className="text-xs uppercase tracking-wide text-text-muted">
-              total charged
+          <div className="space-y-2 rounded-lg border border-border bg-bg-tertiary px-4 py-3">
+            <label className="block text-xs uppercase tracking-wide text-text-muted">
+              Total Charged
             </label>
-            <input
+            <Input
               type="number"
               step="0.01"
               value={placementTotal}
               onChange={(e) => setPlacementTotal(e.target.value)}
-              className="input-modern"
               placeholder={lineItemsTotal.toFixed(2)}
             />
             <p className="text-xs text-text-muted">
-              adjust if shipping, taxes, or discounts change the total cost.
+              Adjust if shipping, taxes, or discounts change the total cost.
             </p>
           </div>
         </div>
 
         {order.notes && (
-          <div className="rounded-xl border border-border-glass px-4 py-3 text-sm text-text-muted">
-            <span className="text-text-dim">request notes:</span>{" "}
-            {order.notes}
+          <div className="rounded-lg border border-border bg-bg-tertiary px-4 py-3 text-sm text-text-muted">
+            <span className="text-text-dim">Request notes:</span> {order.notes}
           </div>
         )}
 
-        <div className="space-y-2">
-          <label className="text-xs uppercase tracking-wide text-text-muted">
-            placement notes
+        <div>
+          <label className="block mb-2 text-sm font-medium text-text-primary">
+            Placement Notes
           </label>
-          <textarea
+          <Textarea
             value={placementNotes}
             onChange={(e) => setPlacementNotes(e.target.value)}
-            className="input-modern resize-none"
             rows={3}
-            placeholder="add order numbers, shipping expectations, or other context"
+            placeholder="Add order numbers, shipping expectations, or other context"
           />
         </div>
 
-        <div className="space-y-2">
-          <label className="text-xs uppercase tracking-wide text-text-muted">
-            attach confirmation (optional)
+        <div>
+          <label className="block mb-2 text-sm font-medium text-text-primary">
+            Attach Confirmation (Optional)
           </label>
           <input
             type="file"
             accept="image/*"
             onChange={(e) => setFile(e.target.files?.[0] || null)}
-            className="text-sm text-text-muted file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-mono file:bg-sunset-orange/15 file:text-sunset-orange hover:file:bg-sunset-orange/25 file:cursor-pointer"
+            className="text-sm text-text-muted file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:bg-accent/10 file:text-accent hover:file:bg-accent/20 file:cursor-pointer file:transition-colors"
           />
           {order.confirmationImageUrl && (
-            <div className="rounded-xl border border-border-glass px-4 py-3">
+            <div className="mt-3 rounded-lg border border-border bg-bg-tertiary px-4 py-3">
               <p className="text-xs uppercase tracking-wide text-text-muted mb-2">
-                current confirmation
+                Current Confirmation
               </p>
               <img
                 src={order.confirmationImageUrl}
                 alt={`Current confirmation for ${order.vendor}`}
-                className="max-w-xs rounded-lg border border-border-glass"
+                className="max-w-xs rounded-lg border border-border"
               />
             </div>
           )}
         </div>
 
-        <div className="overflow-hidden rounded-xl border border-border-glass">
-          <div className="grid grid-cols-12 bg-glass px-4 py-2 text-xs uppercase tracking-wide text-text-muted">
-            <span className="col-span-6">item</span>
-            <span className="col-span-2 text-right">qty</span>
-            <span className="col-span-2 text-right">unit</span>
-            <span className="col-span-2 text-right">subtotal</span>
+        {/* Items Table */}
+        <div className="overflow-hidden rounded-lg border border-border">
+          <div className="grid grid-cols-12 bg-bg-tertiary px-4 py-2 text-xs uppercase tracking-wide text-text-muted">
+            <span className="col-span-6">Item</span>
+            <span className="col-span-2 text-right">Qty</span>
+            <span className="col-span-2 text-right">Unit</span>
+            <span className="col-span-2 text-right">Subtotal</span>
           </div>
           {requestItems.map((request: any) => {
             const quantity = request.quantity ?? 1;
@@ -182,24 +181,24 @@ export function OrderPlacementModal({
             return (
               <div
                 key={request._id}
-                className="grid grid-cols-12 items-center border-t border-border-glass/60 px-4 py-3 text-sm"
+                className="grid grid-cols-12 items-center border-t border-border-subtle px-4 py-3 text-sm"
               >
                 <div className="col-span-6 min-w-0">
-                  <p className="truncate text-text-secondary">{request.title}</p>
+                  <p className="truncate text-text-primary">{request.title}</p>
                   <div className="mt-1 flex flex-wrap gap-3 text-xs text-text-muted">
                     {request.vendorName && (
                       <span className="capitalize">{request.vendorName}</span>
                     )}
                     <span>
-                      requested {new Date(request.requestedAt).toLocaleDateString()}
+                      Requested {new Date(request.requestedAt).toLocaleDateString()}
                     </span>
                   </div>
                 </div>
-                <div className="col-span-2 text-right font-mono">{quantity}</div>
-                <div className="col-span-2 text-right font-mono">
+                <div className="col-span-2 text-right font-mono text-text-secondary">{quantity}</div>
+                <div className="col-span-2 text-right font-mono text-text-secondary">
                   ${request.estimatedCost.toFixed(2)}
                 </div>
-                <div className="col-span-2 text-right font-mono">
+                <div className="col-span-2 text-right font-mono text-text-primary font-medium">
                   ${subtotal.toFixed(2)}
                 </div>
               </div>
@@ -207,22 +206,22 @@ export function OrderPlacementModal({
           })}
         </div>
 
-        <div className="flex items-center justify-between gap-3 border-t border-border-glass pt-4">
-          <button
+        <div className="flex items-center justify-between gap-3 border-t border-border pt-4">
+          <Button
             type="button"
+            variant="ghost"
             onClick={onClose}
-            className="btn-modern"
             disabled={isSubmitting}
           >
-            cancel
-          </button>
-          <button
+            Cancel
+          </Button>
+          <Button
             type="submit"
-            className="btn-modern btn-primary"
+            variant="primary"
             disabled={isSubmitting}
           >
-            {order.status === "pending" ? "mark as placed" : "save updates"}
-          </button>
+            {order.status === 'pending' ? 'Mark as Placed' : 'Save Updates'}
+          </Button>
         </div>
       </form>
     </Modal>

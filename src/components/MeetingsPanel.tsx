@@ -1,9 +1,11 @@
-import { useState } from "react";
-import { useQuery, useMutation } from "convex/react";
-import { api } from "../../convex/_generated/api";
-import { Doc } from "../../convex/_generated/dataModel";
-import { toast } from "sonner";
-import { MemberWithProfile } from "../lib/members";
+import { useState } from 'react';
+import { useQuery, useMutation } from 'convex/react';
+import { api } from '../../convex/_generated/api';
+import { Doc } from '../../convex/_generated/dataModel';
+import { toast } from 'sonner';
+import { Calendar, Clock, MapPin, Pencil, Plus, Trash2 } from 'lucide-react';
+import { MemberWithProfile } from '../lib/members';
+import { Input, Textarea, Button } from './ui';
 
 interface MeetingsPanelProps {
   member: MemberWithProfile;
@@ -16,19 +18,19 @@ export function MeetingsPanel({ member }: MeetingsPanelProps) {
   const deleteMeeting = useMutation(api.meetings.deleteMeeting);
 
   const [showForm, setShowForm] = useState(false);
-  const [editingMeeting, setEditingMeeting] = useState<Doc<"meetings"> | null>(
+  const [editingMeeting, setEditingMeeting] = useState<Doc<'meetings'> | null>(
     null
   );
   const [formData, setFormData] = useState({
-    title: "",
-    description: "",
-    date: "",
-    startTime: "",
-    endTime: "",
-    location: "",
+    title: '',
+    description: '',
+    date: '',
+    startTime: '',
+    endTime: '',
+    location: '',
   });
 
-  const canManageMeetings = member.role === "admin" || member.role === "lead";
+  const canManageMeetings = member.role === 'admin' || member.role === 'lead';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -46,7 +48,7 @@ export function MeetingsPanel({ member }: MeetingsPanelProps) {
           endTime: formData.endTime,
           location: formData.location || undefined,
         });
-        toast.success("Meeting updated successfully!");
+        toast.success('Meeting updated successfully!');
       } else {
         await createMeeting({
           title: formData.title,
@@ -56,65 +58,65 @@ export function MeetingsPanel({ member }: MeetingsPanelProps) {
           endTime: formData.endTime,
           location: formData.location || undefined,
         });
-        toast.success("Meeting created successfully!");
+        toast.success('Meeting created successfully!');
       }
 
       resetForm();
     } catch (error) {
-      toast.error("Failed to save meeting");
+      toast.error('Failed to save meeting');
     }
   };
 
   const resetForm = () => {
     setFormData({
-      title: "",
-      description: "",
-      date: "",
-      startTime: "",
-      endTime: "",
-      location: "",
+      title: '',
+      description: '',
+      date: '',
+      startTime: '',
+      endTime: '',
+      location: '',
     });
     setShowForm(false);
     setEditingMeeting(null);
   };
 
-  const handleEdit = (meeting: Doc<"meetings">) => {
+  const handleEdit = (meeting: Doc<'meetings'>) => {
     setFormData({
       title: meeting.title,
-      description: meeting.description || "",
-      date: new Date(meeting.date).toISOString().split("T")[0],
+      description: meeting.description || '',
+      date: new Date(meeting.date).toISOString().split('T')[0],
       startTime: meeting.startTime,
       endTime: meeting.endTime,
-      location: meeting.location || "",
+      location: meeting.location || '',
     });
     setEditingMeeting(meeting);
     setShowForm(true);
   };
 
   const handleDelete = async (meetingId: string) => {
-    if (confirm("Are you sure you want to delete this meeting?")) {
+    if (confirm('Are you sure you want to delete this meeting?')) {
       try {
         await deleteMeeting({ meetingId: meetingId as any });
-        toast.success("Meeting deleted successfully!");
+        toast.success('Meeting deleted successfully!');
       } catch (error) {
-        toast.error("Failed to delete meeting");
+        toast.error('Failed to delete meeting');
       }
     }
   };
 
   const formatDate = (timestamp: number) => {
-    return new Date(timestamp).toLocaleDateString("en-US", {
-      weekday: "long",
-      year: "numeric",
-      month: "long",
-      day: "numeric",
+    return new Date(timestamp).toLocaleDateString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
     });
   };
 
   const formatTime = (time: string) => {
-    const [hours, minutes] = time.split(":");
+    const [hours, minutes] = time.split(':');
     const hour = parseInt(hours);
-    const ampm = hour >= 12 ? "PM" : "AM";
+    const ampm = hour >= 12 ? 'PM' : 'AM';
     const displayHour = hour % 12 || 12;
     return `${displayHour}:${minutes} ${ampm}`;
   };
@@ -123,64 +125,65 @@ export function MeetingsPanel({ member }: MeetingsPanelProps) {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h3 className="text-xl font-semibold text-white">Meeting Schedule</h3>
+        <h3 className="text-xl font-semibold text-text-primary">Meeting Schedule</h3>
         {canManageMeetings && (
-          <button onClick={() => setShowForm(true)} className="btn-primary">
-            + Schedule Meeting
-          </button>
+          <Button
+            variant="primary"
+            icon={<Plus size={16} />}
+            onClick={() => setShowForm(true)}
+          >
+            Schedule Meeting
+          </Button>
         )}
       </div>
 
       {/* Meeting Form */}
       {showForm && (
-        <div className="glass-panel p-6">
-          <h4 className="text-lg font-medium text-white mb-4">
-            {editingMeeting ? "Edit Meeting" : "Schedule New Meeting"}
+        <div className="bg-bg-secondary border border-border rounded-xl p-6">
+          <h4 className="text-lg font-medium text-text-primary mb-4">
+            {editingMeeting ? 'Edit Meeting' : 'Schedule New Meeting'}
           </h4>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
+                <label className="block text-sm font-medium text-text-primary mb-2">
                   Meeting Title *
                 </label>
-                <input
+                <Input
                   type="text"
                   value={formData.title}
                   onChange={(e) =>
                     setFormData({ ...formData, title: e.target.value })
                   }
-                  className="input-field"
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
+                <label className="block text-sm font-medium text-text-primary mb-2">
                   Location
                 </label>
-                <input
+                <Input
                   type="text"
                   value={formData.location}
                   onChange={(e) =>
                     setFormData({ ...formData, location: e.target.value })
                   }
-                  className="input-field"
                   placeholder="e.g., Room 101, Workshop"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
+              <label className="block text-sm font-medium text-text-primary mb-2">
                 Description
               </label>
-              <textarea
+              <Textarea
                 value={formData.description}
                 onChange={(e) =>
                   setFormData({ ...formData, description: e.target.value })
                 }
-                className="input-field"
                 rows={3}
                 placeholder="Meeting agenda, topics to discuss..."
               />
@@ -188,62 +191,55 @@ export function MeetingsPanel({ member }: MeetingsPanelProps) {
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
+                <label className="block text-sm font-medium text-text-primary mb-2">
                   Date *
                 </label>
-                <input
+                <Input
                   type="date"
                   value={formData.date}
                   onChange={(e) =>
                     setFormData({ ...formData, date: e.target.value })
                   }
-                  className="input-field"
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
+                <label className="block text-sm font-medium text-text-primary mb-2">
                   Start Time *
                 </label>
-                <input
+                <Input
                   type="time"
                   value={formData.startTime}
                   onChange={(e) =>
                     setFormData({ ...formData, startTime: e.target.value })
                   }
-                  className="input-field"
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
+                <label className="block text-sm font-medium text-text-primary mb-2">
                   End Time *
                 </label>
-                <input
+                <Input
                   type="time"
                   value={formData.endTime}
                   onChange={(e) =>
                     setFormData({ ...formData, endTime: e.target.value })
                   }
-                  className="input-field"
                   required
                 />
               </div>
             </div>
 
-            <div className="flex space-x-3 pt-4">
-              <button type="submit" className="btn-primary">
-                {editingMeeting ? "Update Meeting" : "Schedule Meeting"}
-              </button>
-              <button
-                type="button"
-                onClick={resetForm}
-                className="btn-secondary"
-              >
+            <div className="flex gap-3 pt-4">
+              <Button type="submit" variant="primary">
+                {editingMeeting ? 'Update Meeting' : 'Schedule Meeting'}
+              </Button>
+              <Button type="button" variant="ghost" onClick={resetForm}>
                 Cancel
-              </button>
+              </Button>
             </div>
           </form>
         </div>
@@ -252,65 +248,67 @@ export function MeetingsPanel({ member }: MeetingsPanelProps) {
       {/* Meetings List */}
       <div className="space-y-4">
         {meetings.length === 0 ? (
-          <div className="glass-panel p-8 text-center">
-            <p className="text-gray-400">No meetings scheduled yet.</p>
+          <div className="bg-bg-secondary border border-border rounded-xl p-8 text-center">
+            <div className="w-12 h-12 rounded-full bg-bg-tertiary flex items-center justify-center mx-auto mb-4">
+              <Calendar size={24} className="text-text-muted" />
+            </div>
+            <p className="text-text-muted">No meetings scheduled yet.</p>
             {canManageMeetings && (
-              <p className="text-sm text-gray-500 mt-2">
+              <p className="text-sm text-text-dim mt-2">
                 Click "Schedule Meeting" to add the first meeting.
               </p>
             )}
           </div>
         ) : (
           meetings.map((meeting) => (
-            <div key={meeting._id} className="glass-panel p-6">
+            <div key={meeting._id} className="bg-bg-secondary border border-border rounded-xl p-6">
               <div className="flex items-start justify-between">
                 <div className="flex-1">
-                  <h4 className="text-lg font-medium text-white mb-2">
+                  <h4 className="text-lg font-medium text-text-primary mb-2">
                     {meeting.title}
                   </h4>
 
-                  <div className="flex flex-wrap items-center gap-4 text-sm text-gray-300 mb-3">
-                    <div className="flex items-center space-x-2">
-                      <span>📅</span>
+                  <div className="flex flex-wrap items-center gap-4 text-sm text-text-muted mb-3">
+                    <div className="flex items-center gap-2">
+                      <Calendar size={14} />
                       <span>{formatDate(meeting.date)}</span>
                     </div>
-                    <div className="flex items-center space-x-2">
-                      <span>⏰</span>
+                    <div className="flex items-center gap-2">
+                      <Clock size={14} />
                       <span>
-                        {formatTime(meeting.startTime)} -{" "}
-                        {formatTime(meeting.endTime)}
+                        {formatTime(meeting.startTime)} - {formatTime(meeting.endTime)}
                       </span>
                     </div>
                     {meeting.location && (
-                      <div className="flex items-center space-x-2">
-                        <span>📍</span>
+                      <div className="flex items-center gap-2">
+                        <MapPin size={14} />
                         <span>{meeting.location}</span>
                       </div>
                     )}
                   </div>
 
                   {meeting.description && (
-                    <p className="text-gray-400 text-sm">
+                    <p className="text-text-muted text-sm">
                       {meeting.description}
                     </p>
                   )}
                 </div>
 
                 {canManageMeetings && (
-                  <div className="flex space-x-2 ml-4">
+                  <div className="flex gap-1 ml-4">
                     <button
                       onClick={() => handleEdit(meeting)}
-                      className="text-orange-400 hover:text-orange-300 p-2 rounded-lg hover:bg-white/5 transition-colors"
+                      className="p-2 rounded-lg text-text-muted hover:text-accent-orange hover:bg-accent-orange/10 transition-colors"
                       title="Edit meeting"
                     >
-                      ✏️
+                      <Pencil size={16} />
                     </button>
                     <button
                       onClick={() => handleDelete(meeting._id)}
-                      className="text-red-400 hover:text-red-300 p-2 rounded-lg hover:bg-white/5 transition-colors"
+                      className="p-2 rounded-lg text-text-muted hover:text-accent-error hover:bg-accent-error/10 transition-colors"
                       title="Delete meeting"
                     >
-                      🗑️
+                      <Trash2 size={16} />
                     </button>
                   </div>
                 )}

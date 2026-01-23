@@ -2,6 +2,7 @@ import { Modal } from '../Modal';
 import ProductAutocomplete, { ProductSuggestion } from './ProductAutocomplete';
 import { VendorAutocomplete } from './VendorAutocomplete';
 import { BulkRequestForm } from './BulkRequestForm';
+import { Input, Textarea, Select, Button } from '../ui';
 
 export type RequestFormState = {
   title: string;
@@ -48,17 +49,23 @@ export function PurchaseRequestFormModal({
   ensureProduct,
   createRequest,
 }: PurchaseRequestFormModalProps) {
+  const priorityOptions = [
+    { value: 'low', label: 'Low' },
+    { value: 'medium', label: 'Medium' },
+    { value: 'high', label: 'High' },
+  ];
+
   return (
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={formMode === 'single' ? (editingRequestId ? 'edit purchase request' : 'new purchase request') : 'bulk add requests'}
+      title={formMode === 'single' ? (editingRequestId ? 'Edit Purchase Request' : 'New Purchase Request') : 'Bulk Add Requests'}
       maxWidthClassName={formMode === 'single' ? 'max-w-2xl' : 'max-w-5xl'}
     >
       {formMode === 'single' ? (
         <form onSubmit={onSubmit} className="space-y-4">
           <ProductAutocomplete
-            label="item/service *"
+            label="Item/Service *"
             value={form.title}
             onChange={(value) => {
               onFormChange({ ...form, title: value });
@@ -71,67 +78,59 @@ export function PurchaseRequestFormModal({
           />
 
           <div>
-            <label className="block mb-2 text-sm text-text-muted">description *</label>
-            <textarea
+            <label className="block mb-2 text-sm font-medium text-text-primary">Description *</label>
+            <Textarea
               value={form.description}
               onChange={(e) => onFormChange({ ...form, description: e.target.value })}
-              className="input-modern resize-none"
               rows={3}
               required
-              placeholder="detailed description, specifications, intended use..."
+              placeholder="Detailed description, specifications, intended use..."
             />
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block mb-2 text-sm text-text-muted">estimated cost *</label>
-              <input
+              <label className="block mb-2 text-sm font-medium text-text-primary">Estimated Cost *</label>
+              <Input
                 type="number"
                 step="0.01"
                 value={form.estimatedCost}
                 onChange={(e) => onFormChange({ ...form, estimatedCost: e.target.value })}
-                className="input-modern"
                 required
                 placeholder="0.00"
               />
             </div>
 
             <div>
-              <label className="block mb-2 text-sm text-text-muted">priority</label>
-              <select
+              <label className="block mb-2 text-sm font-medium text-text-primary">Priority</label>
+              <Select
                 value={form.priority}
                 onChange={(e) => onFormChange({ ...form, priority: e.target.value as any })}
-                className="input-modern"
-              >
-                <option value="low">low</option>
-                <option value="medium">medium</option>
-                <option value="high">high</option>
-              </select>
+                options={priorityOptions}
+              />
             </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block mb-2 text-sm text-text-muted">item link *</label>
-              <input
+              <label className="block mb-2 text-sm font-medium text-text-primary">Item Link *</label>
+              <Input
                 type="url"
                 value={form.link}
                 onChange={(e) => onFormChange({ ...form, link: e.target.value })}
-                className="input-modern"
                 required
                 placeholder="https://..."
               />
             </div>
 
             <div>
-              <label className="block mb-2 text-sm text-text-muted">quantity *</label>
-              <input
+              <label className="block mb-2 text-sm font-medium text-text-primary">Quantity *</label>
+              <Input
                 type="number"
                 min={1}
                 step={1}
                 value={form.quantity}
                 onChange={(e) => onFormChange({ ...form, quantity: e.target.value })}
-                className="input-modern"
                 required
                 placeholder="1"
               />
@@ -139,7 +138,7 @@ export function PurchaseRequestFormModal({
           </div>
 
           <VendorAutocomplete
-            label="vendor"
+            label="Vendor"
             value={form.vendorName}
             onChange={(name) => {
               onProductClear();
@@ -151,21 +150,21 @@ export function PurchaseRequestFormModal({
           />
 
           <div className="flex flex-col gap-3 pt-4">
-            <div className="flex gap-4">
-              <button type="submit" className="btn-modern btn-primary flex-1 touch-feedback">
-                {editingRequestId ? 'save changes' : 'submit request'}
-              </button>
-              <button type="button" onClick={onClose} className="btn-modern flex-1 touch-feedback">
-                cancel
-              </button>
+            <div className="flex gap-3">
+              <Button type="submit" variant="primary" className="flex-1">
+                {editingRequestId ? 'Save Changes' : 'Submit Request'}
+              </Button>
+              <Button type="button" variant="ghost" onClick={onClose} className="flex-1">
+                Cancel
+              </Button>
             </div>
             {!editingRequestId && (
               <button
                 type="button"
                 onClick={() => onFormModeChange('bulk')}
-                className="text-xs uppercase tracking-wide text-sunset-orange hover:text-sunset-orange/80"
+                className="text-xs text-accent hover:text-accent/80 transition-colors"
               >
-                need to add multiple items? switch to bulk add
+                Need to add multiple items? Switch to bulk add
               </button>
             )}
           </div>

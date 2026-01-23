@@ -1,6 +1,7 @@
-import { useMemo, useState } from "react";
-import { useQuery } from "convex/react";
-import { api } from "../../../convex/_generated/api";
+import { useMemo, useState } from 'react';
+import { useQuery } from 'convex/react';
+import { api } from '../../../convex/_generated/api';
+import { Input } from '../ui';
 
 export interface ProductSuggestion {
   _id: string;
@@ -30,7 +31,7 @@ export function ProductAutocomplete({
   onChange,
   onProductSelect,
   vendorFilter,
-  placeholder = "search existing products",
+  placeholder = 'Search existing products',
   disabled,
 }: ProductAutocompleteProps) {
   const [isFocused, setIsFocused] = useState(false);
@@ -43,7 +44,7 @@ export function ProductAutocomplete({
     if (!vendorFilter) return suggestions as ProductSuggestion[];
     const normalizedVendor = vendorFilter.trim().toLowerCase();
     return (suggestions as ProductSuggestion[]).filter((product) =>
-      (product.vendorName || "").toLowerCase().includes(normalizedVendor)
+      (product.vendorName || '').toLowerCase().includes(normalizedVendor)
     );
   }, [suggestions, vendorFilter]);
 
@@ -55,36 +56,35 @@ export function ProductAutocomplete({
 
   return (
     <div className="space-y-2">
-      {label && <label className="block text-sm text-text-muted">{label}</label>}
+      {label && <label className="block text-sm font-medium text-text-primary">{label}</label>}
       <div className="relative">
-        <input
+        <Input
           type="text"
           value={value}
           onChange={(e) => onChange(e.target.value)}
           onFocus={() => setIsFocused(true)}
           onBlur={() => setTimeout(() => setIsFocused(false), 150)}
-          className="input-modern"
           placeholder={placeholder}
           disabled={disabled}
         />
         {value && isFocused && filteredSuggestions.length > 0 && (
-          <div className="absolute z-30 mt-1 max-h-56 w-full overflow-auto rounded-xl border border-border-glass bg-void-black/95 shadow-xl">
+          <div className="absolute z-30 mt-1 max-h-56 w-full overflow-auto rounded-lg border border-border bg-bg-elevated shadow-xl">
             {filteredSuggestions.map((product) => (
               <button
                 type="button"
                 key={product._id}
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => handleSelect(product)}
-                className="block w-full px-3 py-2 text-left text-sm text-text-secondary hover:bg-white/10"
+                className="block w-full px-3 py-2.5 text-left text-sm hover:bg-bg-hover"
               >
                 <div className="flex items-center justify-between">
-                  <span className="truncate font-medium">{product.name}</span>
+                  <span className="truncate font-medium text-text-primary">{product.name}</span>
                   <span className="ml-3 text-xs text-text-muted">
                     {product.vendorName}
                   </span>
                 </div>
                 <div className="mt-1 text-xs text-text-muted">
-                  ${product.estimatedCost.toFixed(2)} • qty {product.quantity}
+                  ${product.estimatedCost.toFixed(2)} · qty {product.quantity}
                 </div>
               </button>
             ))}

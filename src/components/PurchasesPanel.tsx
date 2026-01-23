@@ -1,17 +1,20 @@
-import { useState } from "react";
-import { useQuery, useMutation } from "convex/react";
-import { api } from "../../convex/_generated/api";
-import { toast } from "sonner";
-import { MemberWithProfile } from "../lib/members";
+import { useState } from 'react';
+import { useQuery, useMutation } from 'convex/react';
+import { api } from '../../convex/_generated/api';
+import { toast } from 'sonner';
+import { ExternalLink, Plus, ShoppingCart } from 'lucide-react';
+import { MemberWithProfile } from '../lib/members';
+import { Input, Textarea, Select, Button, Badge } from './ui';
+import { cn } from '../lib/utils';
 
 interface PurchasesPanelProps {
   member: MemberWithProfile;
 }
 
-type ViewType = "requests" | "orders";
+type ViewType = 'requests' | 'orders';
 
 export function PurchasesPanel({ member }: PurchasesPanelProps) {
-  const [activeView, setActiveView] = useState<ViewType>("requests");
+  const [activeView, setActiveView] = useState<ViewType>('requests');
   const [showRequestForm, setShowRequestForm] = useState(false);
   const [showOrderForm, setShowOrderForm] = useState(false);
   const [selectedRequestIds, setSelectedRequestIds] = useState<Array<string>>(
@@ -30,36 +33,33 @@ export function PurchasesPanel({ member }: PurchasesPanelProps) {
   );
   const ensureVendor = useMutation(api.purchases.ensureVendor);
 
-  const canManageOrders = member.role === "admin" || member.role === "lead";
+  const canManageOrders = member.role === 'admin' || member.role === 'lead';
 
   const [requestForm, setRequestForm] = useState({
-    title: "",
-    description: "",
-    estimatedCost: "",
-    priority: "medium" as "low" | "medium" | "high",
-    link: "",
-    quantity: "1",
-    vendorName: "",
+    title: '',
+    description: '',
+    estimatedCost: '',
+    priority: 'medium' as 'low' | 'medium' | 'high',
+    link: '',
+    quantity: '1',
+    vendorName: '',
   });
 
   const [orderForm, setOrderForm] = useState({
-    vendor: "",
-    cartLink: "",
-    totalCost: "",
-    notes: "",
+    vendor: '',
+    cartLink: '',
+    totalCost: '',
+    notes: '',
   });
 
-  // Vendor autocomplete for request form
   const vendorResults =
     useQuery(api.purchases.searchVendors, { q: requestForm.vendorName }) || [];
-  // Vendor autocomplete for order form
   const vendorResultsForOrder =
     useQuery(api.purchases.searchVendors, { q: orderForm.vendor }) || [];
 
   const handleRequestSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      // Ensure vendor exists and get id
       const vendorId = await ensureVendor({
         name: requestForm.vendorName.trim(),
       });
@@ -69,28 +69,28 @@ export function PurchasesPanel({ member }: PurchasesPanelProps) {
         estimatedCost: parseFloat(requestForm.estimatedCost),
         priority: requestForm.priority,
         link: requestForm.link,
-        quantity: parseInt(requestForm.quantity || "1", 10),
+        quantity: parseInt(requestForm.quantity || '1', 10),
         vendorId,
       });
-      toast.success("Purchase request submitted!");
+      toast.success('Purchase request submitted!');
       setRequestForm({
-        title: "",
-        description: "",
-        estimatedCost: "",
-        priority: "medium",
-        link: "",
-        quantity: "1",
-        vendorName: "",
+        title: '',
+        description: '',
+        estimatedCost: '',
+        priority: 'medium',
+        link: '',
+        quantity: '1',
+        vendorName: '',
       });
       setShowRequestForm(false);
     } catch (error) {
-      toast.error("Failed to submit request");
+      toast.error('Failed to submit request');
     }
   };
 
   const handleStatusUpdate = async (
     requestId: string,
-    status: "approved" | "rejected",
+    status: 'approved' | 'rejected',
     reason?: string
   ) => {
     try {
@@ -109,7 +109,6 @@ export function PurchasesPanel({ member }: PurchasesPanelProps) {
     e.preventDefault();
 
     try {
-      // Ensure vendor exists for autocomplete consistency
       await ensureVendor({ name: orderForm.vendor.trim() });
       await createOrder({
         requestIds: selectedRequestIds as any,
@@ -118,12 +117,12 @@ export function PurchasesPanel({ member }: PurchasesPanelProps) {
         totalCost: parseFloat(orderForm.totalCost),
         notes: orderForm.notes || undefined,
       });
-      toast.success("Purchase order created!");
-      setOrderForm({ vendor: "", cartLink: "", totalCost: "", notes: "" });
+      toast.success('Purchase order created!');
+      setOrderForm({ vendor: '', cartLink: '', totalCost: '', notes: '' });
       setShowOrderForm(false);
       setSelectedRequestIds([]);
     } catch (error) {
-      toast.error("Failed to create order");
+      toast.error('Failed to create order');
     }
   };
 
@@ -132,8 +131,8 @@ export function PurchasesPanel({ member }: PurchasesPanelProps) {
       const uploadUrl = await generateUploadUrl();
 
       const result = await fetch(uploadUrl, {
-        method: "POST",
-        headers: { "Content-Type": file.type },
+        method: 'POST',
+        headers: { 'Content-Type': file.type },
         body: file,
       });
 
@@ -144,39 +143,36 @@ export function PurchasesPanel({ member }: PurchasesPanelProps) {
         confirmationImageId: storageId,
       });
 
-      toast.success("Order confirmation uploaded!");
+      toast.success('Order confirmation uploaded!');
     } catch (error) {
-      toast.error("Failed to upload confirmation");
+      toast.error('Failed to upload confirmation');
     }
   };
 
-  const getStatusColor = (status: string) => {
+  const getStatusVariant = (status: string): 'default' | 'success' | 'warning' | 'error' => {
     switch (status) {
-      case "pending":
-        return "bg-yellow-500/20 text-yellow-300 border-yellow-500/30";
-      case "approved":
-        return "bg-green-500/20 text-green-300 border-green-500/30";
-      case "ordered":
-        return "bg-blue-500/20 text-blue-300 border-blue-500/30";
-      case "fulfilled":
-        return "bg-purple-500/20 text-purple-300 border-purple-500/30";
-      case "rejected":
-        return "bg-red-500/20 text-red-300 border-red-500/30";
+      case 'pending':
+        return 'warning';
+      case 'approved':
+      case 'fulfilled':
+        return 'success';
+      case 'rejected':
+        return 'error';
       default:
-        return "bg-gray-500/20 text-gray-300 border-gray-500/30";
+        return 'default';
     }
   };
 
-  const getPriorityColor = (priority: string) => {
+  const getPriorityVariant = (priority: string): 'default' | 'success' | 'warning' | 'error' => {
     switch (priority) {
-      case "high":
-        return "bg-red-500/20 text-red-300 border-red-500/30";
-      case "medium":
-        return "bg-yellow-500/20 text-yellow-300 border-yellow-500/30";
-      case "low":
-        return "bg-green-500/20 text-green-300 border-green-500/30";
+      case 'high':
+        return 'error';
+      case 'medium':
+        return 'warning';
+      case 'low':
+        return 'success';
       default:
-        return "bg-gray-500/20 text-gray-300 border-gray-500/30";
+        return 'default';
     }
   };
 
@@ -185,32 +181,34 @@ export function PurchasesPanel({ member }: PurchasesPanelProps) {
       {/* Header with View Toggle */}
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-xl font-semibold text-white">
+          <h3 className="text-xl font-semibold text-text-primary">
             Purchase Management
           </h3>
-          <p className="text-gray-400 text-sm mt-1">
+          <p className="text-text-muted text-sm mt-1">
             Track requests and orders for team equipment
           </p>
         </div>
 
-        <div className="flex space-x-1 bg-black/30 rounded-lg p-1">
+        <div className="flex gap-1 bg-bg-tertiary rounded-lg p-1">
           <button
-            onClick={() => setActiveView("requests")}
-            className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${
-              activeView === "requests"
-                ? "bg-orange-500/15 text-orange-300"
-                : "text-gray-400 hover:text-white"
-            }`}
+            onClick={() => setActiveView('requests')}
+            className={cn(
+              'px-4 py-2 rounded-md text-sm font-medium transition-all',
+              activeView === 'requests'
+                ? 'bg-accent/15 text-accent'
+                : 'text-text-muted hover:text-text-primary'
+            )}
           >
             Requests ({requests.length})
           </button>
           <button
-            onClick={() => setActiveView("orders")}
-            className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${
-              activeView === "orders"
-                ? "bg-orange-500/15 text-orange-300"
-                : "text-gray-400 hover:text-white"
-            }`}
+            onClick={() => setActiveView('orders')}
+            className={cn(
+              'px-4 py-2 rounded-md text-sm font-medium transition-all',
+              activeView === 'orders'
+                ? 'bg-accent/15 text-accent'
+                : 'text-text-muted hover:text-text-primary'
+            )}
           >
             Orders ({orders.length})
           </button>
@@ -218,54 +216,52 @@ export function PurchasesPanel({ member }: PurchasesPanelProps) {
       </div>
 
       {/* Action Buttons */}
-      <div className="flex space-x-3">
-        <button
+      <div className="flex gap-3">
+        <Button
+          variant="primary"
+          icon={<Plus size={16} />}
           onClick={() => setShowRequestForm(true)}
-          className="btn-primary"
         >
-          + New Request
-        </button>
-        {canManageOrders && activeView === "requests" && (
-          <button
-            onClick={() => {
-              setShowOrderForm(true);
-            }}
-            className="btn-secondary"
+          New Request
+        </Button>
+        {canManageOrders && activeView === 'requests' && (
+          <Button
+            variant="secondary"
+            onClick={() => setShowOrderForm(true)}
           >
             Create Order
-          </button>
+          </Button>
         )}
       </div>
 
       {/* Request Form */}
       {showRequestForm && (
-        <div className="glass-panel p-6">
-          <h4 className="text-lg font-medium text-white mb-4">
+        <div className="bg-bg-secondary border border-border rounded-xl p-6">
+          <h4 className="text-lg font-medium text-text-primary mb-4">
             New Purchase Request
           </h4>
 
           <form onSubmit={handleRequestSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
+              <label className="block text-sm font-medium text-text-primary mb-2">
                 Item/Service Title *
               </label>
-              <input
+              <Input
                 type="text"
                 value={requestForm.title}
                 onChange={(e) =>
                   setRequestForm({ ...requestForm, title: e.target.value })
                 }
-                className="input-field"
                 required
                 placeholder="e.g., Arduino Uno R3, Workshop Tools"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
+              <label className="block text-sm font-medium text-text-primary mb-2">
                 Description *
               </label>
-              <textarea
+              <Textarea
                 value={requestForm.description}
                 onChange={(e) =>
                   setRequestForm({
@@ -273,7 +269,6 @@ export function PurchasesPanel({ member }: PurchasesPanelProps) {
                     description: e.target.value,
                   })
                 }
-                className="input-field"
                 rows={3}
                 required
                 placeholder="Detailed description, specifications, intended use..."
@@ -282,26 +277,25 @@ export function PurchasesPanel({ member }: PurchasesPanelProps) {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
+                <label className="block text-sm font-medium text-text-primary mb-2">
                   Item Link *
                 </label>
-                <input
+                <Input
                   type="url"
                   value={requestForm.link}
                   onChange={(e) =>
                     setRequestForm({ ...requestForm, link: e.target.value })
                   }
-                  className="input-field"
                   required
                   placeholder="https://..."
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
+                <label className="block text-sm font-medium text-text-primary mb-2">
                   Quantity *
                 </label>
-                <input
+                <Input
                   type="number"
                   min={1}
                   step={1}
@@ -309,7 +303,6 @@ export function PurchasesPanel({ member }: PurchasesPanelProps) {
                   onChange={(e) =>
                     setRequestForm({ ...requestForm, quantity: e.target.value })
                   }
-                  className="input-field"
                   required
                   placeholder="1"
                 />
@@ -317,11 +310,11 @@ export function PurchasesPanel({ member }: PurchasesPanelProps) {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
+              <label className="block text-sm font-medium text-text-primary mb-2">
                 Vendor *
               </label>
               <div className="relative">
-                <input
+                <Input
                   type="text"
                   value={requestForm.vendorName}
                   onChange={(e) =>
@@ -330,12 +323,11 @@ export function PurchasesPanel({ member }: PurchasesPanelProps) {
                       vendorName: e.target.value,
                     })
                   }
-                  className="input-field"
                   required
                   placeholder="e.g., Amazon, McMaster-Carr"
                 />
                 {requestForm.vendorName && vendorResults.length > 0 && (
-                  <div className="absolute z-10 mt-1 w-full bg-black/90 border border-white/10 rounded-lg max-h-48 overflow-auto">
+                  <div className="absolute z-10 mt-1 w-full bg-bg-elevated border border-border rounded-lg max-h-48 overflow-auto shadow-xl">
                     {vendorResults.map((v: any) => (
                       <button
                         type="button"
@@ -343,7 +335,7 @@ export function PurchasesPanel({ member }: PurchasesPanelProps) {
                         onClick={() =>
                           setRequestForm({ ...requestForm, vendorName: v.name })
                         }
-                        className="block w-full text-left px-3 py-2 hover:bg-white/10 text-sm text-gray-200"
+                        className="block w-full text-left px-3 py-2 hover:bg-bg-hover text-sm text-text-secondary"
                       >
                         {v.name}
                       </button>
@@ -355,10 +347,10 @@ export function PurchasesPanel({ member }: PurchasesPanelProps) {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
+                <label className="block text-sm font-medium text-text-primary mb-2">
                   Estimated Cost *
                 </label>
-                <input
+                <Input
                   type="number"
                   step="0.01"
                   value={requestForm.estimatedCost}
@@ -368,17 +360,16 @@ export function PurchasesPanel({ member }: PurchasesPanelProps) {
                       estimatedCost: e.target.value,
                     })
                   }
-                  className="input-field"
                   required
                   placeholder="0.00"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
+                <label className="block text-sm font-medium text-text-primary mb-2">
                   Priority
                 </label>
-                <select
+                <Select
                   value={requestForm.priority}
                   onChange={(e) =>
                     setRequestForm({
@@ -386,26 +377,26 @@ export function PurchasesPanel({ member }: PurchasesPanelProps) {
                       priority: e.target.value as any,
                     })
                   }
-                  className="input-field"
-                >
-                  <option value="low">Low</option>
-                  <option value="medium">Medium</option>
-                  <option value="high">High</option>
-                </select>
+                  options={[
+                    { value: 'low', label: 'Low' },
+                    { value: 'medium', label: 'Medium' },
+                    { value: 'high', label: 'High' },
+                  ]}
+                />
               </div>
             </div>
 
-            <div className="flex space-x-3 pt-4">
-              <button type="submit" className="btn-primary">
+            <div className="flex gap-3 pt-4">
+              <Button type="submit" variant="primary">
                 Submit Request
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
+                variant="ghost"
                 onClick={() => setShowRequestForm(false)}
-                className="btn-secondary"
               >
                 Cancel
-              </button>
+              </Button>
             </div>
           </form>
         </div>
@@ -413,24 +404,27 @@ export function PurchasesPanel({ member }: PurchasesPanelProps) {
 
       {/* Order Form */}
       {showOrderForm && (
-        <div className="glass-panel p-6">
-          <h4 className="text-lg font-medium text-white mb-4">
+        <div className="bg-bg-secondary border border-border rounded-xl p-6">
+          <h4 className="text-lg font-medium text-text-primary mb-4">
             Create Purchase Order
           </h4>
 
           <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-300 mb-2">
+            <label className="block text-sm font-medium text-text-primary mb-2">
               Select Approved Requests (optional)
             </label>
-            <div className="max-h-60 overflow-auto border border-white/10 rounded-lg divide-y divide-white/10">
+            <div className="max-h-60 overflow-auto border border-border rounded-lg divide-y divide-border-subtle">
               {requests
-                .filter((r) => r.status === "approved")
+                .filter((r) => r.status === 'approved')
                 .map((r) => {
                   const checked = selectedRequestIds.includes(r._id);
                   return (
                     <label
                       key={r._id}
-                      className="flex items-center gap-3 px-3 py-2 text-sm text-gray-200"
+                      className={cn(
+                        'flex items-center gap-3 px-3 py-2 text-sm cursor-pointer transition-colors',
+                        checked ? 'bg-accent/5' : 'hover:bg-bg-tertiary'
+                      )}
                     >
                       <input
                         type="checkbox"
@@ -447,9 +441,10 @@ export function PurchasesPanel({ member }: PurchasesPanelProps) {
                             );
                           }
                         }}
+                        className="w-4 h-4 rounded border-border text-accent focus:ring-accent"
                       />
-                      <span className="flex-1 truncate">{r.title}</span>
-                      <span className="text-gray-400">
+                      <span className="flex-1 truncate text-text-primary">{r.title}</span>
+                      <span className="text-text-muted font-mono">
                         ${r.estimatedCost.toFixed(2)}
                       </span>
                     </label>
@@ -461,22 +456,21 @@ export function PurchasesPanel({ member }: PurchasesPanelProps) {
           <form onSubmit={handleOrderSubmit} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
+                <label className="block text-sm font-medium text-text-primary mb-2">
                   Vendor *
                 </label>
                 <div className="relative">
-                  <input
+                  <Input
                     type="text"
                     value={orderForm.vendor}
                     onChange={(e) =>
                       setOrderForm({ ...orderForm, vendor: e.target.value })
                     }
-                    className="input-field"
                     required
                     placeholder="e.g., Amazon, McMaster-Carr"
                   />
                   {orderForm.vendor && vendorResultsForOrder.length > 0 && (
-                    <div className="absolute z-10 mt-1 w-full bg-black/90 border border-white/10 rounded-lg max-h-48 overflow-auto">
+                    <div className="absolute z-10 mt-1 w-full bg-bg-elevated border border-border rounded-lg max-h-48 overflow-auto shadow-xl">
                       {vendorResultsForOrder.map((v: any) => (
                         <button
                           type="button"
@@ -484,7 +478,7 @@ export function PurchasesPanel({ member }: PurchasesPanelProps) {
                           onClick={() =>
                             setOrderForm({ ...orderForm, vendor: v.name })
                           }
-                          className="block w-full text-left px-3 py-2 hover:bg-white/10 text-sm text-gray-200"
+                          className="block w-full text-left px-3 py-2 hover:bg-bg-hover text-sm text-text-secondary"
                         >
                           {v.name}
                         </button>
@@ -495,17 +489,16 @@ export function PurchasesPanel({ member }: PurchasesPanelProps) {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
+                <label className="block text-sm font-medium text-text-primary mb-2">
                   Total Cost *
                 </label>
-                <input
+                <Input
                   type="number"
                   step="0.01"
                   value={orderForm.totalCost}
                   onChange={(e) =>
                     setOrderForm({ ...orderForm, totalCost: e.target.value })
                   }
-                  className="input-field"
                   required
                   placeholder="0.00"
                 />
@@ -513,131 +506,129 @@ export function PurchasesPanel({ member }: PurchasesPanelProps) {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
+              <label className="block text-sm font-medium text-text-primary mb-2">
                 Cart/Order Link
               </label>
-              <input
+              <Input
                 type="url"
                 value={orderForm.cartLink}
                 onChange={(e) =>
                   setOrderForm({ ...orderForm, cartLink: e.target.value })
                 }
-                className="input-field"
                 placeholder="https://..."
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
+              <label className="block text-sm font-medium text-text-primary mb-2">
                 Notes
               </label>
-              <textarea
+              <Textarea
                 value={orderForm.notes}
                 onChange={(e) =>
                   setOrderForm({ ...orderForm, notes: e.target.value })
                 }
-                className="input-field"
                 rows={2}
                 placeholder="Additional notes, special instructions..."
               />
             </div>
 
-            <div className="flex space-x-3 pt-4">
-              <button type="submit" className="btn-primary">
+            <div className="flex gap-3 pt-4">
+              <Button type="submit" variant="primary">
                 Create Order
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
+                variant="ghost"
                 onClick={() => {
                   setShowOrderForm(false);
                   setSelectedRequestIds([]);
                 }}
-                className="btn-secondary"
               >
                 Cancel
-              </button>
+              </Button>
             </div>
           </form>
         </div>
       )}
 
       {/* Content based on active view */}
-      {activeView === "requests" ? (
+      {activeView === 'requests' ? (
         <div className="space-y-4">
           {requests.length === 0 ? (
-            <div className="glass-panel p-8 text-center">
-              <p className="text-gray-400">No purchase requests yet.</p>
-              <p className="text-sm text-gray-500 mt-2">
+            <div className="bg-bg-secondary border border-border rounded-xl p-8 text-center">
+              <div className="w-12 h-12 rounded-full bg-bg-tertiary flex items-center justify-center mx-auto mb-4">
+                <ShoppingCart size={24} className="text-text-muted" />
+              </div>
+              <p className="text-text-muted">No purchase requests yet.</p>
+              <p className="text-sm text-text-dim mt-2">
                 Click "New Request" to submit your first purchase request.
               </p>
             </div>
           ) : (
             requests.map((request) => (
-              <div key={request._id} className="glass-panel p-6">
+              <div key={request._id} className="bg-bg-secondary border border-border rounded-xl p-6">
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex-1">
-                    <h4 className="text-lg font-medium text-white mb-2">
+                    <h4 className="text-lg font-medium text-text-primary mb-2">
                       {request.title}
                     </h4>
-                    <p className="text-gray-400 text-sm mb-3">
+                    <p className="text-text-muted text-sm mb-3">
                       {request.description}
                     </p>
 
-                    <div className="flex flex-wrap items-center gap-3 text-sm">
-                      <span
-                        className={`px-2 py-1 rounded-full text-xs font-medium border ${getStatusColor(request.status)}`}
-                      >
+                    <div className="flex flex-wrap items-center gap-2 text-sm">
+                      <Badge variant={getStatusVariant(request.status)}>
                         {request.status.charAt(0).toUpperCase() +
                           request.status.slice(1)}
-                      </span>
-                      <span
-                        className={`px-2 py-1 rounded-full text-xs font-medium border ${getPriorityColor(request.priority)}`}
-                      >
+                      </Badge>
+                      <Badge variant={getPriorityVariant(request.priority)}>
                         {request.priority.charAt(0).toUpperCase() +
-                          request.priority.slice(1)}{" "}
+                          request.priority.slice(1)}{' '}
                         Priority
-                      </span>
-                      <span className="text-gray-400">
+                      </Badge>
+                      <span className="text-text-muted font-mono">
                         ${request.estimatedCost.toFixed(2)}
                       </span>
-                      <span className="text-gray-400">x{request.quantity}</span>
+                      <span className="text-text-muted">x{request.quantity}</span>
                       <a
-                        className="text-orange-400 underline"
+                        className="inline-flex items-center gap-1 text-accent hover:text-accent/80 transition-colors"
                         href={request.link}
                         target="_blank"
                         rel="noreferrer"
                       >
-                        link
+                        <ExternalLink size={12} />
+                        Link
                       </a>
-                      <span className="text-gray-400">
-                        vendor: {request.vendorName}
+                      <span className="text-text-muted capitalize">
+                        {request.vendorName}
                       </span>
-                      <span className="text-gray-500">
+                      <span className="text-text-dim">
                         by {request.requesterName}
                       </span>
                     </div>
                   </div>
 
-                  {canManageOrders && request.status === "pending" && (
-                    <div className="flex space-x-2 ml-4">
+                  {canManageOrders && request.status === 'pending' && (
+                    <div className="flex gap-2 ml-4">
                       <button
                         onClick={() =>
-                          handleStatusUpdate(request._id, "approved")
+                          handleStatusUpdate(request._id, 'approved')
                         }
-                        className="text-green-400 hover:text-green-300 px-3 py-1 rounded-lg hover:bg-green-500/10 transition-colors text-sm"
+                        className="text-accent-success hover:text-accent-success/80 px-3 py-1 rounded-lg hover:bg-accent-success/10 transition-colors text-sm"
                       >
                         Approve
                       </button>
                       <button
                         onClick={() => {
-                          const reason = prompt("Rejection reason (optional):");
+                          const reason = prompt('Rejection reason (optional):');
                           handleStatusUpdate(
                             request._id,
-                            "rejected",
+                            'rejected',
                             reason || undefined
                           );
                         }}
-                        className="text-red-400 hover:text-red-300 px-3 py-1 rounded-lg hover:bg-red-500/10 transition-colors text-sm"
+                        className="text-accent-error hover:text-accent-error/80 px-3 py-1 rounded-lg hover:bg-accent-error/10 transition-colors text-sm"
                       >
                         Reject
                       </button>
@@ -645,10 +636,10 @@ export function PurchasesPanel({ member }: PurchasesPanelProps) {
                   )}
                 </div>
 
-                {request.status === "rejected" && request.rejectionReason && (
-                  <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 mt-3">
-                    <p className="text-red-300 text-sm">
-                      <strong>Rejection reason:</strong>{" "}
+                {request.status === 'rejected' && request.rejectionReason && (
+                  <div className="bg-accent-error/10 border border-accent-error/30 rounded-lg p-3 mt-3">
+                    <p className="text-accent-error text-sm">
+                      <strong>Rejection reason:</strong>{' '}
                       {request.rejectionReason}
                     </p>
                   </div>
@@ -660,39 +651,42 @@ export function PurchasesPanel({ member }: PurchasesPanelProps) {
       ) : (
         <div className="space-y-4">
           {orders.length === 0 ? (
-            <div className="glass-panel p-8 text-center">
-              <p className="text-gray-400">No purchase orders yet.</p>
-              <p className="text-sm text-gray-500 mt-2">
+            <div className="bg-bg-secondary border border-border rounded-xl p-8 text-center">
+              <div className="w-12 h-12 rounded-full bg-bg-tertiary flex items-center justify-center mx-auto mb-4">
+                <ShoppingCart size={24} className="text-text-muted" />
+              </div>
+              <p className="text-text-muted">No purchase orders yet.</p>
+              <p className="text-sm text-text-dim mt-2">
                 Orders will appear here once created from approved requests.
               </p>
             </div>
           ) : (
             orders.map((order) => (
-              <div key={order._id} className="glass-panel p-6">
+              <div key={order._id} className="bg-bg-secondary border border-border rounded-xl p-6">
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex-1">
-                    <h4 className="text-lg font-medium text-white mb-2">
+                    <h4 className="text-lg font-medium text-text-primary mb-2">
                       {order.requests
                         ?.map((r: any) => r?.title)
                         .filter(Boolean)
-                        .join(", ") || "Unknown Items"}
+                        .join(', ') || 'Unknown Items'}
                     </h4>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-gray-300 mb-3">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-text-secondary mb-3">
                       <div>
-                        <span className="text-gray-400">Vendor:</span>{" "}
-                        {order.vendor}
+                        <span className="text-text-muted">Vendor:</span>{' '}
+                        <span className="capitalize">{order.vendor}</span>
                       </div>
                       <div>
-                        <span className="text-gray-400">Total Cost:</span> $
-                        {order.totalCost.toFixed(2)}
+                        <span className="text-text-muted">Total Cost:</span>{' '}
+                        <span className="font-mono">${order.totalCost.toFixed(2)}</span>
                       </div>
                       <div>
-                        <span className="text-gray-400">Ordered by:</span>{" "}
+                        <span className="text-text-muted">Ordered by:</span>{' '}
                         {order.ordererName}
                       </div>
                       <div>
-                        <span className="text-gray-400">Order Date:</span>{" "}
+                        <span className="text-text-muted">Order Date:</span>{' '}
                         {new Date(order.orderedAt).toLocaleDateString()}
                       </div>
                     </div>
@@ -703,28 +697,29 @@ export function PurchasesPanel({ member }: PurchasesPanelProps) {
                           href={order.cartLink}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-orange-400 hover:text-orange-300 text-sm underline"
+                          className="inline-flex items-center gap-1 text-accent hover:text-accent/80 text-sm transition-colors"
                         >
-                          View Cart/Order Link →
+                          <ExternalLink size={12} />
+                          View Cart/Order Link
                         </a>
                       </div>
                     )}
 
                     {order.notes && (
-                      <p className="text-gray-400 text-sm mb-3">
+                      <p className="text-text-muted text-sm mb-3">
                         <strong>Notes:</strong> {order.notes}
                       </p>
                     )}
 
                     {order.confirmationImageUrl && (
                       <div className="mb-3">
-                        <p className="text-sm text-gray-400 mb-2">
+                        <p className="text-sm text-text-muted mb-2">
                           Order Confirmation:
                         </p>
                         <img
                           src={order.confirmationImageUrl}
                           alt="Order confirmation"
-                          className="max-w-xs rounded-lg border border-white/20"
+                          className="max-w-xs rounded-lg border border-border"
                         />
                       </div>
                     )}
@@ -732,8 +727,8 @@ export function PurchasesPanel({ member }: PurchasesPanelProps) {
                 </div>
 
                 {canManageOrders && !order.confirmationImageId && (
-                  <div className="border-t border-white/10 pt-4">
-                    <p className="text-sm text-gray-400 mb-2">
+                  <div className="border-t border-border pt-4">
+                    <p className="text-sm text-text-muted mb-2">
                       Upload order confirmation:
                     </p>
                     <input
@@ -745,7 +740,7 @@ export function PurchasesPanel({ member }: PurchasesPanelProps) {
                           handleImageUpload(order._id, file);
                         }
                       }}
-                      className="text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-orange-500/15 file:text-orange-300 hover:file:bg-orange-500/25"
+                      className="text-sm text-text-muted file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:bg-accent/10 file:text-accent hover:file:bg-accent/20 file:cursor-pointer file:transition-colors"
                     />
                   </div>
                 )}

@@ -1,4 +1,7 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState } from 'react';
+import { Package, ExternalLink, Pencil, Trash2 } from 'lucide-react';
+import { cn } from '../../lib/utils';
+import { Badge, Button } from '../ui';
 
 interface OrdersListProps {
   orders: any[];
@@ -17,15 +20,13 @@ export function OrdersList({
   onEditOrder,
   onDeleteOrder,
 }: OrdersListProps) {
-  const [statusFilter, setStatusFilter] = useState<"pending" | "placed">(
-    "pending"
-  );
+  const [statusFilter, setStatusFilter] = useState<'pending' | 'placed'>('pending');
 
   const normalizedOrders = useMemo(
     () =>
       orders.map((order) => ({
         ...order,
-        status: order.status || "placed",
+        status: order.status || 'placed',
         requests: (order.requests || []).filter(Boolean),
       })),
     [orders]
@@ -35,7 +36,7 @@ export function OrdersList({
     () =>
       normalizedOrders.reduce(
         (acc, order) => {
-          if (order.status === "pending") {
+          if (order.status === 'pending') {
             acc.pending += 1;
           } else {
             acc.placed += 1;
@@ -50,19 +51,22 @@ export function OrdersList({
   const filteredOrders = useMemo(
     () =>
       normalizedOrders.filter((order) =>
-        statusFilter === "pending"
-          ? order.status === "pending"
-          : order.status !== "pending"
+        statusFilter === 'pending'
+          ? order.status === 'pending'
+          : order.status !== 'pending'
       ),
     [normalizedOrders, statusFilter]
   );
 
   if (normalizedOrders.length === 0) {
     return (
-      <div className="glass-panel p-8 text-center">
-        <p className="text-text-muted">no purchase orders yet</p>
-        <p className="text-sm text-text-dim mt-2">
-          orders will appear here once created from approved requests
+      <div className="bg-bg-secondary border border-border rounded-xl p-8 text-center">
+        <div className="w-12 h-12 rounded-full bg-bg-tertiary flex items-center justify-center mx-auto mb-3">
+          <Package size={24} className="text-text-muted" />
+        </div>
+        <p className="text-text-muted">No purchase orders yet</p>
+        <p className="text-sm text-text-dim mt-1">
+          Orders will appear here once created from approved requests
         </p>
       </div>
     );
@@ -70,51 +74,51 @@ export function OrdersList({
 
   return (
     <div className="space-y-4">
-      <div className="glass-panel p-4 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex gap-4 text-xs uppercase tracking-wide text-text-muted">
-          <span>pending {counts.pending}</span>
-          <span>placed {counts.placed}</span>
+      {/* Filter Bar */}
+      <div className="bg-bg-secondary border border-border rounded-xl p-4 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex gap-4 text-sm text-text-muted">
+          <span>Pending: <span className="text-text-primary font-medium">{counts.pending}</span></span>
+          <span>Placed: <span className="text-text-primary font-medium">{counts.placed}</span></span>
         </div>
-        <div className="flex items-center gap-2 text-xs uppercase tracking-wide text-text-muted">
-          <span>view</span>
-          <div className="flex overflow-hidden rounded-full border border-border-glass">
-            <button
-              type="button"
-              onClick={() => setStatusFilter("pending")}
-              className={`px-3 py-1 text-xs font-mono transition-colors ${
-                statusFilter === "pending"
-                  ? "bg-sunset-orange text-void-black"
-                  : "text-text-muted hover:text-text-primary"
-              }`}
-            >
-              pending
-            </button>
-            <button
-              type="button"
-              onClick={() => setStatusFilter("placed")}
-              className={`px-3 py-1 text-xs font-mono transition-colors ${
-                statusFilter === "placed"
-                  ? "bg-sunset-orange text-void-black"
-                  : "text-text-muted hover:text-text-primary"
-              }`}
-            >
-              placed
-            </button>
-          </div>
+        <div className="flex rounded-lg border border-border overflow-hidden bg-bg-tertiary">
+          <button
+            type="button"
+            onClick={() => setStatusFilter('pending')}
+            className={cn(
+              'px-4 py-2 text-sm font-medium transition-colors',
+              statusFilter === 'pending'
+                ? 'bg-accent text-white'
+                : 'text-text-muted hover:text-text-primary hover:bg-bg-hover'
+            )}
+          >
+            Pending
+          </button>
+          <button
+            type="button"
+            onClick={() => setStatusFilter('placed')}
+            className={cn(
+              'px-4 py-2 text-sm font-medium transition-colors',
+              statusFilter === 'placed'
+                ? 'bg-accent text-white'
+                : 'text-text-muted hover:text-text-primary hover:bg-bg-hover'
+            )}
+          >
+            Placed
+          </button>
         </div>
       </div>
 
       {filteredOrders.length === 0 ? (
-        <div className="glass-panel p-8 text-center">
+        <div className="bg-bg-secondary border border-border rounded-xl p-8 text-center">
           <p className="text-text-muted">
-            {statusFilter === "pending"
-              ? "no pending orders to place"
-              : "no placed orders yet"}
+            {statusFilter === 'pending'
+              ? 'No pending orders to place'
+              : 'No placed orders yet'}
           </p>
         </div>
       ) : (
         filteredOrders.map((order) => {
-          const isPending = order.status === "pending";
+          const isPending = order.status === 'pending';
           const lineItemsTotal = order.requests.reduce((sum: number, request: any) => {
             const quantity = request.quantity ?? 1;
             return sum + request.estimatedCost * quantity;
@@ -125,111 +129,113 @@ export function OrdersList({
             : null;
 
           return (
-            <div key={order._id} className="card-modern p-0 overflow-hidden">
-              <div className="flex flex-col gap-3 border-b border-border-glass px-6 py-4 md:flex-row md:items-center md:justify-between">
+            <div key={order._id} className="bg-bg-secondary border border-border rounded-xl overflow-hidden">
+              {/* Header */}
+              <div className="flex flex-col gap-3 border-b border-border-subtle px-6 py-4 md:flex-row md:items-center md:justify-between">
                 <div>
-                  <h4 className="text-lg font-light capitalize">{order.vendor}</h4>
-                  <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-text-muted">
-                    <span>created {orderedDate}</span>
+                  <h4 className="text-lg font-semibold text-text-primary capitalize">{order.vendor}</h4>
+                  <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-text-muted">
+                    <span>Created {orderedDate}</span>
+                    <span>·</span>
                     <span>by {order.ordererName}</span>
                   </div>
                 </div>
 
                 <div className="flex flex-wrap items-center gap-3 md:justify-end">
-                  <OrderStatusBadge status={order.status} />
+                  <Badge variant={isPending ? 'warning' : 'success'}>
+                    {order.status}
+                  </Badge>
                   <div className="text-right">
-                    <span className="text-xs uppercase tracking-wide text-text-muted">
-                      order total
-                    </span>
-                    <div className="text-xl font-mono text-text-secondary">
+                    <span className="text-xs text-text-muted">Order Total</span>
+                    <div className="text-xl font-semibold text-accent-orange">
                       ${order.totalCost.toFixed(2)}
                     </div>
                   </div>
                   {isAdmin && (
                     <div className="flex gap-2">
-                      <button
-                        type="button"
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        icon={<Pencil size={14} />}
                         onClick={() => onEditOrder?.(order)}
-                        className="btn-modern"
-                      >
-                        edit
-                      </button>
-                      <button
-                        type="button"
+                      />
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        icon={<Trash2 size={14} />}
+                        className="text-accent-error hover:bg-accent-error/10"
                         onClick={() => onDeleteOrder?.(order)}
-                        className="btn-modern btn-danger"
-                      >
-                        delete
-                      </button>
+                      />
                     </div>
                   )}
                   {canManageOrders && (
-                    <button
-                      type="button"
+                    <Button
+                      variant={isPending ? 'primary' : 'secondary'}
+                      size="sm"
                       onClick={() => onOpenPlacement(order)}
-                      className={`btn-modern ${isPending ? "btn-primary" : ""}`}
                     >
-                      {isPending ? "place order" : "update placement"}
-                    </button>
+                      {isPending ? 'Place Order' : 'Update'}
+                    </Button>
                   )}
                 </div>
               </div>
 
+              {/* Content */}
               <div className="space-y-4 px-6 py-4">
                 <div className="grid grid-cols-1 gap-3 text-sm md:grid-cols-2">
                   {order.cartLink && (
-                    <div>
-                      <span className="text-text-dim">cart link:</span>{" "}
+                    <div className="flex items-center gap-2">
+                      <span className="text-text-muted">Cart:</span>
                       <a
                         href={order.cartLink}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-sunset-orange hover:text-sunset-orange/80"
+                        className="text-accent hover:text-accent/80 flex items-center gap-1"
                       >
-                        open →
+                        <ExternalLink size={12} />
+                        Open
                       </a>
                     </div>
                   )}
                   <div>
-                    <span className="text-text-dim">line items total:</span>{" "}
-                    <span className="font-mono text-text-secondary">
+                    <span className="text-text-muted">Line items:</span>{' '}
+                    <span className="font-medium text-text-secondary">
                       ${lineItemsTotal.toFixed(2)}
                     </span>
                   </div>
                   {order.placedByName && (
                     <div>
-                      <span className="text-text-dim">placed by:</span>{" "}
+                      <span className="text-text-muted">Placed by:</span>{' '}
                       <span className="text-text-secondary">{order.placedByName}</span>
                     </div>
                   )}
                   {placedDate && (
                     <div>
-                      <span className="text-text-dim">placed on:</span>{" "}
+                      <span className="text-text-muted">Placed on:</span>{' '}
                       <span className="text-text-secondary">{placedDate}</span>
                     </div>
                   )}
                 </div>
 
                 {order.notes && (
-                  <div className="rounded-xl border border-border-glass px-4 py-3 text-sm text-text-muted">
-                    <span className="text-text-dim">request notes:</span>{" "}
-                    {order.notes}
+                  <div className="rounded-lg border border-border bg-bg-tertiary px-4 py-3 text-sm text-text-muted">
+                    <span className="text-text-dim">Request notes:</span> {order.notes}
                   </div>
                 )}
 
                 {order.placementNotes && (
-                  <div className="rounded-xl border border-border-glass px-4 py-3 text-sm text-text-muted">
-                    <span className="text-text-dim">placement notes:</span>{" "}
-                    {order.placementNotes}
+                  <div className="rounded-lg border border-border bg-bg-tertiary px-4 py-3 text-sm text-text-muted">
+                    <span className="text-text-dim">Placement notes:</span> {order.placementNotes}
                   </div>
                 )}
 
-                <div className="overflow-hidden rounded-xl border border-border-glass">
-                  <div className="grid grid-cols-12 bg-glass px-4 py-2 text-xs uppercase tracking-wide text-text-muted">
-                    <span className="col-span-6">item</span>
-                    <span className="col-span-2 text-right">qty</span>
-                    <span className="col-span-2 text-right">unit</span>
-                    <span className="col-span-2 text-right">subtotal</span>
+                {/* Items Table */}
+                <div className="overflow-hidden rounded-lg border border-border">
+                  <div className="grid grid-cols-12 bg-bg-tertiary px-4 py-2 text-xs uppercase tracking-wide text-text-muted">
+                    <span className="col-span-6">Item</span>
+                    <span className="col-span-2 text-right">Qty</span>
+                    <span className="col-span-2 text-right">Unit</span>
+                    <span className="col-span-2 text-right">Subtotal</span>
                   </div>
                   {order.requests.map((request: any) => {
                     const quantity = request.quantity ?? 1;
@@ -237,34 +243,35 @@ export function OrdersList({
                     return (
                       <div
                         key={request._id}
-                        className="grid grid-cols-12 items-center border-t border-border-glass/60 px-4 py-3 text-sm"
+                        className="grid grid-cols-12 items-center border-t border-border-subtle px-4 py-3 text-sm"
                       >
                         <div className="col-span-6 min-w-0">
-                          <p className="truncate text-text-secondary">{request.title}</p>
-                          <div className="mt-1 flex flex-wrap gap-3 text-xs text-text-muted">
+                          <p className="truncate text-text-primary">{request.title}</p>
+                          <div className="mt-1 flex flex-wrap gap-2 text-xs text-text-muted">
                             {request.vendorName && (
                               <span className="capitalize">{request.vendorName}</span>
                             )}
                             <span>
-                              requested {new Date(request.requestedAt).toLocaleDateString()}
+                              {new Date(request.requestedAt).toLocaleDateString()}
                             </span>
                             {request.link && (
                               <a
                                 href={request.link}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="text-sunset-orange hover:text-sunset-orange/80"
+                                className="text-accent hover:text-accent/80 flex items-center gap-1"
                               >
-                                view item
+                                <ExternalLink size={10} />
+                                View
                               </a>
                             )}
                           </div>
                         </div>
-                        <div className="col-span-2 text-right font-mono">{quantity}</div>
-                        <div className="col-span-2 text-right font-mono">
+                        <div className="col-span-2 text-right font-mono text-text-secondary">{quantity}</div>
+                        <div className="col-span-2 text-right font-mono text-text-secondary">
                           ${request.estimatedCost.toFixed(2)}
                         </div>
-                        <div className="col-span-2 text-right font-mono">
+                        <div className="col-span-2 text-right font-mono text-text-primary font-medium">
                           ${subtotal.toFixed(2)}
                         </div>
                       </div>
@@ -275,12 +282,12 @@ export function OrdersList({
                 {order.confirmationImageUrl && (
                   <div>
                     <p className="text-xs uppercase tracking-wide text-text-muted mb-2">
-                      confirmation
+                      Confirmation
                     </p>
                     <img
                       src={order.confirmationImageUrl}
                       alt={`Order confirmation for ${order.vendor}`}
-                      className="max-w-sm rounded-xl border border-border-glass"
+                      className="max-w-sm rounded-lg border border-border"
                     />
                   </div>
                 )}
@@ -291,19 +298,4 @@ export function OrdersList({
       )}
     </div>
   );
-}
-
-function OrderStatusBadge({ status }: { status: string }) {
-  const className = (() => {
-    switch (status) {
-      case "pending":
-        return "badge badge-pending";
-      case "placed":
-        return "badge badge-ordered";
-      default:
-        return "badge";
-    }
-  })();
-
-  return <span className={className}>{status}</span>;
 }

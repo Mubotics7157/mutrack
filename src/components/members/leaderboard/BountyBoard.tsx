@@ -1,9 +1,10 @@
-import React, { useState, useMemo, useEffect } from 'react';
-import clsx from 'clsx';
+import { useState, useMemo, useEffect } from 'react';
 import { ClipboardList, Search, Target, CheckCircle2, ChevronDown, Sparkles } from 'lucide-react';
 import { BountyBoardData, BountyEntry } from '../types';
 import { formatDateTime } from '../helpers';
 import { type Id } from '../../../../convex/_generated/dataModel';
+import { cn } from '../../../lib/utils';
+import { Button, SearchInput, Badge } from '../../ui';
 
 interface BountyBoardProps {
   bountyBoard: BountyBoardData;
@@ -53,143 +54,144 @@ export function BountyBoard({
   const shouldShowToggle = filteredBounties.length > DEFAULT_VISIBLE_COUNT;
 
   return (
-    <div className="space-y-4 mt-6">
-      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div className="flex items-center gap-2">
-          <ClipboardList size={18} className="text-accent-purple" />
-          <h4 className="text-sm font-mono uppercase tracking-widest text-text-secondary">open bounties</h4>
-          <span className="text-xs text-text-dim">
-            {bountyBoard.openBounties.length === 0
-              ? 'none yet — post one to get things rolling.'
-              : `${bountyBoard.openBounties.length} active`}
-          </span>
-        </div>
-        <div className="flex items-center gap-2 self-start md:self-auto">
-          {(bountyBoard.openBounties.length > 0 || searchTerm.length > 0) && (
-            <div className="relative">
-              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
-              <input
-                type="search"
+    <section className="mt-6 bg-bg-secondary border border-border rounded-xl overflow-hidden">
+      {/* Header */}
+      <div className="px-6 py-4 border-b border-border-subtle">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <div className="flex items-center gap-2">
+              <ClipboardList size={20} className="text-accent" />
+              <h3 className="text-lg font-semibold text-text-primary">Open Bounties</h3>
+              {bountyBoard.openBounties.length > 0 && (
+                <Badge variant="default">{bountyBoard.openBounties.length}</Badge>
+              )}
+            </div>
+            <p className="text-sm text-text-muted mt-1">
+              {bountyBoard.openBounties.length === 0
+                ? 'No bounties yet — post one to get things rolling'
+                : 'Complete a bounty to earn μpoints'}
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            {(bountyBoard.openBounties.length > 0 || searchTerm.length > 0) && (
+              <SearchInput
                 value={searchTerm}
-                onChange={(event) => {
-                  setSearchTerm(event.target.value);
+                onChange={(e) => {
+                  setSearchTerm(e.target.value);
                   setIsShowingAll(false);
                 }}
-                placeholder="search bounties"
-                className="input-modern pl-9 md:w-64"
+                placeholder="Search bounties..."
+                className="w-48"
               />
-            </div>
-          )}
-          {canManageBounties && (
-            <button
-              type="button"
-              className="btn-modern btn-secondary flex items-center gap-2 px-4 py-2 touch-feedback"
-              onClick={onClickCreate}
-            >
-              <Target size={16} /> post bounty
-            </button>
-          )}
+            )}
+            {canManageBounties && (
+              <Button
+                variant="secondary"
+                size="sm"
+                icon={<Target size={16} />}
+                onClick={onClickCreate}
+              >
+                Post Bounty
+              </Button>
+            )}
+          </div>
         </div>
       </div>
 
-      {filteredBounties.length > 0 && (
-        <div className="space-y-2">
+      {/* Content */}
+      {filteredBounties.length > 0 ? (
+        <div className="divide-y divide-border-subtle">
           {displayedBounties.map((bounty) => {
             const isExpanded = expandedBountyId === bounty._id;
             return (
-              <div
-                key={bounty._id}
-                className={clsx(
-                  'relative overflow-hidden rounded-2xl border border-border-glass bg-glass transition-shadow',
-                  isExpanded && 'ring-1 ring-accent-purple/40 shadow-[0_20px_45px_rgba(129,140,248,0.18)]'
-                )}
-              >
-                <div className="absolute inset-0 opacity-60 pointer-events-none">
-                  <div className="absolute -top-16 -left-12 h-36 w-36 rounded-full bg-gradient-to-br from-accent-purple/30 via-pink-500/25 to-transparent blur-3xl" />
-                  <div className="absolute -bottom-16 -right-12 h-36 w-36 rounded-full bg-gradient-to-br from-sunset-orange/30 via-amber-300/25 to-transparent blur-3xl" />
-                </div>
+              <div key={bounty._id}>
                 <button
                   type="button"
                   onClick={() => setExpandedBountyId((current) => (current === bounty._id ? null : bounty._id))}
-                  className="relative z-10 w-full text-left p-4 flex flex-col gap-3 touch-feedback"
+                  className={cn(
+                    'w-full text-left p-4 transition-colors hover:bg-bg-tertiary',
+                    isExpanded && 'bg-bg-tertiary'
+                  )}
                   aria-expanded={isExpanded}
                 >
                   <div className="flex items-start justify-between gap-4">
-                    <div className="min-w-0">
-                      <p className="text-base font-light text-text-primary">{bounty.title}</p>
-                      <p className="text-xs text-text-dim mt-1">
-                        posted by {bounty.createdBy.name} · {formatDateTime(bounty.createdAt)}
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium text-text-primary">{bounty.title}</p>
+                      <p className="text-xs text-text-muted mt-1">
+                        Posted by {bounty.createdBy.name} · {formatDateTime(bounty.createdAt)}
                       </p>
                     </div>
-                    <div className="flex items-start gap-3">
-                      <div className="inline-flex items-center gap-2 rounded-xl px-3 py-1 bg-gradient-to-r from-accent-purple/20 via-pink-500/20 to-sunset-orange/20 border border-white/10">
-                        <Sparkles size={16} className="text-sunset-orange" />
-                        <span className="text-sm font-light text-text-primary">
-                          +{formatPoints(bounty.points)} μpoints
+                    <div className="flex items-center gap-3 shrink-0">
+                      <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent/10 border border-accent/20">
+                        <Sparkles size={14} className="text-accent-orange" />
+                        <span className="text-sm font-medium text-accent-orange">
+                          +{formatPoints(bounty.points)}
                         </span>
                       </div>
                       <ChevronDown
-                        size={18}
-                        className={clsx('text-text-muted transition-transform', isExpanded && 'rotate-180')}
+                        size={16}
+                        className={cn('text-text-muted transition-transform', isExpanded && 'rotate-180')}
                       />
                     </div>
                   </div>
-                  {isExpanded && (
-                    <div className="border-t border-white/10 pt-3">
+                </button>
+                {isExpanded && (
+                  <div className="px-4 pb-4 pt-0">
+                    <div className="bg-bg-tertiary rounded-lg p-4 border border-border-subtle">
                       {bounty.description ? (
-                        <p className="text-sm text-text-muted leading-relaxed">{bounty.description}</p>
+                        <p className="text-sm text-text-secondary leading-relaxed">{bounty.description}</p>
                       ) : (
-                        <p className="text-xs text-text-dim">no extra notes provided for this bounty.</p>
+                        <p className="text-sm text-text-muted italic">No additional details provided</p>
                       )}
                       {canManageBounties && (
                         <div className="flex justify-end mt-4">
-                          <button
-                            type="button"
-                            className="btn-modern btn-primary flex items-center gap-2 px-4 py-2 touch-feedback"
+                          <Button
+                            variant="primary"
+                            size="sm"
+                            icon={<CheckCircle2 size={16} />}
                             onClick={(event) => {
                               event.stopPropagation();
                               onClickComplete(bounty);
                             }}
                           >
-                            <CheckCircle2 size={18} /> mark complete
-                          </button>
+                            Mark Complete
+                          </Button>
                         </div>
                       )}
                     </div>
-                  )}
-                </button>
+                  </div>
+                )}
               </div>
             );
           })}
-          {shouldShowToggle && !isShowingAll && (
-            <div className="flex justify-center pt-2">
-              <button
-                type="button"
-                className="btn-modern px-5 py-2 text-xs font-mono uppercase tracking-widest text-text-secondary touch-feedback"
-                onClick={() => setIsShowingAll(true)}
+          {shouldShowToggle && (
+            <div className="p-4 text-center">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setIsShowingAll(!isShowingAll)}
               >
-                show all bounties
-              </button>
-            </div>
-          )}
-          {shouldShowToggle && isShowingAll && (
-            <div className="flex justify-center pt-2">
-              <button
-                type="button"
-                className="btn-modern px-5 py-2 text-xs font-mono uppercase tracking-widest text-text-secondary touch-feedback"
-                onClick={() => setIsShowingAll(false)}
-              >
-                show less
-              </button>
+                {isShowingAll ? 'Show Less' : `Show All (${filteredBounties.length})`}
+              </Button>
             </div>
           )}
         </div>
-      )}
-      {filteredBounties.length === 0 && bountyBoard.openBounties.length > 0 && (
-        <div className="glass-panel p-6 text-center text-sm text-text-muted">
-          no bounties match "{searchTerm}".
+      ) : bountyBoard.openBounties.length > 0 ? (
+        <div className="px-6 py-12 text-center">
+          <Search size={24} className="text-text-muted mx-auto mb-3" />
+          <p className="text-sm text-text-muted">No bounties match "{searchTerm}"</p>
+        </div>
+      ) : (
+        <div className="px-6 py-12 text-center">
+          <div className="w-12 h-12 rounded-full bg-bg-tertiary flex items-center justify-center mx-auto mb-3">
+            <Target size={24} className="text-text-muted" />
+          </div>
+          <p className="text-sm text-text-muted">No bounties posted yet</p>
+          {canManageBounties && (
+            <p className="text-xs text-text-dim mt-1">Create the first bounty to get started</p>
+          )}
         </div>
       )}
-    </div>
+    </section>
   );
 }

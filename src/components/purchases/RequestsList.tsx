@@ -1,6 +1,8 @@
-import clsx from "clsx";
+import { ExternalLink, FileText, Check, X, Pencil, Trash2 } from 'lucide-react';
+import { cn } from '../../lib/utils';
+import { Badge, Button } from '../ui';
 
-type RequestStatus = "pending" | "approved" | "ordered" | "fulfilled" | "rejected";
+type RequestStatus = 'pending' | 'approved' | 'ordered' | 'fulfilled' | 'rejected';
 
 type PurchaseRequest = {
   _id: string;
@@ -24,12 +26,41 @@ interface RequestsListProps {
   canManageOrders: boolean;
   onStatusUpdate: (
     id: string,
-    status: "approved" | "rejected",
+    status: 'approved' | 'rejected',
     reason?: string
   ) => void;
   isAdmin: boolean;
   onEdit?: (request: PurchaseRequest) => void;
   onDelete?: (request: PurchaseRequest) => void;
+}
+
+function getStatusVariant(status: RequestStatus): 'default' | 'success' | 'warning' | 'error' {
+  switch (status) {
+    case 'pending':
+      return 'warning';
+    case 'approved':
+    case 'fulfilled':
+      return 'success';
+    case 'ordered':
+      return 'default';
+    case 'rejected':
+      return 'error';
+    default:
+      return 'default';
+  }
+}
+
+function getPriorityVariant(priority: string): 'default' | 'success' | 'warning' | 'error' {
+  switch (priority) {
+    case 'high':
+      return 'error';
+    case 'medium':
+      return 'warning';
+    case 'low':
+      return 'success';
+    default:
+      return 'default';
+  }
 }
 
 export function RequestsList({
@@ -42,17 +73,20 @@ export function RequestsList({
 }: RequestsListProps) {
   if (requests.length === 0) {
     return (
-      <div className="glass-panel p-8 text-center">
-        <p className="text-text-muted">no purchase requests yet</p>
-        <p className="text-sm text-text-dim mt-2">
-          click "new request" to submit your first purchase request
+      <div className="bg-bg-secondary border border-border rounded-xl p-8 text-center">
+        <div className="w-12 h-12 rounded-full bg-bg-tertiary flex items-center justify-center mx-auto mb-3">
+          <FileText size={24} className="text-text-muted" />
+        </div>
+        <p className="text-text-muted">No purchase requests yet</p>
+        <p className="text-sm text-text-dim mt-1">
+          Click "New Request" to submit your first purchase request
         </p>
       </div>
     );
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       {requests.map((request) => {
         const quantity = request.quantity ?? 1;
         const lineTotal = request.estimatedCost * quantity;
@@ -61,36 +95,50 @@ export function RequestsList({
           : null;
 
         return (
-          <div key={request._id} className="card-modern">
+          <div
+            key={request._id}
+            className="bg-bg-secondary border border-border rounded-xl p-4"
+          >
             <div className="flex flex-col md:flex-row justify-between items-start gap-4">
-              <div className="flex-1">
-                <h4 className="text-lg font-light mb-2">{request.title}</h4>
-                <p className="text-sm text-text-muted mb-3">{request.description}</p>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-start justify-between gap-3">
+                  <h4 className="font-medium text-text-primary">{request.title}</h4>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Badge variant={getStatusVariant(request.status)}>
+                      {request.status}
+                    </Badge>
+                    <Badge variant={getPriorityVariant(request.priority)}>
+                      {request.priority}
+                    </Badge>
+                  </div>
+                </div>
 
-                <div className="flex flex-wrap items-center gap-3">
-                  <StatusBadge status={request.status} />
-                  <PriorityBadge priority={request.priority} />
-                  <span className="text-sm text-text-secondary">
-                    ${request.estimatedCost.toFixed(2)} ea
+                <p className="text-sm text-text-muted mt-2 line-clamp-2">{request.description}</p>
+
+                <div className="flex flex-wrap items-center gap-3 mt-3 text-sm">
+                  <span className="text-text-secondary font-medium">
+                    ${request.estimatedCost.toFixed(2)} × {quantity}
                   </span>
-                  <span className="text-sm text-text-dim">qty {quantity}</span>
-                  <span className="text-sm font-mono text-text-secondary">
-                    ${lineTotal.toFixed(2)} total
+                  <span className="text-accent-orange font-semibold">
+                    ${lineTotal.toFixed(2)}
                   </span>
                   {request.approvals && request.approvals.length > 0 && (
-                    <span className="text-xs uppercase tracking-wide text-accent-green">
-                      {request.approvals.length} approval
-                      {request.approvals.length === 1 ? "" : "s"}
+                    <span className="text-xs text-accent-success">
+                      {request.approvals.length} approval{request.approvals.length === 1 ? '' : 's'}
                     </span>
                   )}
                 </div>
 
-                <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-text-muted">
-                  <span className="capitalize">
-                    vendor: {request.vendorName || "unknown vendor"}
-                  </span>
+                <div className="flex flex-wrap items-center gap-2 mt-2 text-xs text-text-muted">
+                  <span>{request.vendorName || 'Unknown vendor'}</span>
+                  <span>·</span>
                   <span>by {request.requesterName}</span>
-                  {requestedDate && <span>requested {requestedDate}</span>}
+                  {requestedDate && (
+                    <>
+                      <span>·</span>
+                      <span>{requestedDate}</span>
+                    </>
+                  )}
                 </div>
 
                 {request.link && (
@@ -98,68 +146,76 @@ export function RequestsList({
                     href={request.link}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="mt-2 inline-flex items-center text-xs text-sunset-orange hover:text-sunset-orange/80"
+                    className="inline-flex items-center gap-1 mt-2 text-xs text-accent hover:text-accent/80 transition-colors"
                   >
-                    view item →
+                    <ExternalLink size={12} />
+                    View Item
                   </a>
                 )}
 
-                {request.status === "rejected" && request.rejectionReason && (
-                  <div className="mt-3 rounded-xl border border-error-red/30 bg-error-red/10 p-3">
-                    <p className="text-sm text-error-red">
-                      <strong>rejection reason:</strong> {request.rejectionReason}
+                {request.status === 'rejected' && request.rejectionReason && (
+                  <div className="mt-3 rounded-lg border border-accent-error/30 bg-accent-error/10 p-3">
+                    <p className="text-sm text-accent-error">
+                      <strong>Rejection reason:</strong> {request.rejectionReason}
                     </p>
                   </div>
                 )}
+
                 {request.approvals && request.approvals.length > 0 && (
-                  <div className="mt-3 rounded-xl border border-border-glass px-3 py-2 text-xs text-text-muted">
-                    <span className="font-medium text-text-secondary">
-                      approvals:
-                    </span>{" "}
-                    {request.approvals
-                      .map((approval) => approval.memberName)
-                      .join(", ")}
+                  <div className="mt-3 rounded-lg border border-border bg-bg-tertiary px-3 py-2 text-xs text-text-muted">
+                    <span className="font-medium text-text-secondary">Approvals:</span>{' '}
+                    {request.approvals.map((approval) => approval.memberName).join(', ')}
                   </div>
                 )}
               </div>
 
               {(canManageOrders || isAdmin) && (
-                <div className="flex flex-col gap-2 md:items-end">
-                  {canManageOrders && request.status === "pending" && (
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => onStatusUpdate(request._id, "approved")}
-                        className="btn-modern btn-success"
+                <div className="flex flex-wrap gap-2 shrink-0">
+                  {canManageOrders && request.status === 'pending' && (
+                    <>
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        icon={<Check size={14} />}
+                        onClick={() => onStatusUpdate(request._id, 'approved')}
                       >
-                        approve
-                      </button>
-                      <button
+                        Approve
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        icon={<X size={14} />}
+                        className="text-accent-error hover:bg-accent-error/10"
                         onClick={() => {
-                          const reason = prompt("rejection reason (optional):");
-                          onStatusUpdate(request._id, "rejected", reason || undefined);
+                          const reason = prompt('Rejection reason (optional):');
+                          onStatusUpdate(request._id, 'rejected', reason || undefined);
                         }}
-                        className="btn-modern btn-danger"
                       >
-                        reject
-                      </button>
-                    </div>
+                        Reject
+                      </Button>
+                    </>
                   )}
 
                   {isAdmin && (
-                    <div className="flex gap-2">
-                      <button
+                    <>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        icon={<Pencil size={14} />}
                         onClick={() => onEdit?.(request)}
-                        className="btn-modern"
                       >
-                        edit
-                      </button>
-                      <button
+                        Edit
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        icon={<Trash2 size={14} />}
+                        className="text-accent-error hover:bg-accent-error/10"
                         onClick={() => onDelete?.(request)}
-                        className="btn-modern btn-danger"
                       >
-                        delete
-                      </button>
-                    </div>
+                        Delete
+                      </Button>
+                    </>
                   )}
                 </div>
               )}
@@ -169,42 +225,4 @@ export function RequestsList({
       })}
     </div>
   );
-}
-
-function StatusBadge({ status }: { status: RequestStatus }) {
-  const className = (() => {
-    switch (status) {
-      case "pending":
-        return "badge-pending";
-      case "approved":
-        return "badge-approved";
-      case "ordered":
-        return "badge-ordered";
-      case "fulfilled":
-        return "badge-fulfilled";
-      case "rejected":
-        return "badge-rejected";
-      default:
-        return "badge";
-    }
-  })();
-
-  return <span className={clsx("badge", className)}>{status}</span>;
-}
-
-function PriorityBadge({ priority }: { priority: string }) {
-  const className = (() => {
-    switch (priority) {
-      case "high":
-        return "badge-rejected";
-      case "medium":
-        return "badge-pending";
-      case "low":
-        return "badge-approved";
-      default:
-        return "badge";
-    }
-  })();
-
-  return <span className={clsx("badge", className)}>{priority} priority</span>;
 }

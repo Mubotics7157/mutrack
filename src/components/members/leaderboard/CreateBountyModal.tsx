@@ -1,7 +1,8 @@
-import React, { useState, type FormEvent } from 'react';
+import { useState, type FormEvent } from 'react';
 import { Modal } from '../../Modal';
 import { Target } from 'lucide-react';
 import { toast } from 'sonner';
+import { Input, Textarea, Button } from '../../ui';
 
 interface CreateBountyModalProps {
   isOpen: boolean;
@@ -19,12 +20,12 @@ export function CreateBountyModal({ isOpen, onClose, onCreate, isCreating }: Cre
     event.preventDefault();
     const trimmedTitle = title.trim();
     if (!trimmedTitle) {
-      toast.error('enter a bounty title');
+      toast.error('Enter a bounty title');
       return;
     }
     const parsedPoints = Number(points);
     if (!Number.isFinite(parsedPoints) || parsedPoints <= 0) {
-      toast.error('enter a positive μpoint value');
+      toast.error('Enter a positive μpoint value');
       return;
     }
     const trimmedDescription = description.trim();
@@ -42,58 +43,56 @@ export function CreateBountyModal({ isOpen, onClose, onCreate, isCreating }: Cre
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="post a bounty" maxWidthClassName="max-w-lg">
+    <Modal isOpen={isOpen} onClose={onClose} title="Post a Bounty" maxWidthClassName="max-w-lg">
       <form onSubmit={(event) => void handleSubmit(event)} className="space-y-4">
-        <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_160px]">
+        <div className="grid gap-4 sm:grid-cols-[1fr_140px]">
           <div>
-            <label className="text-xs font-mono uppercase tracking-widest text-text-secondary mb-2 block">
-              bounty title
+            <label className="block mb-2 text-sm font-medium text-text-primary">
+              Bounty Title
             </label>
-            <input
+            <Input
               type="text"
-              className="input-modern"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="e.g. design new pit display"
+              placeholder="e.g. Design new pit display"
             />
           </div>
           <div>
-            <label className="text-xs font-mono uppercase tracking-widest text-text-secondary mb-2 block">
-              μpoints reward
+            <label className="block mb-2 text-sm font-medium text-text-primary">
+              μpoints Reward
             </label>
-            <input
+            <Input
               type="number"
               min="0"
               step="0.5"
-              className="input-modern"
               value={points}
               onChange={(e) => setPoints(e.target.value)}
             />
           </div>
         </div>
         <div>
-          <label className="text-xs font-mono uppercase tracking-widest text-text-secondary mb-2 block">
-            description
+          <label className="block mb-2 text-sm font-medium text-text-primary">
+            Description
           </label>
-          <textarea
-            className="input-modern min-h-[100px]"
+          <Textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            placeholder="share context, deliverables, or links..."
+            placeholder="Share context, deliverables, or links..."
+            rows={4}
           />
         </div>
-        <div className="flex justify-end gap-3">
-          <button type="button" className="btn-modern touch-feedback" onClick={onClose}>
-            cancel
-          </button>
-          <button
+        <div className="flex justify-end gap-3 pt-2">
+          <Button type="button" variant="ghost" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button
             type="submit"
-            className="btn-modern btn-secondary flex items-center gap-2 px-5 py-2.5 touch-feedback"
+            variant="primary"
+            icon={<Target size={16} />}
             disabled={isCreating}
           >
-            <Target size={18} />
-            {isCreating ? 'posting...' : 'post bounty'}
-          </button>
+            {isCreating ? 'Posting...' : 'Post Bounty'}
+          </Button>
         </div>
       </form>
     </Modal>

@@ -4,8 +4,11 @@ import {
   useState,
   type ChangeEvent,
   type FormEvent,
-} from "react";
-import { Modal } from "../Modal";
+} from 'react';
+import { ExternalLink } from 'lucide-react';
+import { Modal } from '../Modal';
+import { Input, Textarea, Button } from '../ui';
+import { cn } from '../../lib/utils';
 
 type OrderEditForm = {
   vendor: string;
@@ -35,10 +38,10 @@ interface OrderEditModalProps {
 }
 
 const INITIAL_FORM: OrderEditForm = {
-  vendor: "",
-  totalCost: "",
-  cartLink: "",
-  notes: "",
+  vendor: '',
+  totalCost: '',
+  cartLink: '',
+  notes: '',
 };
 
 export function OrderEditModal({
@@ -55,13 +58,13 @@ export function OrderEditModal({
   useEffect(() => {
     if (order && isOpen) {
       setForm({
-        vendor: order.vendor || "",
+        vendor: order.vendor || '',
         totalCost:
-          typeof order.totalCost === "number"
+          typeof order.totalCost === 'number'
             ? order.totalCost.toFixed(2)
-            : order.totalCost || "",
-        cartLink: order.cartLink || "",
-        notes: order.notes || "",
+            : order.totalCost || '',
+        cartLink: order.cartLink || '',
+        notes: order.notes || '',
       });
       setSelectedRequestIds(order.requestIds || []);
     }
@@ -127,7 +130,7 @@ export function OrderEditModal({
   useEffect(() => {
     setForm((prev) => ({
       ...prev,
-      totalCost: lineItemsTotal === 0 ? "" : lineItemsTotal.toFixed(2),
+      totalCost: lineItemsTotal === 0 ? '' : lineItemsTotal.toFixed(2),
     }));
   }, [lineItemsTotal]);
 
@@ -145,53 +148,55 @@ export function OrderEditModal({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={order ? `edit order - ${order.vendor}` : "edit order"}
+      title={order ? `Edit Order - ${order.vendor}` : 'Edit Order'}
       maxWidthClassName="max-w-4xl"
     >
       <form onSubmit={handleSubmit} className="space-y-6">
         <div className="grid gap-4 md:grid-cols-2">
           <div>
-            <label className="block mb-2 text-sm text-text-muted">vendor *</label>
-            <input
+            <label className="block mb-2 text-sm font-medium text-text-primary">
+              Vendor *
+            </label>
+            <Input
               value={form.vendor}
-              onChange={handleChange("vendor")}
-              className="input-modern"
+              onChange={handleChange('vendor')}
               required
             />
           </div>
           <div>
-            <label className="block mb-2 text-sm text-text-muted">
-              total cost *
+            <label className="block mb-2 text-sm font-medium text-text-primary">
+              Total Cost *
             </label>
-            <input
+            <Input
               type="number"
               step="0.01"
               min={0}
               value={form.totalCost}
-              onChange={handleChange("totalCost")}
-              className="input-modern"
+              onChange={handleChange('totalCost')}
               placeholder={lineItemsTotal.toFixed(2)}
               required
             />
           </div>
           <div>
-            <label className="block mb-2 text-sm text-text-muted">cart link</label>
-            <input
+            <label className="block mb-2 text-sm font-medium text-text-primary">
+              Cart Link
+            </label>
+            <Input
               type="url"
               value={form.cartLink}
-              onChange={handleChange("cartLink")}
-              className="input-modern"
+              onChange={handleChange('cartLink')}
               placeholder="https://..."
             />
           </div>
           <div>
-            <label className="block mb-2 text-sm text-text-muted">notes</label>
-            <textarea
+            <label className="block mb-2 text-sm font-medium text-text-primary">
+              Notes
+            </label>
+            <Textarea
               value={form.notes}
-              onChange={handleChange("notes")}
-              className="input-modern resize-none"
+              onChange={handleChange('notes')}
               rows={3}
-              placeholder="include account codes, shipping details, etc"
+              placeholder="Include account codes, shipping details, etc"
             />
           </div>
         </div>
@@ -199,78 +204,93 @@ export function OrderEditModal({
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <h3 className="text-sm uppercase tracking-wide text-text-muted">
-              line items
+              Line Items
             </h3>
             <span className="text-xs font-mono uppercase text-text-secondary">
               {selectedRequestIds.length} selected
             </span>
           </div>
 
-          <div className="max-h-72 overflow-auto rounded-xl border border-border-glass">
+          <div className="max-h-72 overflow-auto rounded-xl border border-border">
             {availableRequests.length === 0 ? (
               <div className="p-6 text-center text-sm text-text-muted">
-                no requests available to attach
+                No requests available to attach
               </div>
             ) : (
-              availableRequests.map((request) => {
-                const checked = selectedRequestIds.includes(request._id);
-                const quantity = request.quantity ?? 1;
-                const subtotal = request.estimatedCost * quantity;
-                return (
-                  <label
-                    key={request._id}
-                    className="flex items-center gap-4 border-b border-border-glass px-4 py-3 text-sm hover:bg-white/5 last:border-b-0"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      onChange={(event) =>
-                        handleToggleRequest(request._id, event.target.checked)
-                      }
-                    />
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate font-medium text-text-secondary">
-                        {request.title}
-                      </p>
-                      <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-text-muted">
-                        {request.vendorName && (
-                          <span className="capitalize">{request.vendorName}</span>
-                        )}
-                        <span>qty {quantity}</span>
-                        <span>${request.estimatedCost.toFixed(2)} ea</span>
-                        {request.link && (
-                          <a
-                            href={request.link}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-sunset-orange hover:text-sunset-orange/80"
-                          >
-                            view item
-                          </a>
-                        )}
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="font-mono text-text-secondary">
-                        ${subtotal.toFixed(2)}
-                      </div>
-                      {request.status && (
-                        <div className="text-xs capitalize text-text-muted">
-                          {request.status}
-                        </div>
+              <div className="divide-y divide-border-subtle">
+                {availableRequests.map((request) => {
+                  const checked = selectedRequestIds.includes(request._id);
+                  const quantity = request.quantity ?? 1;
+                  const subtotal = request.estimatedCost * quantity;
+                  return (
+                    <label
+                      key={request._id}
+                      className={cn(
+                        'flex items-center gap-4 px-4 py-3 text-sm cursor-pointer transition-colors',
+                        checked ? 'bg-accent/5' : 'hover:bg-bg-tertiary'
                       )}
-                    </div>
-                  </label>
-                );
-              })
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={(event) =>
+                          handleToggleRequest(request._id, event.target.checked)
+                        }
+                        className="w-4 h-4 rounded border-border text-accent focus:ring-accent"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate font-medium text-text-primary">
+                          {request.title}
+                        </p>
+                        <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-text-muted">
+                          {request.vendorName && (
+                            <>
+                              <span className="capitalize">{request.vendorName}</span>
+                              <span>·</span>
+                            </>
+                          )}
+                          <span>qty {quantity}</span>
+                          <span>·</span>
+                          <span>${request.estimatedCost.toFixed(2)} ea</span>
+                          {request.link && (
+                            <>
+                              <span>·</span>
+                              <a
+                                href={request.link}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 text-accent hover:text-accent/80 transition-colors"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <ExternalLink size={10} />
+                                View
+                              </a>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="font-mono text-text-primary">
+                          ${subtotal.toFixed(2)}
+                        </div>
+                        {request.status && (
+                          <div className="text-xs capitalize text-text-muted">
+                            {request.status}
+                          </div>
+                        )}
+                      </div>
+                    </label>
+                  );
+                })}
+              </div>
             )}
           </div>
 
           <div className="flex justify-end">
-            <div className="rounded-xl border border-border-glass px-4 py-3 text-sm">
-              <div className="flex items-center gap-8 text-text-secondary">
-                <span className="text-text-muted">line total</span>
-                <span className="font-mono text-lg">
+            <div className="rounded-xl border border-border bg-bg-tertiary px-4 py-3 text-sm">
+              <div className="flex items-center gap-8">
+                <span className="text-text-muted">Line Total</span>
+                <span className="font-mono text-lg text-text-primary">
                   ${lineItemsTotal.toFixed(2)}
                 </span>
               </div>
@@ -278,13 +298,13 @@ export function OrderEditModal({
           </div>
         </div>
 
-        <div className="flex items-center justify-between gap-3 border-t border-border-glass pt-4">
-          <button type="button" onClick={onClose} className="btn-modern" disabled={isSubmitting}>
-            cancel
-          </button>
-          <button type="submit" className="btn-modern btn-primary" disabled={isSubmitting}>
-            {isSubmitting ? "saving..." : "save changes"}
-          </button>
+        <div className="flex items-center justify-between gap-3 border-t border-border pt-4">
+          <Button type="button" variant="ghost" onClick={onClose} disabled={isSubmitting}>
+            Cancel
+          </Button>
+          <Button type="submit" variant="primary" disabled={isSubmitting}>
+            {isSubmitting ? 'Saving...' : 'Save Changes'}
+          </Button>
         </div>
       </form>
     </Modal>

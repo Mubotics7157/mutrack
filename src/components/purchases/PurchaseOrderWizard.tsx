@@ -1,9 +1,12 @@
-import { useEffect, useMemo, useState } from "react";
-import { toast } from "sonner";
-import { Modal } from "../Modal";
-import { VendorAutocomplete } from "./VendorAutocomplete";
+import { useEffect, useMemo, useState } from 'react';
+import { toast } from 'sonner';
+import { Check } from 'lucide-react';
+import { Modal } from '../Modal';
+import { VendorAutocomplete } from './VendorAutocomplete';
+import { Input, Textarea, Button } from '../ui';
+import { cn } from '../../lib/utils';
 
-type OrderWizardStep = "select" | "details" | "review";
+type OrderWizardStep = 'select' | 'details' | 'review';
 
 type PurchaseRequest = {
   _id: string;
@@ -30,10 +33,10 @@ interface OrderWizardProps {
 }
 
 const INITIAL_FORM = {
-  vendor: "",
-  notes: "",
-  cartLink: "",
-  totalCost: "",
+  vendor: '',
+  notes: '',
+  cartLink: '',
+  totalCost: '',
 };
 
 export function PurchaseOrderWizard({
@@ -43,7 +46,7 @@ export function PurchaseOrderWizard({
   ensureVendor,
   createOrder,
 }: OrderWizardProps) {
-  const [wizardStep, setWizardStep] = useState<OrderWizardStep>("select");
+  const [wizardStep, setWizardStep] = useState<OrderWizardStep>('select');
   const [selectedRequestIds, setSelectedRequestIds] = useState<string[]>([]);
   const [form, setForm] = useState(INITIAL_FORM);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -84,7 +87,7 @@ export function PurchaseOrderWizard({
     );
   }, [approvedRequests]);
 
-  const inferredVendor = selectedRequests[0]?.vendorName || "";
+  const inferredVendor = selectedRequests[0]?.vendorName || '';
 
   useEffect(() => {
     if (!vendorTouched) {
@@ -93,16 +96,16 @@ export function PurchaseOrderWizard({
   }, [inferredVendor, vendorTouched]);
 
   useEffect(() => {
-    if (wizardStep !== "review") return;
+    if (wizardStep !== 'review') return;
     if (!form.totalCost && selectedTotal > 0) {
       setForm((prev) => ({ ...prev, totalCost: selectedTotal.toFixed(2) }));
     }
   }, [wizardStep, selectedTotal, form.totalCost]);
 
   const steps: Array<{ id: OrderWizardStep; label: string }> = [
-    { id: "select", label: "line items" },
-    { id: "details", label: "details" },
-    { id: "review", label: "review" },
+    { id: 'select', label: 'Line Items' },
+    { id: 'details', label: 'Details' },
+    { id: 'review', label: 'Review' },
   ];
   const currentWizardIndex = steps.findIndex((step) => step.id === wizardStep);
 
@@ -117,7 +120,7 @@ export function PurchaseOrderWizard({
   };
 
   const resetWizard = () => {
-    setWizardStep("select");
+    setWizardStep('select');
     setSelectedRequestIds([]);
     setForm(INITIAL_FORM);
     setIsSubmitting(false);
@@ -133,70 +136,70 @@ export function PurchaseOrderWizard({
   const canAdvanceFromDetails = form.vendor.trim().length > 0;
 
   const handleNext = () => {
-    if (wizardStep === "select") {
+    if (wizardStep === 'select') {
       if (!canAdvanceFromSelect) {
-        toast.error("select at least one approved request");
+        toast.error('Select at least one approved request');
         return;
       }
-      setWizardStep("details");
+      setWizardStep('details');
       return;
     }
 
-    if (wizardStep === "details") {
+    if (wizardStep === 'details') {
       if (!canAdvanceFromDetails) {
-        toast.error("enter a vendor to continue");
+        toast.error('Enter a vendor to continue');
         return;
       }
       if (!form.totalCost && selectedTotal > 0) {
         setForm((prev) => ({ ...prev, totalCost: selectedTotal.toFixed(2) }));
       }
-      setWizardStep("review");
+      setWizardStep('review');
     }
   };
 
   const handleBack = () => {
-    if (wizardStep === "select") {
+    if (wizardStep === 'select') {
       handleClose();
       return;
     }
 
-    if (wizardStep === "details") {
-      setWizardStep("select");
+    if (wizardStep === 'details') {
+      setWizardStep('select');
       return;
     }
 
-    setWizardStep("details");
+    setWizardStep('details');
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (wizardStep !== "review") {
+    if (wizardStep !== 'review') {
       handleNext();
       return;
     }
 
     if (selectedRequestIds.length === 0) {
-      toast.error("select at least one approved request");
-      setWizardStep("select");
+      toast.error('Select at least one approved request');
+      setWizardStep('select');
       return;
     }
 
     const vendorName = form.vendor.trim();
     if (!vendorName) {
-      toast.error("vendor is required");
-      setWizardStep("details");
+      toast.error('Vendor is required');
+      setWizardStep('details');
       return;
     }
 
-    const parsedTotal = parseFloat(form.totalCost || "");
+    const parsedTotal = parseFloat(form.totalCost || '');
     const fallbackTotal = selectedTotal;
     const totalCostToSend = Number.isFinite(parsedTotal)
       ? parsedTotal
       : fallbackTotal;
 
     if (!Number.isFinite(totalCostToSend) || totalCostToSend <= 0) {
-      toast.error("enter a valid total before placing the order");
+      toast.error('Enter a valid total before placing the order');
       return;
     }
 
@@ -211,10 +214,10 @@ export function PurchaseOrderWizard({
         totalCost: totalCostToSend,
         notes: form.notes.trim() || undefined,
       });
-      toast.success("purchase order created");
+      toast.success('Purchase order created');
       handleClose();
     } catch (error) {
-      toast.error("failed to create order");
+      toast.error('Failed to create order');
       setIsSubmitting(false);
     }
   };
@@ -222,8 +225,8 @@ export function PurchaseOrderWizard({
   const sortedApprovedRequests = useMemo(
     () =>
       [...approvedRequests].sort((a, b) => {
-        const vendorA = (a.vendorName || "").toLowerCase();
-        const vendorB = (b.vendorName || "").toLowerCase();
+        const vendorA = (a.vendorName || '').toLowerCase();
+        const vendorB = (b.vendorName || '').toLowerCase();
         if (vendorA === vendorB) {
           return (b.requestedAt || 0) - (a.requestedAt || 0);
         }
@@ -236,11 +239,12 @@ export function PurchaseOrderWizard({
     <Modal
       isOpen={isOpen}
       onClose={handleClose}
-      title="create purchase order"
+      title="Create Purchase Order"
       maxWidthClassName="max-w-3xl"
     >
       <form onSubmit={handleSubmit} className="space-y-6">
-        <div className="rounded-xl border border-border-glass bg-glass px-4 py-3">
+        {/* Step Indicator */}
+        <div className="rounded-xl border border-border bg-bg-tertiary px-4 py-3">
           <div className="flex flex-wrap items-center gap-3">
             {steps.map((step, index) => {
               const isActive = step.id === wizardStep;
@@ -251,29 +255,31 @@ export function PurchaseOrderWizard({
                   className="flex items-center gap-2 text-sm text-text-muted"
                 >
                   <span
-                    className={`flex h-7 w-7 items-center justify-center rounded-full border text-xs font-mono transition-colors ${
+                    className={cn(
+                      'flex h-7 w-7 items-center justify-center rounded-full border text-xs font-mono transition-colors',
                       isActive
-                        ? "border-sunset-orange text-sunset-orange"
+                        ? 'border-accent-orange bg-accent-orange/10 text-accent-orange'
                         : isComplete
-                        ? "border-accent-green/60 text-accent-green"
-                        : "border-border-glass text-text-dim"
-                    }`}
+                        ? 'border-accent-success/60 bg-accent-success/10 text-accent-success'
+                        : 'border-border text-text-dim'
+                    )}
                   >
-                    {isComplete ? "✓" : index + 1}
+                    {isComplete ? <Check size={14} /> : index + 1}
                   </span>
                   <span
-                    className={`text-sm capitalize ${
+                    className={cn(
+                      'text-sm',
                       isActive
-                        ? "text-text-primary"
+                        ? 'text-text-primary font-medium'
                         : isComplete
-                        ? "text-text-secondary"
-                        : "text-text-muted"
-                    }`}
+                        ? 'text-text-secondary'
+                        : 'text-text-muted'
+                    )}
                   >
                     {step.label}
                   </span>
                   {index < steps.length - 1 && (
-                    <span className="h-px w-10 bg-border-glass" />
+                    <span className="h-px w-10 bg-border" />
                   )}
                 </div>
               );
@@ -281,69 +287,78 @@ export function PurchaseOrderWizard({
           </div>
         </div>
 
-        {wizardStep === "select" && (
+        {/* Step: Select */}
+        {wizardStep === 'select' && (
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <p className="text-sm text-text-muted">
-                choose the approved purchase requests that belong in this order.
+                Choose the approved purchase requests that belong in this order.
               </p>
               <span className="text-xs font-mono uppercase text-text-secondary">
                 {selectedRequestIds.length} selected
               </span>
             </div>
 
-            <div className="max-h-72 overflow-auto rounded-xl border border-border-glass">
+            <div className="max-h-72 overflow-auto rounded-xl border border-border">
               {sortedApprovedRequests.length === 0 ? (
                 <div className="p-6 text-center text-sm text-text-muted">
-                  no approved requests available yet.
+                  No approved requests available yet.
                 </div>
               ) : (
-                sortedApprovedRequests.map((request) => {
-                  const checked = selectedRequestIds.includes(request._id);
-                  const quantity = request.quantity ?? 1;
-                  const lineTotal = request.estimatedCost * quantity;
-                  return (
-                    <label
-                      key={request._id}
-                      className="flex items-center gap-4 border-b border-border-glass px-4 py-3 text-sm transition-colors hover:bg-white/5 last:border-b-0"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={(e) =>
-                          toggleSelection(request._id, e.target.checked)
-                        }
-                      />
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium text-text-secondary">
-                          {request.title}
-                        </p>
-                        <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-text-muted">
-                          <span className="capitalize">
-                            {request.vendorName || "unknown vendor"}
-                          </span>
-                          <span>qty {quantity}</span>
-                          <span>${request.estimatedCost.toFixed(2)} ea</span>
+                <div className="divide-y divide-border-subtle">
+                  {sortedApprovedRequests.map((request) => {
+                    const checked = selectedRequestIds.includes(request._id);
+                    const quantity = request.quantity ?? 1;
+                    const lineTotal = request.estimatedCost * quantity;
+                    return (
+                      <label
+                        key={request._id}
+                        className={cn(
+                          'flex items-center gap-4 px-4 py-3 text-sm cursor-pointer transition-colors',
+                          checked ? 'bg-accent/5' : 'hover:bg-bg-tertiary'
+                        )}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={(e) =>
+                            toggleSelection(request._id, e.target.checked)
+                          }
+                          className="w-4 h-4 rounded border-border text-accent focus:ring-accent"
+                        />
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-medium text-text-primary">
+                            {request.title}
+                          </p>
+                          <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-text-muted">
+                            <span className="capitalize">
+                              {request.vendorName || 'Unknown vendor'}
+                            </span>
+                            <span>·</span>
+                            <span>qty {quantity}</span>
+                            <span>·</span>
+                            <span>${request.estimatedCost.toFixed(2)} ea</span>
+                          </div>
                         </div>
-                      </div>
-                      <div className="text-right">
-                        <div className="text-sm font-mono text-text-secondary">
-                          ${lineTotal.toFixed(2)}
+                        <div className="text-right">
+                          <div className="text-sm font-mono text-text-primary">
+                            ${lineTotal.toFixed(2)}
+                          </div>
+                          <div className="text-xs capitalize text-text-muted">
+                            {request.status}
+                          </div>
                         </div>
-                        <div className="text-xs capitalize text-text-muted">
-                          {request.status}
-                        </div>
-                      </div>
-                    </label>
-                  );
-                })
+                      </label>
+                    );
+                  })}
+                </div>
               )}
             </div>
 
             {selectedRequests.length > 0 && (
-              <div className="flex items-center justify-between rounded-xl border border-border-glass px-4 py-3 text-sm">
-                <span className="text-text-muted">line items total</span>
-                <span className="font-mono text-lg text-text-secondary">
+              <div className="flex items-center justify-between rounded-xl border border-border bg-bg-tertiary px-4 py-3 text-sm">
+                <span className="text-text-muted">Line items total</span>
+                <span className="font-mono text-lg text-text-primary">
                   ${selectedTotal.toFixed(2)}
                 </span>
               </div>
@@ -351,14 +366,15 @@ export function PurchaseOrderWizard({
           </div>
         )}
 
-        {wizardStep === "details" && (
+        {/* Step: Details */}
+        {wizardStep === 'details' && (
           <div className="space-y-4">
             <p className="text-sm text-text-muted">
-              confirm vendor and add optional notes before reviewing the order.
+              Confirm vendor and add optional notes before reviewing the order.
             </p>
 
             <VendorAutocomplete
-              label="vendor"
+              label="Vendor"
               value={form.vendor}
               onChange={(name) => {
                 setVendorTouched(true);
@@ -373,33 +389,33 @@ export function PurchaseOrderWizard({
             />
 
             <div>
-              <label className="block mb-2 text-sm text-text-muted">
-                notes
+              <label className="block mb-2 text-sm font-medium text-text-primary">
+                Notes
               </label>
-              <textarea
+              <Textarea
                 value={form.notes}
                 onChange={(e) =>
                   setForm((prev) => ({ ...prev, notes: e.target.value }))
                 }
-                className="input-modern resize-none"
                 rows={3}
-                placeholder="include budgets, shipping guidance, account codes..."
+                placeholder="Include budgets, shipping guidance, account codes..."
               />
             </div>
           </div>
         )}
 
-        {wizardStep === "review" && (
+        {/* Step: Review */}
+        {wizardStep === 'review' && (
           <div className="space-y-4">
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <div className="rounded-xl border border-border-glass px-4 py-3">
+              <div className="rounded-xl border border-border bg-bg-tertiary px-4 py-3">
                 <h4 className="text-xs uppercase tracking-wide text-text-muted">
-                  order details
+                  Order Details
                 </h4>
                 <div className="mt-3 space-y-2 text-sm">
                   <div className="flex justify-between gap-4">
-                    <span className="text-text-dim">vendor</span>
-                    <span className="text-text-secondary">
+                    <span className="text-text-muted">Vendor</span>
+                    <span className="text-text-primary capitalize">
                       {form.vendor}
                     </span>
                   </div>
@@ -410,86 +426,90 @@ export function PurchaseOrderWizard({
                     selectedRequests.some(
                       (request) => request.vendorName !== inferredVendor
                     ) && (
-                      <p className="text-xs text-yellow-400">
-                        multiple vendors detected; ensure the vendor field is correct.
+                      <p className="text-xs text-accent-warning">
+                        Multiple vendors detected; ensure the vendor field is correct.
                       </p>
                     )}
                 </div>
               </div>
 
-              <div className="space-y-3 rounded-xl border border-border-glass px-4 py-3">
-                <label className="text-xs uppercase tracking-wide text-text-muted">
-                  total to submit *
-                </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={form.totalCost}
-                  onChange={(e) =>
-                    setForm((prev) => ({ ...prev, totalCost: e.target.value }))
-                  }
-                  className="input-modern"
-                  placeholder={selectedTotal.toFixed(2)}
-                  required
-                />
-                <label className="text-xs uppercase tracking-wide text-text-muted">
-                  cart/order link
-                </label>
-                <input
-                  type="url"
-                  value={form.cartLink}
-                  onChange={(e) =>
-                    setForm((prev) => ({ ...prev, cartLink: e.target.value }))
-                  }
-                  className="input-modern"
-                  placeholder="https://..."
-                />
+              <div className="space-y-3 rounded-xl border border-border bg-bg-tertiary px-4 py-3">
+                <div>
+                  <label className="block mb-2 text-xs uppercase tracking-wide text-text-muted">
+                    Total to Submit *
+                  </label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={form.totalCost}
+                    onChange={(e) =>
+                      setForm((prev) => ({ ...prev, totalCost: e.target.value }))
+                    }
+                    placeholder={selectedTotal.toFixed(2)}
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block mb-2 text-xs uppercase tracking-wide text-text-muted">
+                    Cart/Order Link
+                  </label>
+                  <Input
+                    type="url"
+                    value={form.cartLink}
+                    onChange={(e) =>
+                      setForm((prev) => ({ ...prev, cartLink: e.target.value }))
+                    }
+                    placeholder="https://..."
+                  />
+                </div>
               </div>
             </div>
 
-            <div className="overflow-hidden rounded-xl border border-border-glass">
-              <div className="grid grid-cols-12 bg-glass px-4 py-2 text-xs uppercase tracking-wide text-text-muted">
-                <span className="col-span-6">item</span>
-                <span className="col-span-2 text-right">qty</span>
-                <span className="col-span-2 text-right">unit</span>
-                <span className="col-span-2 text-right">subtotal</span>
+            <div className="overflow-hidden rounded-xl border border-border">
+              <div className="grid grid-cols-12 bg-bg-tertiary px-4 py-2 text-xs uppercase tracking-wide text-text-muted">
+                <span className="col-span-6">Item</span>
+                <span className="col-span-2 text-right">Qty</span>
+                <span className="col-span-2 text-right">Unit</span>
+                <span className="col-span-2 text-right">Subtotal</span>
               </div>
-              {selectedRequests.map((request) => {
-                const quantity = request.quantity ?? 1;
-                const subtotal = request.estimatedCost * quantity;
-                return (
-                  <div
-                    key={request._id}
-                    className="grid grid-cols-12 items-center border-t border-border-glass/60 px-4 py-3 text-sm"
-                  >
-                    <div className="col-span-6 min-w-0">
-                      <p className="truncate text-text-secondary">{request.title}</p>
-                      <div className="mt-1 flex flex-wrap gap-3 text-xs text-text-muted">
-                        {request.vendorName && (
-                          <span className="capitalize">{request.vendorName}</span>
-                        )}
-                        <span>
-                          requested {new Date(request.requestedAt ?? Date.now()).toLocaleDateString()}
-                        </span>
+              <div className="divide-y divide-border-subtle">
+                {selectedRequests.map((request) => {
+                  const quantity = request.quantity ?? 1;
+                  const subtotal = request.estimatedCost * quantity;
+                  return (
+                    <div
+                      key={request._id}
+                      className="grid grid-cols-12 items-center px-4 py-3 text-sm"
+                    >
+                      <div className="col-span-6 min-w-0">
+                        <p className="truncate text-text-primary">{request.title}</p>
+                        <div className="mt-1 flex flex-wrap gap-3 text-xs text-text-muted">
+                          {request.vendorName && (
+                            <span className="capitalize">{request.vendorName}</span>
+                          )}
+                          <span>
+                            Requested {new Date(request.requestedAt ?? Date.now()).toLocaleDateString()}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="col-span-2 text-right font-mono text-text-secondary">{quantity}</div>
+                      <div className="col-span-2 text-right font-mono text-text-secondary">
+                        ${request.estimatedCost.toFixed(2)}
+                      </div>
+                      <div className="col-span-2 text-right font-mono text-text-primary font-medium">
+                        ${subtotal.toFixed(2)}
                       </div>
                     </div>
-                    <div className="col-span-2 text-right font-mono">{quantity}</div>
-                    <div className="col-span-2 text-right font-mono">
-                      ${request.estimatedCost.toFixed(2)}
-                    </div>
-                    <div className="col-span-2 text-right font-mono">
-                      ${subtotal.toFixed(2)}
-                    </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
             </div>
 
             <div className="flex justify-end">
-              <div className="rounded-xl border border-border-glass px-4 py-3 text-sm">
-                <div className="flex items-center gap-8 text-text-secondary">
-                  <span className="text-text-muted">line total</span>
-                  <span className="font-mono text-lg">
+              <div className="rounded-xl border border-border bg-bg-tertiary px-4 py-3 text-sm">
+                <div className="flex items-center gap-8">
+                  <span className="text-text-muted">Line Total</span>
+                  <span className="font-mono text-lg text-text-primary">
                     ${selectedTotal.toFixed(2)}
                   </span>
                 </div>
@@ -498,31 +518,32 @@ export function PurchaseOrderWizard({
           </div>
         )}
 
-        <div className="flex items-center justify-between gap-3 border-t border-border-glass pt-4">
-          <button type="button" onClick={handleBack} className="btn-modern">
-            {wizardStep === "select" ? "cancel" : "back"}
-          </button>
+        {/* Footer Actions */}
+        <div className="flex items-center justify-between gap-3 border-t border-border pt-4">
+          <Button type="button" variant="ghost" onClick={handleBack}>
+            {wizardStep === 'select' ? 'Cancel' : 'Back'}
+          </Button>
 
-          {wizardStep !== "review" ? (
-            <button
+          {wizardStep !== 'review' ? (
+            <Button
               type="button"
+              variant="primary"
               onClick={handleNext}
-              className="btn-modern btn-primary"
               disabled={
-                (wizardStep === "select" && !canAdvanceFromSelect) ||
-                (wizardStep === "details" && !canAdvanceFromDetails)
+                (wizardStep === 'select' && !canAdvanceFromSelect) ||
+                (wizardStep === 'details' && !canAdvanceFromDetails)
               }
             >
-              next
-            </button>
+              Next
+            </Button>
           ) : (
-            <button
+            <Button
               type="submit"
-              className="btn-modern btn-primary"
+              variant="primary"
               disabled={isSubmitting}
             >
-              place order
-            </button>
+              {isSubmitting ? 'Placing...' : 'Place Order'}
+            </Button>
           )}
         </div>
       </form>
