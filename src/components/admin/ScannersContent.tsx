@@ -11,11 +11,12 @@ import {
   Power,
   Trash2,
   MapPin,
-  Copy,
-  Check,
+  Bluetooth,
+  UserPlus,
+  X,
 } from "lucide-react";
 import { MemberWithProfile } from "../../lib/members";
-import { Button, Badge } from "../ui";
+import { Button, Badge, Select } from "../ui";
 import { RegisterScannerModal } from "./RegisterScannerModal";
 
 interface ScannersContentProps {
@@ -35,11 +36,17 @@ export function ScannersContent({ member }: ScannersContentProps) {
   const [registerModalOpen, setRegisterModalOpen] = useState(false);
   const [actionMenuOpen, setActionMenuOpen] = useState<string | null>(null);
   const [regeneratingKey, setRegeneratingKey] = useState<string | null>(null);
+  const [pairingBeaconId, setPairingBeaconId] = useState<string | null>(null);
+  const [selectedMemberId, setSelectedMemberId] = useState<string>("");
 
   const scanners = useQuery(api.scanners.listScanners) ?? [];
+  const unpairedBeacons = useQuery(api.scanners.listUnpairedBeacons) ?? [];
+  const members = useQuery(api.members.getAllMembers) ?? [];
   const updateScanner = useMutation(api.scanners.updateScanner);
   const deleteScanner = useMutation(api.scanners.deleteScanner);
   const regenerateApiKey = useMutation(api.scanners.regenerateApiKey);
+  const pairBeacon = useMutation(api.scanners.pairUnpairedBeaconToMember);
+  const dismissBeacon = useMutation(api.scanners.dismissUnpairedBeacon);
 
   const handleToggleActive = async (
     scannerId: Id<"scanners">,
@@ -82,6 +89,33 @@ export function ScannersContent({ member }: ScannersContentProps) {
     } finally {
       setRegeneratingKey(null);
       setActionMenuOpen(null);
+    }
+  };
+
+  const handlePairBeacon = async (beaconId: Id<"unpairedBeacons">) => {
+    if (!selectedMemberId) {
+      toast.error("Please select a member");
+      return;
+    }
+    try {
+      await pairBeacon({
+        unpairedBeaconId: beaconId,
+        memberId: selectedMemberId as Id<"members">,
+      });
+      toast.success("Beacon paired to member");
+      setPairingBeaconId(null);
+      setSelectedMemberId("");
+    } catch {
+      toast.error("Failed to pair beacon");
+    }
+  };
+
+  const handleDismissBeacon = async (beaconId: Id<"unpairedBeacons">) => {
+    try {
+      await dismissBeacon({ unpairedBeaconId: beaconId });
+      toast.success("Beacon dismissed");
+    } catch {
+      toast.error("Failed to dismiss beacon");
     }
   };
 
@@ -256,6 +290,92 @@ export function ScannersContent({ member }: ScannersContentProps) {
         )}
       </div>
 
+      {/* Unpaired Beacons */}
+      {unpairedBeacons.length > 0 && (
+        <div className="bg-bg-secondary border border-border rounded-xl overflow-hidden">
+          <div className="px-4 py-3 border-b border-border-subtle">
+            <h3 className="text-sm font-medium text-text-primary flex items-center gap-2">
+              <Bluetooth size={16} />
+              Detected Beacons
+              <Badge variant="accent" size="sm">{unpairedBeacons.length}</Badge>
+            </h3>
+            <p className="text-xs text-text-muted mt-1">
+              Beacons seen by scanners that aren't paired to any member yet
+            </p>
+          </div>
+          <div className="divide-y divide-border-subtle">
+            {unpairedBeacons.map((beacon) => (
+              <div
+                key={beacon._id}
+                className="p-4"
+              >
+                <div className="flex flex-col md:flex-row md:items-center gap-4">
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                    <div className={`w-2 h-2 rounded-full ${beacon.isRecent ? 'bg-accent-success animate-pulse' : 'bg-text-dim'}`} />
+                    <div className="flex-1 min-w-0">
+                      <code className="text-sm font-mono text-text-primary block truncate">
+                        {beacon.uuid}
+                      </code>
+                      <div className="text-xs text-text-muted mt-0.5">
+                        Major: {beacon.major} · Minor: {beacon.minor} · Seen {beacon.sightingCount}x · Last: {formatRelativeTime(beacon.lastSeenAt)}
+                      </div>
+                    </div>
+                  </div>
+
+                  {pairingBeaconId === beacon._id ? (
+                    <div className="flex items-center gap-2">
+                      <Select
+                        value={selectedMemberId}
+                        onChange={(e) => setSelectedMemberId(e.target.value)}
+                        options={[
+                          { value: "", label: "Select member..." },
+                          ...members.map((m) => ({ value: m._id, label: m.name })),
+                        ]}
+                        className="w-48"
+                      />
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        onClick={() => handlePairBeacon(beacon._id)}
+                        disabled={!selectedMemberId}
+                      >
+                        Pair
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        icon={<X size={14} />}
+                        onClick={() => {
+                          setPairingBeaconId(null);
+                          setSelectedMemberId("");
+                        }}
+                      />
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        icon={<UserPlus size={14} />}
+                        onClick={() => setPairingBeaconId(beacon._id)}
+                      >
+                        Pair to Member
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        icon={<X size={14} />}
+                        onClick={() => handleDismissBeacon(beacon._id)}
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Info Box */}
       <div className="bg-bg-secondary border border-border rounded-xl p-4">
         <h4 className="text-sm font-medium text-text-primary mb-2">
@@ -265,7 +385,8 @@ export function ScannersContent({ member }: ScannersContentProps) {
           <li>Register a scanner to get an API key</li>
           <li>Install the scanner app on your Raspberry Pi or Mac</li>
           <li>Configure the app with the API key</li>
-          <li>The scanner will automatically log attendance when beacons are detected</li>
+          <li>Beacons detected by the scanner will appear above for pairing</li>
+          <li>Pair each beacon to a member to enable attendance tracking</li>
         </ol>
       </div>
 

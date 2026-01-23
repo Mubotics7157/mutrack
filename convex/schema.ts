@@ -89,6 +89,20 @@ const applicationTables = {
     .index("by_apiKeyHash", ["apiKeyHash"]) // For authentication lookup
     .index("by_isActive", ["isActive"]),
 
+  // Beacons detected by scanners but not yet paired to a member
+  unpairedBeacons: defineTable({
+    key: v.string(), // canonical beacon identifier (ibeacon:uuid:major:minor)
+    uuid: v.string(),
+    major: v.number(),
+    minor: v.number(),
+    firstSeenAt: v.number(),
+    lastSeenAt: v.number(),
+    lastSeenByScannerId: v.id("scanners"),
+    sightingCount: v.number(), // how many times seen
+  })
+    .index("by_key", ["key"])
+    .index("by_lastSeenAt", ["lastSeenAt"]),
+
   purchaseRequests: defineTable({
     title: v.string(),
     description: v.string(),

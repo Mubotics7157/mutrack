@@ -2,23 +2,26 @@ import { useEffect, useMemo, useState } from 'react';
 import { useQuery, useMutation } from 'convex/react';
 import { api } from '../../convex/_generated/api';
 import { toast } from 'sonner';
+import { ChevronDown, HelpCircle } from 'lucide-react';
 import { RequestsList } from './purchases/RequestsList';
-import { OrdersList } from './purchases/OrdersList';
+import { OrdersList, getOrderCounts } from './purchases/OrdersList';
 import { OutstandingSummary } from './purchases/OutstandingSummary';
 import { PurchaseOrderWizard } from './purchases/PurchaseOrderWizard';
 import { OrderPlacementModal } from './purchases/OrderPlacementModal';
 import { OrderEditModal } from './purchases/OrderEditModal';
-import { PurchaseHero } from './purchases/PurchaseHero';
+import { PurchaseStatsRow } from './purchases/PurchaseStatsRow';
 import { PurchaseViewToggle } from './purchases/PurchaseViewToggle';
 import { PurchaseRequestFormModal, RequestFormState } from './purchases/PurchaseRequestFormModal';
 import { ProductSuggestion } from './purchases/ProductAutocomplete';
 import { MemberWithProfile } from '../lib/members';
+import { usePurchaseModals } from '../hooks/usePurchaseModals';
 
 interface PurchasesPageProps {
   member: MemberWithProfile;
 }
 
 type ViewType = 'requests' | 'orders' | 'summary';
+type OrderStatusFilter = 'pending' | 'placed';
 
 const INITIAL_REQUEST_FORM: RequestFormState = {
   title: '',
@@ -30,30 +33,57 @@ const INITIAL_REQUEST_FORM: RequestFormState = {
   vendorName: '',
 };
 
+const workflowGuide = [
+  {
+    title: 'Submit a purchase request (any member)',
+    body: "Requests should cover a single item or cart, like a McMaster cart submission or a heat gun off Amazon.",
+  },
+  {
+    title: 'Use saved vendors and products',
+    body: "Pick the vendor you plan to buy from - vendors are the companies we order from - and the product field will auto-fill from anything we've bought before. Reusing these saves time and keeps details consistent.",
+  },
+  {
+    title: "Open an order when you're ready to buy (lead/admin)",
+    body: "Once the needed requests are approved, bundle them into a purchase order. Orders almost always map to one vendor (for example, a single Amazon checkout) and capture the total cost, cart link, and any notes the buyer needs.",
+  },
+  {
+    title: 'Mark the order as placed and close the loop',
+    body: "Every new order starts in the pending state until you confirm the checkout happened. You can upload the confirmation email or receipt and add notes or the final total so everyone knows it's handled.",
+    points: [
+      'Pending -> waiting for the purchaser to check out.',
+      'Placed -> confirmation uploaded or notes added, with the final total recorded when you have it.',
+    ],
+  },
+];
+
 export function PurchasesPage({ member }: PurchasesPageProps) {
+  // View state
   const [activeView, setActiveView] = useState<ViewType>('requests');
-  const [showRequestForm, setShowRequestForm] = useState(false);
-  const [showOrderForm, setShowOrderForm] = useState(false);
   const [requestSort, setRequestSort] = useState<'recent' | 'vendor'>('recent');
-  const [orderBeingPlaced, setOrderBeingPlaced] = useState<any | null>(null);
-  const [showPlacementModal, setShowPlacementModal] = useState(false);
+  const [orderStatusFilter, setOrderStatusFilter] = useState<OrderStatusFilter>('pending');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [showGuide, setShowGuide] = useState(false);
+
+  // Request form state
   const [requestForm, setRequestForm] = useState<RequestFormState>(INITIAL_REQUEST_FORM);
   const [selectedProduct, setSelectedProduct] = useState<ProductSuggestion | null>(null);
   const [requestFormMode, setRequestFormMode] = useState<'single' | 'bulk'>('single');
   const [editingRequestId, setEditingRequestId] = useState<string | null>(null);
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
-  const [orderBeingEdited, setOrderBeingEdited] = useState<any | null>(null);
-  const [showOrderEditModal, setShowOrderEditModal] = useState(false);
-  const [isOrderEditSubmitting, setIsOrderEditSubmitting] = useState(false);
-  const [orderEditCandidates, setOrderEditCandidates] = useState<any[]>([]);
 
+  // Data queries
   const requests = useQuery(api.purchases.getPurchaseRequests) || [];
   const orders = useQuery(api.purchases.getPurchaseOrders) || [];
 
-  useEffect(() => {
-    if (showRequestForm) setRequestFormMode('single');
-  }, [showRequestForm]);
+  // Modal state (extracted to hook)
+  const modals = usePurchaseModals(requests as any[]);
 
+  // Reset form mode when opening
+  useEffect(() => {
+    if (modals.showRequestForm) setRequestFormMode('single');
+  }, [modals.showRequestForm]);
+
+  // Mutations
   const createRequest = useMutation(api.purchases.createPurchaseRequest);
   const updateRequestStatus = useMutation(api.purchases.updateRequestStatus);
   const createOrder = useMutation(api.purchases.createPurchaseOrder);
@@ -66,33 +96,25 @@ export function PurchasesPage({ member }: PurchasesPageProps) {
   const updateOrderDetails = useMutation(api.purchases.updatePurchaseOrderDetails);
   const deleteOrderMutation = useMutation(api.purchases.deletePurchaseOrder);
 
+  // Permissions
   const canManageOrders = member.role === 'admin' || member.role === 'lead';
   const isAdmin = member.role === 'admin';
 
-  const resetRequestFormState = () => {
-    setRequestForm(INITIAL_REQUEST_FORM);
-    setSelectedProduct(null);
-    setEditingRequestId(null);
-    setEditingProductId(null);
-    setRequestFormMode('single');
-  };
+  // Computed values
+  const stats = useMemo(() => {
+    const pending = requests.filter((r) => r.status === 'pending').length;
+    const approved = requests.filter((r) => r.status === 'approved').length;
+    const awaitingPlacement = orders.filter((o) => o.status !== 'placed').length;
 
-  const stats = useMemo(
-    () => ({
-      pending: requests.filter((r) => r.status === 'pending').length,
-      approved: requests.filter((r) => r.status === 'approved').length,
-      placed: orders.filter((o) => o.status === 'placed').length,
-      awaitingPlacement: orders.filter((o) => o.status !== 'placed').length,
-    }),
-    [requests, orders]
-  );
+    // Calculate outstanding total from pending + approved requests
+    const outstandingTotal = requests
+      .filter((r) => r.status === 'pending' || r.status === 'approved')
+      .reduce((sum, r) => sum + r.estimatedCost * (r.quantity ?? 1), 0);
 
-  const heroStats = [
-    { label: 'Pending', value: stats.pending, color: 'text-accent-warning' },
-    { label: 'Approved', value: stats.approved, color: 'text-accent-success' },
-    { label: 'Awaiting', value: stats.awaitingPlacement, color: 'text-accent' },
-    { label: 'Placed', value: stats.placed, color: 'text-accent-orange' },
-  ];
+    return { pending, approved, awaitingPlacement, outstandingTotal };
+  }, [requests, orders]);
+
+  const orderCounts = useMemo(() => getOrderCounts(orders as any[]), [orders]);
 
   const sortedRequests = useMemo(() => {
     const copy = [...requests];
@@ -126,6 +148,15 @@ export function PurchasesPage({ member }: PurchasesPageProps) {
     });
     return picks;
   }, [requests]);
+
+  // Form handlers
+  const resetRequestFormState = () => {
+    setRequestForm(INITIAL_REQUEST_FORM);
+    setSelectedProduct(null);
+    setEditingRequestId(null);
+    setEditingProductId(null);
+    setRequestFormMode('single');
+  };
 
   const handleSelectProduct = (product: ProductSuggestion) => {
     setSelectedProduct(product);
@@ -206,7 +237,7 @@ export function PurchasesPage({ member }: PurchasesPageProps) {
       }
 
       resetRequestFormState();
-      setShowRequestForm(false);
+      modals.closeRequestForm();
     } catch {
       toast.error('failed to submit request');
     }
@@ -226,7 +257,7 @@ export function PurchasesPage({ member }: PurchasesPageProps) {
       vendorName: request.vendorName || '',
     });
     setSelectedProduct(null);
-    setShowRequestForm(true);
+    modals.openRequestForm();
   };
 
   const handleRequestDelete = async (request: any) => {
@@ -236,7 +267,7 @@ export function PurchasesPage({ member }: PurchasesPageProps) {
       toast.success('purchase request deleted');
       if (editingRequestId === request._id) {
         resetRequestFormState();
-        setShowRequestForm(false);
+        modals.closeRequestForm();
       }
     } catch {
       toast.error('failed to delete request');
@@ -300,21 +331,10 @@ export function PurchasesPage({ member }: PurchasesPageProps) {
       });
 
       toast.success('order marked as placed');
-      setShowPlacementModal(false);
-      setOrderBeingPlaced(null);
+      modals.closePlacement();
     } catch {
       toast.error('failed to place order');
     }
-  };
-
-  const handleOrderEdit = (order: any) => {
-    const orderRequestIds = new Set((order.requestIds || []).map((id: any) => id));
-    const candidates = requests.filter(
-      (request: any) => request.status === 'approved' || orderRequestIds.has(request._id)
-    );
-    setOrderEditCandidates(candidates);
-    setOrderBeingEdited(order);
-    setShowOrderEditModal(true);
   };
 
   const handleOrderDelete = async (order: any) => {
@@ -322,16 +342,7 @@ export function PurchasesPage({ member }: PurchasesPageProps) {
     try {
       await deleteOrderMutation({ orderId: order._id as any });
       toast.success('purchase order deleted');
-      if (orderBeingEdited?._id === order._id) {
-        setShowOrderEditModal(false);
-        setOrderBeingEdited(null);
-        setIsOrderEditSubmitting(false);
-        setOrderEditCandidates([]);
-      }
-      if (orderBeingPlaced?._id === order._id) {
-        setShowPlacementModal(false);
-        setOrderBeingPlaced(null);
-      }
+      modals.handleOrderDeleted(order._id);
     } catch {
       toast.error('failed to delete order');
     }
@@ -341,7 +352,7 @@ export function PurchasesPage({ member }: PurchasesPageProps) {
     form: { vendor: string; totalCost: string; cartLink: string; notes: string },
     requestIds: string[]
   ) => {
-    if (!orderBeingEdited) return;
+    if (!modals.orderBeingEdited) return;
 
     const vendor = form.vendor.trim();
     if (!vendor) {
@@ -360,10 +371,10 @@ export function PurchasesPage({ member }: PurchasesPageProps) {
       return;
     }
 
-    setIsOrderEditSubmitting(true);
+    modals.setOrderEditSubmitting(true);
     try {
       await updateOrderDetails({
-        orderId: orderBeingEdited._id as any,
+        orderId: modals.orderBeingEdited._id as any,
         vendor,
         totalCost: parsedTotal,
         cartLink: form.cartLink.trim() === '' ? undefined : form.cartLink.trim(),
@@ -371,40 +382,148 @@ export function PurchasesPage({ member }: PurchasesPageProps) {
         requestIds: requestIds as any,
       });
       toast.success('purchase order updated');
-      setShowOrderEditModal(false);
-      setOrderBeingEdited(null);
-      setOrderEditCandidates([]);
+      modals.closeOrderEdit();
     } catch {
       toast.error('failed to update order');
     } finally {
-      setIsOrderEditSubmitting(false);
+      modals.setOrderEditSubmitting(false);
     }
   };
 
   return (
-    <div className="space-y-6">
-      <PurchaseHero stats={heroStats} />
+    <div className="space-y-6 pt-2">
+      {/* Header */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold text-text-primary">Purchases</h1>
+          <p className="text-sm text-text-muted mt-1">
+            Keep the team supplied and every order transparent
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setShowGuide((prev) => !prev)}
+          className="flex items-center gap-2 text-sm text-accent hover:text-accent/80 transition-colors"
+          aria-expanded={showGuide}
+        >
+          <HelpCircle size={16} />
+          <span>How it works</span>
+          <ChevronDown
+            size={14}
+            className={`transition-transform ${showGuide ? 'rotate-180' : ''}`}
+          />
+        </button>
+      </div>
 
+      {/* Guide */}
+      {showGuide && (
+        <div className="bg-bg-secondary border border-border rounded-xl p-4 md:p-6 space-y-4">
+          <div>
+            <h2 className="text-base font-semibold text-text-primary">
+              How the purchasing flow works
+            </h2>
+            <p className="text-sm text-text-muted mt-1">
+              Keep this checklist in mind so requests move smoothly from an idea to a confirmed order.
+            </p>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            {workflowGuide.map((section, index) => (
+              <div key={section.title} className="bg-bg-tertiary rounded-lg p-4">
+                <div className="flex items-start gap-3">
+                  <span className="flex items-center justify-center w-6 h-6 rounded-full bg-accent text-white text-xs font-medium shrink-0">
+                    {index + 1}
+                  </span>
+                  <div>
+                    <h3 className="text-sm font-medium text-text-primary">
+                      {section.title}
+                    </h3>
+                    <p className="text-sm text-text-muted mt-1">{section.body}</p>
+                    {section.points && (
+                      <ul className="list-disc pl-4 text-sm text-text-muted mt-2 space-y-1">
+                        {section.points.map((point) => (
+                          <li key={point}>{point}</li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Stats */}
+      <PurchaseStatsRow
+        pending={stats.pending}
+        approved={stats.approved}
+        awaitingPlacement={stats.awaitingPlacement}
+        outstandingTotal={stats.outstandingTotal}
+      />
+
+      {/* Navigation + Controls */}
       <PurchaseViewToggle
         activeView={activeView}
-        onViewChange={setActiveView}
+        onViewChange={(view) => {
+          setActiveView(view);
+          setSearchTerm(''); // Reset search when switching views
+        }}
         requestsCount={requests.length}
         ordersCount={orders.length}
         outstandingCount={outstandingRequests.length}
         requestSort={requestSort}
         onSortChange={setRequestSort}
+        searchTerm={searchTerm}
+        onSearchChange={setSearchTerm}
+        orderStatusFilter={orderStatusFilter}
+        onOrderStatusFilterChange={setOrderStatusFilter}
+        pendingOrdersCount={orderCounts.pending}
+        placedOrdersCount={orderCounts.placed}
         canManageOrders={canManageOrders}
         onNewRequest={() => {
           resetRequestFormState();
-          setShowRequestForm(true);
+          modals.openRequestForm();
         }}
-        onCreateOrder={() => setShowOrderForm(true)}
+        onCreateOrder={modals.openOrderWizard}
       />
 
+      {/* Content */}
+      {activeView === 'requests' && (
+        <RequestsList
+          requests={sortedRequests as any[]}
+          searchTerm={searchTerm}
+          canManageOrders={canManageOrders}
+          onStatusUpdate={handleStatusUpdate}
+          isAdmin={isAdmin}
+          onEdit={isAdmin ? handleRequestEdit : undefined}
+          onDelete={isAdmin ? handleRequestDelete : undefined}
+        />
+      )}
+      {activeView === 'orders' && (
+        <OrdersList
+          orders={orders as any[]}
+          statusFilter={orderStatusFilter}
+          searchTerm={searchTerm}
+          canManageOrders={canManageOrders}
+          onOpenPlacement={modals.openPlacement}
+          isAdmin={isAdmin}
+          onEditOrder={isAdmin ? modals.openOrderEdit : undefined}
+          onDeleteOrder={isAdmin ? handleOrderDelete : undefined}
+        />
+      )}
+      {activeView === 'summary' && (
+        <OutstandingSummary
+          requests={requests as any[]}
+          onCreateOrderForVendor={canManageOrders ? () => modals.openOrderWizard() : undefined}
+        />
+      )}
+
+      {/* Modals */}
       <PurchaseRequestFormModal
-        isOpen={showRequestForm}
+        isOpen={modals.showRequestForm}
         onClose={() => {
-          setShowRequestForm(false);
+          modals.closeRequestForm();
           resetRequestFormState();
         }}
         formMode={requestFormMode}
@@ -423,59 +542,26 @@ export function PurchasesPage({ member }: PurchasesPageProps) {
       />
 
       <PurchaseOrderWizard
-        isOpen={showOrderForm}
-        onClose={() => setShowOrderForm(false)}
+        isOpen={modals.showOrderForm}
+        onClose={modals.closeOrderWizard}
         approvedRequests={approvedRequests}
         ensureVendor={ensureVendor}
         createOrder={handleWizardCreateOrder}
       />
 
-      {activeView === 'requests' && (
-        <RequestsList
-          requests={sortedRequests}
-          canManageOrders={canManageOrders}
-          onStatusUpdate={handleStatusUpdate}
-          isAdmin={isAdmin}
-          onEdit={isAdmin ? handleRequestEdit : undefined}
-          onDelete={isAdmin ? handleRequestDelete : undefined}
-        />
-      )}
-      {activeView === 'orders' && (
-        <OrdersList
-          orders={orders}
-          canManageOrders={canManageOrders}
-          onOpenPlacement={(order) => {
-            setOrderBeingPlaced(order);
-            setShowPlacementModal(true);
-          }}
-          isAdmin={isAdmin}
-          onEditOrder={isAdmin ? handleOrderEdit : undefined}
-          onDeleteOrder={isAdmin ? handleOrderDelete : undefined}
-        />
-      )}
-      {activeView === 'summary' && <OutstandingSummary requests={requests} />}
-
       <OrderPlacementModal
-        order={orderBeingPlaced}
-        isOpen={showPlacementModal}
-        onClose={() => {
-          setShowPlacementModal(false);
-          setOrderBeingPlaced(null);
-        }}
+        order={modals.placementOrder}
+        isOpen={modals.showPlacementModal}
+        onClose={modals.closePlacement}
         onSubmit={handlePlacementSubmit}
       />
 
       <OrderEditModal
-        order={orderBeingEdited}
-        isOpen={showOrderEditModal}
-        isSubmitting={isOrderEditSubmitting}
-        candidates={orderEditCandidates}
-        onClose={() => {
-          setShowOrderEditModal(false);
-          setOrderBeingEdited(null);
-          setIsOrderEditSubmitting(false);
-          setOrderEditCandidates([]);
-        }}
+        order={modals.orderBeingEdited}
+        isOpen={modals.showOrderEditModal}
+        isSubmitting={modals.isOrderEditSubmitting}
+        candidates={modals.orderEditCandidates}
+        onClose={modals.closeOrderEdit}
         onSubmit={handleOrderEditSubmit}
       />
     </div>

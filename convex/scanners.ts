@@ -243,3 +243,141 @@ export const updateHeartbeat = internalMutation({
 export const hashApiKeyForValidation = async (key: string): Promise<string> => {
   return hashApiKey(key);
 };
+
+// Track an unpaired beacon sighting
+export const trackUnpairedBeacon = internalMutation({
+  args: {
+    uuid: v.string(),
+    major: v.number(),
+    minor: v.number(),
+    scannerId: v.id("scanners"),
+  },
+  handler: async (ctx, args) => {
+    const key = `ibeacon:${args.uuid.toLowerCase().trim()}:${args.major}:${args.minor}`;
+
+    // Check if already tracked
+    const existing = await ctx.db
+      .query("unpairedBeacons")
+      .withIndex("by_key", (q) => q.eq("key", key))
+      .unique();
+
+    const now = Date.now();
+
+    if (existing) {
+      // Update existing record
+      await ctx.db.patch(existing._id, {
+        lastSeenAt: now,
+        lastSeenByScannerId: args.scannerId,
+        sightingCount: existing.sightingCount + 1,
+      });
+    } else {
+      // Create new record
+      await ctx.db.insert("unpairedBeacons", {
+        key,
+        uuid: args.uuid.toLowerCase().trim(),
+        major: args.major,
+        minor: args.minor,
+        firstSeenAt: now,
+        lastSeenAt: now,
+        lastSeenByScannerId: args.scannerId,
+        sightingCount: 1,
+      });
+    }
+  },
+});
+
+// List unpaired beacons for admin UI
+export const listUnpairedBeacons = query({
+  args: {},
+  handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) return [];
+
+    const member = await ctx.db
+      .query("members")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .unique();
+
+    if (!member || member.role !== "admin") return [];
+
+    const unpaired = await ctx.db
+      .query("unpairedBeacons")
+      .withIndex("by_lastSeenAt")
+      .order("desc")
+      .take(50);
+
+    const now = Date.now();
+    const RECENT_THRESHOLD_MS = 5 * 60 * 1000; // 5 minutes
+
+    return unpaired.map((b) => ({
+      _id: b._id,
+      key: b.key,
+      uuid: b.uuid,
+      major: b.major,
+      minor: b.minor,
+      firstSeenAt: b.firstSeenAt,
+      lastSeenAt: b.lastSeenAt,
+      sightingCount: b.sightingCount,
+      isRecent: now - b.lastSeenAt < RECENT_THRESHOLD_MS,
+    }));
+  },
+});
+
+// Pair an unpaired beacon to a member
+export const pairUnpairedBeaconToMember = mutation({
+  args: {
+    unpairedBeaconId: v.id("unpairedBeacons"),
+    memberId: v.id("members"),
+    label: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+
+    await requireAdmin(ctx, userId);
+
+    const unpaired = await ctx.db.get(args.unpairedBeaconId);
+    if (!unpaired) throw new Error("Unpaired beacon not found");
+
+    const target = await ctx.db.get(args.memberId);
+    if (!target) throw new Error("Member not found");
+
+    // Check if already paired
+    const existing = await ctx.db
+      .query("beacons")
+      .withIndex("by_key", (q) => q.eq("key", unpaired.key))
+      .unique();
+
+    if (existing) {
+      throw new Error("This beacon is already paired to a member");
+    }
+
+    // Create the beacon record
+    await ctx.db.insert("beacons", {
+      key: unpaired.key,
+      type: "ibeacon" as const,
+      label: args.label,
+      ownerMemberId: args.memberId,
+      createdAt: Date.now(),
+    });
+
+    // Delete from unpaired
+    await ctx.db.delete(args.unpairedBeaconId);
+
+    return null;
+  },
+});
+
+// Delete/dismiss an unpaired beacon
+export const dismissUnpairedBeacon = mutation({
+  args: { unpairedBeaconId: v.id("unpairedBeacons") },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+
+    await requireAdmin(ctx, userId);
+
+    await ctx.db.delete(args.unpairedBeaconId);
+    return null;
+  },
+});

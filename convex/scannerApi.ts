@@ -80,7 +80,7 @@ export const handleBeaconSightings = httpAction(async (ctx, request) => {
     );
   }
 
-  // Process each sighting for each active meeting
+  // Process each sighting
   let processed = 0;
   for (const sighting of sightings) {
     if (
@@ -91,9 +91,26 @@ export const handleBeaconSightings = httpAction(async (ctx, request) => {
       continue; // Skip invalid sightings
     }
 
-    for (const meeting of activeMeetings) {
-      await ctx.runMutation(internal.attendance.handleDeviceBeaconSighting, {
-        meetingId: meeting._id,
+    // Check if this beacon is paired to anyone
+    const beaconKey = `ibeacon:${sighting.uuid.toLowerCase().trim()}:${sighting.major}:${sighting.minor}`;
+    const memberId = await ctx.runQuery(internal.beacons.findMemberByBeaconKey, {
+      key: beaconKey,
+    });
+
+    if (memberId) {
+      // Known beacon - log attendance for active meetings
+      for (const meeting of activeMeetings) {
+        await ctx.runMutation(internal.attendance.handleDeviceBeaconSighting, {
+          meetingId: meeting._id,
+          uuid: sighting.uuid,
+          major: sighting.major,
+          minor: sighting.minor,
+          scannerId: scanner._id,
+        });
+      }
+    } else {
+      // Unknown beacon - track it for admin to pair later
+      await ctx.runMutation(internal.scanners.trackUnpairedBeacon, {
         uuid: sighting.uuid,
         major: sighting.major,
         minor: sighting.minor,

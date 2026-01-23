@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
-import { ExternalLink, Package } from 'lucide-react';
+import { ExternalLink, Package, Plus, CheckCircle, Clock } from 'lucide-react';
 import { cn } from '../../lib/utils';
-import { Badge } from '../ui';
+import { Badge, Button, Card } from '../ui';
 
 type PurchaseRequest = {
   _id: string;
@@ -17,14 +17,14 @@ type PurchaseRequest = {
 
 interface OutstandingSummaryProps {
   requests: PurchaseRequest[];
+  onCreateOrderForVendor?: (vendorName: string) => void;
 }
 
-export function OutstandingSummary({ requests }: OutstandingSummaryProps) {
+export function OutstandingSummary({ requests, onCreateOrderForVendor }: OutstandingSummaryProps) {
   const outstanding = useMemo(
     () =>
       requests.filter(
-        (request) =>
-          request.status === 'pending' || request.status === 'approved'
+        (request) => request.status === 'pending' || request.status === 'approved'
       ),
     [requests]
   );
@@ -33,7 +33,13 @@ export function OutstandingSummary({ requests }: OutstandingSummaryProps) {
   const vendorSummaries = useMemo(() => {
     const grouped = new Map<
       string,
-      { vendorName: string; requests: PurchaseRequest[]; total: number }
+      {
+        vendorName: string;
+        requests: PurchaseRequest[];
+        total: number;
+        pendingCount: number;
+        approvedCount: number;
+      }
     >();
 
     outstanding.forEach((request) => {
@@ -43,6 +49,8 @@ export function OutstandingSummary({ requests }: OutstandingSummaryProps) {
           vendorName,
           requests: [],
           total: 0,
+          pendingCount: 0,
+          approvedCount: 0,
         });
       }
       const quantity = request.quantity ?? 1;
@@ -50,6 +58,11 @@ export function OutstandingSummary({ requests }: OutstandingSummaryProps) {
       const entry = grouped.get(vendorName)!;
       entry.requests.push(request);
       entry.total += subtotal;
+      if (request.status === 'pending') {
+        entry.pendingCount += 1;
+      } else {
+        entry.approvedCount += 1;
+      }
     });
 
     return Array.from(grouped.values());
@@ -75,15 +88,18 @@ export function OutstandingSummary({ requests }: OutstandingSummaryProps) {
     [outstanding]
   );
 
+  const approvedCount = useMemo(
+    () => outstanding.filter((request) => request.status === 'approved').length,
+    [outstanding]
+  );
+
   if (outstanding.length === 0) {
     return (
       <div className="bg-bg-secondary border border-border rounded-xl p-8 text-center">
         <div className="w-12 h-12 rounded-full bg-bg-tertiary flex items-center justify-center mx-auto mb-3">
           <Package size={24} className="text-text-muted" />
         </div>
-        <p className="text-text-muted">
-          All purchase requests are either ordered or fulfilled
-        </p>
+        <p className="text-text-muted">All purchase requests are either ordered or fulfilled</p>
         <p className="mt-2 text-sm text-text-dim">
           Once new requests are submitted or approved, they will appear here with a cost breakdown.
         </p>
@@ -94,18 +110,37 @@ export function OutstandingSummary({ requests }: OutstandingSummaryProps) {
   return (
     <div className="space-y-6">
       {/* Summary Header */}
-      <div className="bg-bg-secondary border border-border rounded-xl p-6">
+      <Card className="!p-6">
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
             <h2 className="text-xl font-semibold text-text-primary">Outstanding Summary</h2>
             <p className="text-sm text-text-muted mt-1">
-              {outstanding.length} requests awaiting purchase · {pendingCount} still pending approval
+              {outstanding.length} requests awaiting purchase across {vendorSummaries.length} vendor
+              {vendorSummaries.length !== 1 ? 's' : ''}
             </p>
           </div>
           <div className="text-right">
             <span className="text-xs text-text-muted">Estimated Spend</span>
             <div className="text-2xl font-semibold text-accent-orange">
               ${overallTotal.toFixed(2)}
+            </div>
+          </div>
+        </div>
+
+        {/* Progress indicator */}
+        <div className="mt-4 grid grid-cols-2 gap-3">
+          <div className="flex items-center gap-3 p-3 rounded-lg bg-accent-warning/10 border border-accent-warning/20">
+            <Clock size={18} className="text-accent-warning shrink-0" />
+            <div>
+              <span className="text-lg font-semibold text-text-primary">{pendingCount}</span>
+              <span className="text-sm text-text-muted ml-1">pending review</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-3 p-3 rounded-lg bg-accent-success/10 border border-accent-success/20">
+            <CheckCircle size={18} className="text-accent-success shrink-0" />
+            <div>
+              <span className="text-lg font-semibold text-text-primary">{approvedCount}</span>
+              <span className="text-sm text-text-muted ml-1">ready to order</span>
             </div>
           </div>
         </div>
@@ -139,7 +174,7 @@ export function OutstandingSummary({ requests }: OutstandingSummaryProps) {
             </button>
           </div>
         </div>
-      </div>
+      </Card>
 
       {/* Vendor Cards */}
       <div className="space-y-4">
@@ -160,23 +195,52 @@ export function OutstandingSummary({ requests }: OutstandingSummaryProps) {
             return (b.requestedAt || 0) - (a.requestedAt || 0);
           });
 
+          const canCreateOrder = vendor.approvedCount > 0;
+
           return (
-            <div key={vendor.vendorName} className="bg-bg-secondary border border-border rounded-xl overflow-hidden">
+            <Card key={vendor.vendorName} padding="none" className="overflow-hidden">
               {/* Vendor Header */}
               <div className="flex flex-col gap-3 border-b border-border-subtle px-6 py-4 md:flex-row md:items-center md:justify-between">
-                <div>
-                  <h3 className="text-lg font-semibold text-text-primary capitalize">
-                    {vendor.vendorName}
-                  </h3>
-                  <p className="text-xs text-text-muted">
-                    {vendor.requests.length} outstanding request{vendor.requests.length === 1 ? '' : 's'}
+                <div className="flex-1">
+                  <div className="flex items-center gap-3">
+                    <h3 className="text-lg font-semibold text-text-primary capitalize">
+                      {vendor.vendorName}
+                    </h3>
+                    <div className="flex gap-2">
+                      {vendor.approvedCount > 0 && (
+                        <Badge variant="success" size="sm">
+                          {vendor.approvedCount} approved
+                        </Badge>
+                      )}
+                      {vendor.pendingCount > 0 && (
+                        <Badge variant="warning" size="sm">
+                          {vendor.pendingCount} pending
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                  <p className="text-xs text-text-muted mt-1">
+                    {vendor.requests.length} outstanding request
+                    {vendor.requests.length === 1 ? '' : 's'}
                   </p>
                 </div>
-                <div className="text-right">
-                  <span className="text-xs text-text-muted">Estimated Total</span>
-                  <div className="text-xl font-semibold text-text-primary">
-                    ${vendor.total.toFixed(2)}
+                <div className="flex items-center gap-4">
+                  <div className="text-right">
+                    <span className="text-xs text-text-muted">Estimated Total</span>
+                    <div className="text-xl font-semibold text-text-primary">
+                      ${vendor.total.toFixed(2)}
+                    </div>
                   </div>
+                  {onCreateOrderForVendor && canCreateOrder && (
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      icon={<Plus size={14} />}
+                      onClick={() => onCreateOrderForVendor(vendor.vendorName)}
+                    >
+                      Create Order
+                    </Button>
+                  )}
                 </div>
               </div>
 
@@ -196,9 +260,7 @@ export function OutstandingSummary({ requests }: OutstandingSummaryProps) {
                     >
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                          <p className="font-medium text-text-primary truncate">
-                            {request.title}
-                          </p>
+                          <p className="font-medium text-text-primary truncate">{request.title}</p>
                           <Badge variant={request.status === 'approved' ? 'success' : 'warning'}>
                             {request.status}
                           </Badge>
@@ -235,7 +297,7 @@ export function OutstandingSummary({ requests }: OutstandingSummaryProps) {
                   );
                 })}
               </div>
-            </div>
+            </Card>
           );
         })}
       </div>
