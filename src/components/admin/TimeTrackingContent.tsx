@@ -56,6 +56,19 @@ export function TimeTrackingContent({ member }: TimeTrackingContentProps) {
     return () => clearInterval(id);
   }, []);
 
+  // Auto-select the latest meeting (closest to now, preferring today/upcoming)
+  useEffect(() => {
+    if (meetings.length > 0 && !selectedMeetingId) {
+      const now = Date.now();
+      const sorted = [...meetings].sort((a: any, b: any) => {
+        const diffA = Math.abs(a.date - now);
+        const diffB = Math.abs(b.date - now);
+        return diffA - diffB;
+      });
+      setSelectedMeetingId(sorted[0]._id);
+    }
+  }, [meetings, selectedMeetingId]);
+
   const isRunning = useMemo(() => {
     if (scanState !== 'scanning') return false;
     const handleActive = !!(
