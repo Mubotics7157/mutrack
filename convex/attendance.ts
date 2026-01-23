@@ -84,6 +84,7 @@ export const getActiveSessionsForMeeting = query({
       lastSeenAt: v.number(),
       endTime: v.union(v.null(), v.number()),
       scannerMemberId: v.id("members"),
+      isManual: v.optional(v.boolean()),
     })
   ),
   handler: async (ctx, args) => {
@@ -97,6 +98,72 @@ export const getActiveSessionsForMeeting = query({
       .collect();
     // Return all open sessions regardless of last seen; durations use lastSeenAt/endTime
     return sessions;
+  },
+});
+
+export const getMyActiveSession = query({
+  args: {},
+  returns: v.union(
+    v.null(),
+    v.object({
+      session: v.object({
+        _id: v.id("attendanceSessions"),
+        meetingId: v.id("meetings"),
+        memberId: v.id("members"),
+        startTime: v.number(),
+        lastSeenAt: v.number(),
+        endTime: v.union(v.null(), v.number()),
+        isManual: v.optional(v.boolean()),
+      }),
+      meeting: v.object({
+        _id: v.id("meetings"),
+        title: v.string(),
+        date: v.number(),
+        startTime: v.string(),
+        endTime: v.string(),
+      }),
+    })
+  ),
+  handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) return null;
+
+    const member = await ctx.db
+      .query("members")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .unique();
+    if (!member) return null;
+
+    // Find any active session for this member (endTime === null)
+    const sessions = await ctx.db
+      .query("attendanceSessions")
+      .withIndex("by_member", (q) => q.eq("memberId", member._id))
+      .collect();
+
+    const activeSession = sessions.find((s) => s.endTime === null);
+    if (!activeSession) return null;
+
+    const meeting = await ctx.db.get(activeSession.meetingId);
+    if (!meeting) return null;
+
+    return {
+      session: {
+        _id: activeSession._id,
+        meetingId: activeSession.meetingId,
+        memberId: activeSession.memberId,
+        startTime: activeSession.startTime,
+        lastSeenAt: activeSession.lastSeenAt,
+        endTime: activeSession.endTime,
+        isManual: activeSession.isManual,
+      },
+      meeting: {
+        _id: meeting._id,
+        title: meeting.title,
+        date: meeting.date,
+        startTime: meeting.startTime,
+        endTime: meeting.endTime,
+      },
+    };
   },
 });
 
@@ -204,5 +271,77 @@ export const closeExpiredSessions = mutation({
       }
     }
     return closed;
+  },
+});
+
+export const manualSignIn = mutation({
+  args: {
+    meetingId: v.id("meetings"),
+    memberId: v.id("members"),
+  },
+  returns: v.id("attendanceSessions"),
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+
+    // Validate caller is admin
+    const caller = await ctx.db
+      .query("members")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .unique();
+    if (!caller) throw new Error("Member not found");
+    if (caller.role !== "admin") throw new Error("Only admins can manually sign in members");
+
+    // Check no active session exists for this member/meeting
+    const existing = await ctx.db
+      .query("attendanceSessions")
+      .withIndex("by_meeting_and_member", (q) =>
+        q.eq("meetingId", args.meetingId).eq("memberId", args.memberId)
+      )
+      .collect();
+    const active = existing.find((s) => s.endTime === null);
+    if (active) {
+      throw new Error("Member already has an active session for this meeting");
+    }
+
+    const now = Date.now();
+    const sessionId = await ctx.db.insert("attendanceSessions", {
+      meetingId: args.meetingId,
+      memberId: args.memberId,
+      startTime: now,
+      lastSeenAt: now,
+      endTime: null,
+      scannerMemberId: caller._id,
+      isManual: true,
+    });
+    return sessionId;
+  },
+});
+
+export const manualSignOut = mutation({
+  args: {
+    sessionId: v.id("attendanceSessions"),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+
+    // Validate caller is admin
+    const caller = await ctx.db
+      .query("members")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .unique();
+    if (!caller) throw new Error("Member not found");
+    if (caller.role !== "admin") throw new Error("Only admins can manually sign out members");
+
+    // Validate session exists and is manual
+    const session = await ctx.db.get(args.sessionId);
+    if (!session) throw new Error("Session not found");
+    if (session.isManual !== true) throw new Error("Can only sign out manual sessions");
+    if (session.endTime !== null) throw new Error("Session already ended");
+
+    await ctx.db.patch(args.sessionId, { endTime: Date.now() });
+    return null;
   },
 });

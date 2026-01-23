@@ -46,8 +46,10 @@ export function TimeTrackingContent({ member }: TimeTrackingContentProps) {
   const beaconsAdmin = useQuery(api.beacons.listAllForAdmin) || [];
   const handleSighting = useMutation(api.attendance.handleIbeaconSighting);
   const adminPair = useMutation(api.beacons.adminPairIbeaconToMember);
+  const manualSignIn = useMutation(api.attendance.manualSignIn);
   const allMembers =
     (useQuery(api.members.getAllMembers) as MemberWithProfile[] | undefined) || [];
+  const [manualSignInMemberId, setManualSignInMemberId] = useState<string>('');
 
   useEffect(() => {
     const id = setInterval(() => setNowMs(Date.now()), 1000);
@@ -250,6 +252,29 @@ export function TimeTrackingContent({ member }: TimeTrackingContentProps) {
     toast.success(`Beacon ${beacon.uuid} assigned to ${memberName}`);
   };
 
+  const handleManualSignIn = async () => {
+    if (!selectedMeetingId || !manualSignInMemberId) {
+      toast.error('Select a meeting and member');
+      return;
+    }
+    try {
+      await manualSignIn({
+        meetingId: selectedMeetingId as Id<'meetings'>,
+        memberId: manualSignInMemberId as Id<'members'>,
+      });
+      const memberName = allMembers.find((m) => m._id === manualSignInMemberId)?.name || 'Member';
+      toast.success(`${memberName} signed in manually`);
+      setManualSignInMemberId('');
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to sign in');
+    }
+  };
+
+  // Filter out members who already have an active session
+  const availableMembersForSignIn = allMembers.filter(
+    (m) => !activeSessions?.some((s: any) => s.memberId === m._id)
+  );
+
   return (
     <div className="space-y-6">
       {!canOperate && (
@@ -288,6 +313,44 @@ export function TimeTrackingContent({ member }: TimeTrackingContentProps) {
         </div>
       </section>
 
+      {/* Manual Sign-In */}
+      {canOperate && selectedMeetingId && (
+        <section className="bg-bg-secondary border border-border rounded-xl overflow-hidden">
+          <div className="px-6 py-4 border-b border-border-subtle">
+            <h2 className="text-lg font-semibold text-text-primary">Manual Sign-In</h2>
+            <p className="text-sm text-text-muted mt-1">
+              Manually sign in members who don't have a beacon
+            </p>
+          </div>
+          <div className="p-6">
+            <div className="flex gap-3">
+              <select
+                value={manualSignInMemberId}
+                onChange={(e) => setManualSignInMemberId(e.target.value)}
+                className="flex-1 px-3 py-2 bg-bg-tertiary border border-border rounded-lg text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-accent/50"
+              >
+                <option value="">Select a member...</option>
+                {availableMembersForSignIn.map((m) => (
+                  <option key={m._id} value={m._id}>
+                    {m.name}
+                  </option>
+                ))}
+              </select>
+              <button
+                onClick={handleManualSignIn}
+                disabled={!manualSignInMemberId}
+                className="px-4 py-2 bg-accent text-white text-sm font-medium rounded-lg hover:bg-accent/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                Sign In
+              </button>
+            </div>
+            {availableMembersForSignIn.length === 0 && allMembers.length > 0 && (
+              <p className="text-xs text-text-muted mt-2">All members are already signed in</p>
+            )}
+          </div>
+        </section>
+      )}
+
       {/* Active Attendees */}
       <section className="bg-bg-secondary border border-border rounded-xl overflow-hidden">
         <div className="px-6 py-4 border-b border-border-subtle flex items-center justify-between">
@@ -306,6 +369,7 @@ export function TimeTrackingContent({ member }: TimeTrackingContentProps) {
             meetingId={selectedMeetingId}
             durations={durations as any}
             ephemeralLastSeen={ephemeralLastSeenRef.current}
+            isAdmin={member.role === 'admin'}
           />
         </div>
       </section>

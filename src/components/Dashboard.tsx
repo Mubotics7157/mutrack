@@ -3,6 +3,7 @@ import { Calendar, Users, ShoppingCart } from 'lucide-react';
 import { MeetingsPanel } from './MeetingsPanel';
 import { MembersPanel } from './MembersPanel';
 import { PurchasesPanel } from './PurchasesPanel';
+import { ActiveAttendanceStatus } from './ActiveAttendanceStatus';
 import { MemberWithProfile } from '../lib/members';
 import { Badge } from './ui';
 import { cn } from '../lib/utils';
@@ -55,6 +56,9 @@ export function Dashboard({ member }: DashboardProps) {
           </div>
         </div>
       </div>
+
+      {/* Active Attendance Status */}
+      <ActiveAttendanceStatus />
 
       {/* Navigation Tabs */}
       <div className="bg-bg-secondary border border-border rounded-xl p-1">

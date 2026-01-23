@@ -61,6 +61,7 @@ const applicationTables = {
     lastSeenAt: v.number(),
     endTime: v.union(v.null(), v.number()), // null while active, number when ended
     scannerMemberId: v.id("members"), // admin/lead operating the scanner
+    isManual: v.optional(v.boolean()), // true for manual sign-ins, undefined/false for beacon
   })
     .index("by_meeting", ["meetingId"])
     .index("by_member", ["memberId"])
