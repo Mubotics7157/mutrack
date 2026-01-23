@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery } from 'convex/react';
-import { api } from '../../convex/_generated/api';
-import { Id } from '../../convex/_generated/dataModel';
+import { api } from '../../../convex/_generated/api';
+import { Id } from '../../../convex/_generated/dataModel';
 import { toast } from 'sonner';
-import { MemberWithProfile } from '../lib/members';
+import { MemberWithProfile } from '../../lib/members';
 import {
   ScannerControls,
   ScannerStatus,
@@ -12,13 +12,13 @@ import {
   parseIbeaconFromAdvertisement,
   ScanState,
   canScan,
-} from './time-tracking';
+} from '../time-tracking';
 
-interface TimeTrackingPageProps {
+interface TimeTrackingContentProps {
   member: MemberWithProfile;
 }
 
-export function TimeTrackingPage({ member }: TimeTrackingPageProps) {
+export function TimeTrackingContent({ member }: TimeTrackingContentProps) {
   const [selectedMeetingId, setSelectedMeetingId] = useState<Id<'meetings'> | ''>('');
   const [scanState, setScanState] = useState<ScanState>('idle');
   const [errorText, setErrorText] = useState<string | null>(null);
@@ -252,16 +252,6 @@ export function TimeTrackingPage({ member }: TimeTrackingPageProps) {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <section className="space-y-4 pt-2">
-        <div>
-          <h1 className="text-2xl font-semibold text-text-primary">Time Tracking</h1>
-          <p className="text-sm text-text-muted mt-1">
-            Scan iBeacon tags during meetings to track attendance automatically
-          </p>
-        </div>
-      </section>
-
       {!canOperate && (
         <div className="bg-accent-error/10 border border-accent-error/30 rounded-xl p-4">
           <p className="text-accent-error text-sm font-medium">Only admins or leads can run the scanner.</p>
@@ -272,6 +262,9 @@ export function TimeTrackingPage({ member }: TimeTrackingPageProps) {
       <section className="bg-bg-secondary border border-border rounded-xl overflow-hidden">
         <div className="px-6 py-4 border-b border-border-subtle">
           <h2 className="text-lg font-semibold text-text-primary">Scanner</h2>
+          <p className="text-sm text-text-muted mt-1">
+            Scan iBeacon tags during meetings to track attendance automatically
+          </p>
         </div>
         <div className="p-6 space-y-4">
           <ScannerControls

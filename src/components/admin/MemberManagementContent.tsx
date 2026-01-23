@@ -1,23 +1,16 @@
-import { AlertTriangle, Trash2 } from "lucide-react";
+import { useMemo, useState } from "react";
+import { useQuery, useMutation } from "convex/react";
+import { api } from "../../../convex/_generated/api";
 import { type Id } from "../../../convex/_generated/dataModel";
-import { formatDateYMD } from "./helpers";
+import { toast } from "sonner";
+import { AlertTriangle, Trash2 } from "lucide-react";
 import { MemberWithProfile } from "../../lib/members";
 import { ProfileAvatar } from "../ProfileAvatar";
 import { SearchInput, Select, Button, Badge } from "../ui";
+import { filterMembers, formatDateYMD } from "../members/helpers";
 
-export interface ManagementTabProps {
-  members: Array<MemberWithProfile>;
-  searchTerm: string;
-  onSearchTermChange: (value: string) => void;
-  roleFilter: string;
-  onRoleFilterChange: (value: string) => void;
-  formatJoinDate?: (ts: number) => string;
-  currentMemberId: Id<"members">;
-  onRoleChange: (
-    memberId: Id<"members">,
-    newRole: "admin" | "lead" | "member"
-  ) => Promise<void>;
-  onRemoveMember: (member: MemberWithProfile) => Promise<void>;
+interface MemberManagementContentProps {
+  member: MemberWithProfile;
 }
 
 const filterOptions = [
@@ -33,47 +26,70 @@ const roleOptions = [
   { value: "admin", label: "Admin" },
 ];
 
-export function ManagementTab(props: ManagementTabProps) {
-  const {
-    members,
-    searchTerm,
-    onSearchTermChange,
-    roleFilter,
-    onRoleFilterChange,
-    formatJoinDate,
-    currentMemberId,
-    onRoleChange,
-    onRemoveMember,
-  } = props;
-  const formatJoin = formatJoinDate ?? formatDateYMD;
+export function MemberManagementContent({ member }: MemberManagementContentProps) {
+  const [searchTerm, setSearchTerm] = useState("");
+  const [roleFilter, setRoleFilter] = useState<string>("all");
+
+  const membersQuery = useQuery(api.members.getAllMembers) as MemberWithProfile[] | undefined;
+  const members = useMemo(() => membersQuery ?? [], [membersQuery]);
+
+  const updateMemberRole = useMutation(api.members.updateMemberRole);
+  const deleteMember = useMutation(api.members.deleteMember);
+
+  const filteredMembers = useMemo(
+    () => filterMembers(members, searchTerm, roleFilter),
+    [members, searchTerm, roleFilter]
+  );
+
+  const handleRoleChange = async (
+    memberId: Id<"members">,
+    newRole: "admin" | "lead" | "member"
+  ) => {
+    try {
+      await updateMemberRole({ memberId, newRole });
+      toast.success("Member role updated");
+    } catch {
+      toast.error("Failed to update member role");
+    }
+  };
+
+  const handleMemberRemoval = async (targetMember: MemberWithProfile) => {
+    if (!confirm(`Remove ${targetMember.name}?`)) return;
+    try {
+      await deleteMember({ memberId: targetMember._id });
+      toast.success("Member removed");
+    } catch {
+      toast.error("Failed to remove member");
+    }
+  };
 
   return (
     <div className="space-y-4">
       {/* Search and Filter */}
-      <div className="bg-bg-secondary border border-accent-warning/30 rounded-xl p-4">
+      <div className="bg-bg-secondary border border-border rounded-xl p-4">
         <div className="flex flex-col md:flex-row gap-3">
           <SearchInput
             placeholder="Search by name or email..."
             value={searchTerm}
-            onChange={(e) => onSearchTermChange(e.target.value)}
-            onClear={() => onSearchTermChange("")}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            onClear={() => setSearchTerm("")}
             className="flex-1"
           />
           <Select
             value={roleFilter}
-            onChange={(e) => onRoleFilterChange(e.target.value)}
+            onChange={(e) => setRoleFilter(e.target.value)}
             options={filterOptions}
             className="md:w-40"
           />
         </div>
         <p className="text-xs text-text-muted mt-3">
-          Adjust roles, remove members, and manage access. Changes apply instantly.
+          {members.length} team members • Adjust roles and manage access
         </p>
       </div>
 
       {/* Member List */}
       <div className="bg-bg-secondary border border-border rounded-xl overflow-hidden">
-        {members.length === 0 ? (
+        {filteredMembers.length === 0 ? (
           <div className="p-8 text-center">
             <p className="text-text-muted">
               No members match your filters.
@@ -81,7 +97,7 @@ export function ManagementTab(props: ManagementTabProps) {
           </div>
         ) : (
           <div className="divide-y divide-border-subtle">
-            {members.map((teamMember) => (
+            {filteredMembers.map((teamMember) => (
               <div
                 key={teamMember._id}
                 className="flex flex-col md:flex-row md:items-center gap-4 p-4"
@@ -97,7 +113,7 @@ export function ManagementTab(props: ManagementTabProps) {
                       <h4 className="font-medium text-text-primary truncate">
                         {teamMember.name}
                       </h4>
-                      {teamMember._id === currentMemberId && (
+                      {teamMember._id === member._id && (
                         <Badge variant="accent" size="sm">You</Badge>
                       )}
                     </div>
@@ -105,7 +121,7 @@ export function ManagementTab(props: ManagementTabProps) {
                       {teamMember.email}
                     </p>
                     <p className="text-xs text-text-dim mt-0.5">
-                      Joined {formatJoin(teamMember.joinedAt)}
+                      Joined {formatDateYMD(teamMember.joinedAt)}
                     </p>
                   </div>
                 </div>
@@ -114,21 +130,21 @@ export function ManagementTab(props: ManagementTabProps) {
                   <Select
                     value={teamMember.role}
                     onChange={(e) =>
-                      onRoleChange(
+                      handleRoleChange(
                         teamMember._id,
                         e.target.value as "admin" | "lead" | "member"
                       )
                     }
                     options={roleOptions}
-                    disabled={teamMember._id === currentMemberId}
+                    disabled={teamMember._id === member._id}
                     className="w-28"
                   />
-                  {teamMember._id !== currentMemberId && (
+                  {teamMember._id !== member._id && (
                     <Button
                       variant="danger"
                       size="sm"
                       onClick={() => {
-                        void onRemoveMember(teamMember);
+                        void handleMemberRemoval(teamMember);
                       }}
                       icon={<Trash2 size={16} />}
                     >

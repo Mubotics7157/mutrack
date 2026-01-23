@@ -9,25 +9,25 @@ import { api } from "../convex/_generated/api";
 import { SignInForm } from "./SignInForm";
 import { Toaster } from "sonner";
 import { HomePage } from "./components/HomePage";
-import { MembersPage } from "./components/MembersPage";
+import { LeaderboardPage } from "./components/LeaderboardPage";
 import { PurchasesPage } from "./components/PurchasesPage";
 import { ProfilePage } from "./components/ProfilePage";
 import { Onboarding } from "./components/Onboarding";
-import { TimeTrackingPage } from "./components/TimeTrackingPage";
+import { AdminPage } from "./components/AdminPage";
 import {
   Home,
-  Users,
+  Trophy,
   ShoppingCart,
   User,
   LogOut,
-  Clock,
+  Settings,
   Loader2,
 } from "lucide-react";
 import { useAuthActions } from "@convex-dev/auth/react";
 import { MemberWithProfile } from "./lib/members";
 import { cn } from "./lib/utils";
 
-type PageType = "home" | "members" | "purchases" | "profile" | "time";
+type PageType = "home" | "leaderboard" | "purchases" | "admin" | "profile";
 
 export default function App() {
   const [currentPage, setCurrentPage] = useState<PageType>("home");
@@ -75,14 +75,14 @@ function NavigationBar({ currentPage, onPageChange }: NavigationBarProps) {
 
   const isAdmin = currentMember?.role === "admin";
   const isLead = currentMember?.role === "lead";
-  const canAccessTime = isAdmin || isLead;
+  const canAccessAdmin = isAdmin || isLead;
 
   const navItems = [
     { id: "home" as PageType, label: "Home", icon: Home },
-    { id: "members" as PageType, label: "Members", icon: Users },
+    { id: "leaderboard" as PageType, label: "Leaderboard", icon: Trophy },
     { id: "purchases" as PageType, label: "Purchases", icon: ShoppingCart },
-    ...(canAccessTime
-      ? [{ id: "time" as PageType, label: "Time", icon: Clock }]
+    ...(canAccessAdmin
+      ? [{ id: "admin" as PageType, label: "Admin", icon: Settings }]
       : []),
     { id: "profile" as PageType, label: "Profile", icon: User },
   ];
@@ -233,16 +233,13 @@ function MainContent({ currentPage }: MainContentProps) {
     <main className="pt-16 md:pt-20 pb-24 md:pb-8 px-4 md:px-6 max-w-5xl mx-auto">
       <div className="animate-fade-in">
         {currentPage === "home" && <HomePage member={currentMember} />}
-        {currentPage === "members" && <MembersPage member={currentMember} />}
-        {currentPage === "purchases" && (
-          <PurchasesPage member={currentMember} />
-        )}
-        {currentPage === "profile" && <ProfilePage member={currentMember} />}
-        {currentPage === "time" &&
-          (currentMember.role === "admin" ||
-            currentMember.role === "lead") && (
-            <TimeTrackingPage member={currentMember} />
+        {currentPage === "leaderboard" && <LeaderboardPage member={currentMember} />}
+        {currentPage === "purchases" && <PurchasesPage member={currentMember} />}
+        {currentPage === "admin" &&
+          (currentMember.role === "admin" || currentMember.role === "lead") && (
+            <AdminPage member={currentMember} />
           )}
+        {currentPage === "profile" && <ProfilePage member={currentMember} />}
       </div>
     </main>
   );
