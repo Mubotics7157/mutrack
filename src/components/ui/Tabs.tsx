@@ -12,7 +12,8 @@ interface Tab {
 interface TabsProps {
   tabs: Tab[];
   activeTab: string;
-  onChange: (tabId: string) => void;
+  onChange?: (tabId: string) => void;
+  onTabChange?: (tabId: string) => void;
   variant?: 'default' | 'pills' | 'underline' | 'segment';
   size?: 'sm' | 'md';
   fullWidth?: boolean;
@@ -23,11 +24,13 @@ export function Tabs({
   tabs,
   activeTab,
   onChange,
+  onTabChange,
   variant = 'default',
   size = 'md',
   fullWidth = false,
   className,
 }: TabsProps) {
+  const handleChange = onTabChange ?? onChange ?? (() => {});
   const containerClasses = {
     default: 'flex gap-1',
     pills: 'flex gap-2',
@@ -75,7 +78,7 @@ export function Tabs({
       {tabs.map((tab) => (
         <button
           key={tab.id}
-          onClick={() => !tab.disabled && onChange(tab.id)}
+          onClick={() => !tab.disabled && handleChange(tab.id)}
           role="tab"
           aria-selected={activeTab === tab.id}
           aria-disabled={tab.disabled}

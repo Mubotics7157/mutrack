@@ -1,10 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useQuery, useMutation } from 'convex/react';
 import { api } from '../../convex/_generated/api';
 import { MemberWithProfile } from '../lib/members';
 import { toast } from 'sonner';
-import { Calendar, ChevronRight, Plus, Bell, BellOff } from 'lucide-react';
-import { Button } from './ui';
+import { Calendar, Check, BellOff, Trophy, Clock, TrendingUp, ChevronRight, Users } from 'lucide-react';
+import { Button, Badge } from './ui';
 import { cn } from '../lib/utils';
 import {
   WelcomeHeader,
@@ -14,6 +14,8 @@ import {
   SelectedDatePanel,
   NewMeetingModal,
 } from './home';
+import { formatHours } from './members/helpers';
+import { LeaderboardEntry } from './members/types';
 
 interface HomePageProps {
   member: MemberWithProfile;
@@ -22,7 +24,7 @@ interface HomePageProps {
 export function HomePage({ member }: HomePageProps) {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [showNewMeeting, setShowNewMeeting] = useState(false);
-  const [viewMode, setViewMode] = useState<'month' | 'week'>('week'); // Default to week on mobile
+  const [viewMode, setViewMode] = useState<'month' | 'week'>('week');
   const [showSelectedDate, setShowSelectedDate] = useState(false);
   const [devicePushEnabled, setDevicePushEnabled] = useState<boolean>();
   const [quickMeetingDate, setQuickMeetingDate] = useState<Date | null>(null);
@@ -31,9 +33,31 @@ export function HomePage({ member }: HomePageProps) {
   const canManageMeetings = member.role === 'admin' || member.role === 'lead';
   const meetings = useQuery(api.meetings.getMeetings);
   const allMembers = (useQuery(api.members.getAllMembers) as MemberWithProfile[] | undefined) || [];
+  const leaderboard = useQuery(api.members.getLeaderboard, { range: 'allTime' }) as LeaderboardEntry[] | undefined;
   const rsvpToMeeting = useMutation(api.meetings.rsvpToMeeting);
   const savePush = useMutation(api.members.savePushSubscription);
   const setNotificationsEnabled = useMutation(api.members.setNotificationsEnabled);
+
+  // Get user's stats
+  const myStats = useMemo(() => {
+    if (!leaderboard) return null;
+    const myEntry = leaderboard.find((e) => e.memberId === member._id);
+    if (!myEntry) return { rank: null, points: 0, hours: 0 };
+
+    const sortedByPoints = [...leaderboard].sort((a, b) => b.totalPoints - a.totalPoints);
+    const pointsRank = sortedByPoints.findIndex((e) => e.memberId === member._id) + 1;
+
+    const sortedByHours = [...leaderboard].sort((a, b) => b.totalAttendanceMs - a.totalAttendanceMs);
+    const hoursRank = sortedByHours.findIndex((e) => e.memberId === member._id) + 1;
+
+    return {
+      pointsRank,
+      hoursRank,
+      points: myEntry.totalPoints,
+      hours: myEntry.totalAttendanceMs,
+      totalMembers: leaderboard.length,
+    };
+  }, [leaderboard, member._id]);
 
   const getMeetingStartMs = (m: any): number => {
     const start = new Date(m.date);
@@ -123,8 +147,108 @@ export function HomePage({ member }: HomePageProps) {
     } catch { toast.error('Failed to enable notifications'); }
   };
 
+  const formatPointsDisplay = (value: number) => {
+    if (value >= 1000) return `${(value / 1000).toFixed(1)}k`;
+    return value.toString();
+  };
+
   return (
     <div className="space-y-6 pt-2">
+      {/* New Meeting Modal */}
+      {showNewMeeting && canManageMeetings && (
+        <NewMeetingModal
+          onClose={() => { setShowNewMeeting(false); setQuickMeetingDate(null); }}
+          member={member}
+          defaultDate={quickMeetingDate}
+        />
+      )}
+
+      {/* Welcome Header with Personal Stats */}
+      <section className="space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-semibold text-text-primary">
+              Welcome back, {member.name?.split(' ')[0] || 'there'}
+            </h1>
+            <p className="text-sm text-text-muted mt-1">
+              {new Date().toLocaleDateString('en-US', {
+                weekday: 'long',
+                month: 'long',
+                day: 'numeric',
+              })}
+            </p>
+          </div>
+
+          {/* Quick Actions for Admin/Lead */}
+          {canManageMeetings && (
+            <QuickActions onNewMeeting={() => setShowNewMeeting(true)} onQuickMeeting={handleQuickMeeting} />
+          )}
+        </div>
+
+        {/* Personal Stats Cards */}
+        {myStats && (
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="bg-bg-secondary border border-border rounded-xl p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <div className="p-1.5 bg-accent-orange/10 rounded-lg">
+                  <Trophy size={14} className="text-accent-orange" />
+                </div>
+                <span className="text-xs text-text-muted">Points</span>
+              </div>
+              <div className="flex items-baseline gap-2">
+                <span className="text-xl font-semibold text-text-primary">
+                  {formatPointsDisplay(myStats.points)}
+                </span>
+                {myStats.pointsRank && myStats.pointsRank <= 10 && (
+                  <Badge variant="warning" size="sm">#{myStats.pointsRank}</Badge>
+                )}
+              </div>
+            </div>
+
+            <div className="bg-bg-secondary border border-border rounded-xl p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <div className="p-1.5 bg-accent-success/10 rounded-lg">
+                  <Clock size={14} className="text-accent-success" />
+                </div>
+                <span className="text-xs text-text-muted">Hours</span>
+              </div>
+              <div className="flex items-baseline gap-2">
+                <span className="text-xl font-semibold text-text-primary">
+                  {formatHours(myStats.hours)}h
+                </span>
+                {myStats.hoursRank && myStats.hoursRank <= 10 && (
+                  <Badge variant="success" size="sm">#{myStats.hoursRank}</Badge>
+                )}
+              </div>
+            </div>
+
+            <div className="bg-bg-secondary border border-border rounded-xl p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <div className="p-1.5 bg-accent/10 rounded-lg">
+                  <Calendar size={14} className="text-accent" />
+                </div>
+                <span className="text-xs text-text-muted">Upcoming</span>
+              </div>
+              <span className="text-xl font-semibold text-text-primary">
+                {upcomingMeetings.length}
+              </span>
+            </div>
+
+            <div className="bg-bg-secondary border border-border rounded-xl p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <div className="p-1.5 bg-accent/10 rounded-lg">
+                  <Users size={14} className="text-accent" />
+                </div>
+                <span className="text-xs text-text-muted">Team Size</span>
+              </div>
+              <span className="text-xl font-semibold text-text-primary">
+                {allMembers.length}
+              </span>
+            </div>
+          </div>
+        )}
+      </section>
+
       {/* Notification Banner */}
       {devicePushEnabled === false && (
         <div className="bg-bg-secondary border border-border rounded-xl p-4 flex items-center justify-between gap-4">
@@ -143,30 +267,68 @@ export function HomePage({ member }: HomePageProps) {
         </div>
       )}
 
-      {/* New Meeting Modal */}
-      {showNewMeeting && canManageMeetings && (
-        <NewMeetingModal
-          onClose={() => { setShowNewMeeting(false); setQuickMeetingDate(null); }}
-          member={member}
-          defaultDate={quickMeetingDate}
-        />
-      )}
+      {/* Next Meeting Card */}
+      {nextMeeting && (
+        <section className="bg-bg-secondary border border-border rounded-xl overflow-hidden">
+          <div className="p-4 border-b border-border-subtle">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium text-accent uppercase tracking-wide">
+                Next Meeting
+              </span>
+              <span className="text-xs text-accent-success font-medium">
+                {getTimeUntilMeeting(new Date(getMeetingStartMs(nextMeeting)))}
+              </span>
+            </div>
+          </div>
 
-      {/* Welcome + Next Meeting */}
-      <WelcomeHeader
-        member={member}
-        nextMeeting={nextMeeting}
-        currentRsvpStatus={currentRsvpStatus}
-        rsvpSubmitting={rsvpSubmitting}
-        onRsvpAttending={() => handleRsvp('attending')}
-        onRsvpNotAttending={() => handleRsvp('not_attending')}
-        getTimeUntilMeeting={getTimeUntilMeeting}
-        getMeetingStartMs={getMeetingStartMs}
-      />
+          <div className="p-4">
+            <h2 className="text-lg font-semibold text-text-primary mb-3">
+              {nextMeeting.title}
+            </h2>
 
-      {/* Quick Actions for Admin/Lead */}
-      {canManageMeetings && (
-        <QuickActions onNewMeeting={() => setShowNewMeeting(true)} onQuickMeeting={handleQuickMeeting} />
+            <div className="flex flex-wrap gap-4 text-sm text-text-secondary mb-4">
+              <span className="flex items-center gap-1.5">
+                <Clock size={14} className="text-text-muted" />
+                {new Date(nextMeeting.date).toLocaleDateString('en-US', {
+                  weekday: 'short',
+                  month: 'short',
+                  day: 'numeric',
+                })}{' '}
+                at {nextMeeting.startTime}
+              </span>
+              {nextMeeting.location && (
+                <span className="flex items-center gap-1.5">
+                  <TrendingUp size={14} className="text-text-muted" />
+                  {nextMeeting.location}
+                </span>
+              )}
+            </div>
+
+            {/* RSVP Buttons */}
+            <div className="flex gap-2">
+              <Button
+                variant={currentRsvpStatus === 'attending' ? 'success' : 'secondary'}
+                size="sm"
+                onClick={() => handleRsvp('attending')}
+                disabled={rsvpSubmitting}
+                icon={currentRsvpStatus === 'attending' ? <Check size={14} /> : undefined}
+                className="flex-1"
+              >
+                {currentRsvpStatus === 'attending' ? 'Attending' : 'RSVP Yes'}
+              </Button>
+              <Button
+                variant={currentRsvpStatus === 'not_attending' ? 'danger' : 'ghost'}
+                size="sm"
+                onClick={() => handleRsvp('not_attending')}
+                disabled={rsvpSubmitting}
+                icon={currentRsvpStatus === 'not_attending' ? <Check size={14} /> : undefined}
+                className="flex-1"
+              >
+                {currentRsvpStatus === 'not_attending' ? "Can't Attend" : "Can't Make It"}
+              </Button>
+            </div>
+          </div>
+        </section>
       )}
 
       {/* Calendar Section */}
@@ -205,18 +367,40 @@ export function HomePage({ member }: HomePageProps) {
         )}
       </section>
 
-      {/* Upcoming Meetings */}
+      {/* More Upcoming Meetings */}
       {upcomingMeetings && upcomingMeetings.length > 1 && (
         <section className="bg-bg-secondary border border-border rounded-xl overflow-hidden">
           <div className="flex items-center justify-between p-4 border-b border-border-subtle">
-            <h2 className="text-base font-semibold text-text-primary">Upcoming</h2>
-            <span className="text-sm text-text-muted">{upcomingMeetings.length} meetings</span>
+            <h2 className="text-base font-semibold text-text-primary">More Upcoming</h2>
+            <span className="text-sm text-text-muted">{upcomingMeetings.length - 1} more</span>
           </div>
           <div className="divide-y divide-border-subtle">
-            {upcomingMeetings.map((meeting: any) => (
+            {upcomingMeetings.slice(1).map((meeting: any) => (
               <MeetingCard key={meeting._id} meeting={meeting} member={member} />
             ))}
           </div>
+        </section>
+      )}
+
+      {/* No Meetings State */}
+      {!nextMeeting && (
+        <section className="bg-bg-secondary border border-border rounded-xl p-8 text-center">
+          <div className="w-16 h-16 rounded-full bg-bg-tertiary flex items-center justify-center mx-auto mb-4">
+            <Calendar size={32} className="text-text-muted" />
+          </div>
+          <h3 className="text-lg font-medium text-text-primary mb-2">
+            No upcoming meetings
+          </h3>
+          <p className="text-sm text-text-muted mb-4">
+            {canManageMeetings
+              ? 'Create a meeting to get started'
+              : 'Check back later for scheduled meetings'}
+          </p>
+          {canManageMeetings && (
+            <Button variant="primary" onClick={() => setShowNewMeeting(true)}>
+              Schedule Meeting
+            </Button>
+          )}
         </section>
       )}
     </div>

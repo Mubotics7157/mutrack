@@ -7,13 +7,13 @@ import {
   Users,
   ShieldCheck,
   Trophy,
-  Timer,
+  Target,
   PlusCircle,
-  X,
 } from "lucide-react";
 import { Modal } from "./Modal";
-import { LeaderboardTab } from "./members/LeaderboardTab";
-import { DirectoryTab } from "./members/DirectoryTab";
+import { TeamTab } from "./members/TeamTab";
+import { RecognitionTab } from "./members/RecognitionTab";
+import { BountiesTab } from "./members/BountiesTab";
 import { ManagementTab } from "./members/ManagementTab";
 import {
   formatAwardDate as formatAwardDateHelper,
@@ -28,16 +28,17 @@ import type {
 } from "./members/types";
 import { MemberWithProfile } from "../lib/members";
 import { ProfileAvatar } from "./ProfileAvatar";
-import { Button, Tabs, Input, Textarea } from "./ui";
+import { Button, Tabs, Input, Textarea, Badge } from "./ui";
+import { Clock } from "lucide-react";
 
-type TabKey = "leaderboard" | "directory" | "management";
+type TabKey = "team" | "recognition" | "bounties" | "management";
 
 interface MembersPageProps {
   member: MemberWithProfile;
 }
 
 export function MembersPage({ member }: MembersPageProps) {
-  const [activeTab, setActiveTab] = useState<TabKey>("leaderboard");
+  const [activeTab, setActiveTab] = useState<TabKey>("team");
   const [selectedMemberId, setSelectedMemberId] =
     useState<Id<"members"> | null>(null);
   const [awardPoints, setAwardPoints] = useState("1");
@@ -46,11 +47,10 @@ export function MembersPage({ member }: MembersPageProps) {
   const [leaderboardRange, setLeaderboardRange] =
     useState<LeaderboardRange>("allTime");
 
-  const [directorySearchTerm, setDirectorySearchTerm] = useState("");
-  const [directoryRoleFilter, setDirectoryRoleFilter] = useState<string>("all");
+  const [teamSearchTerm, setTeamSearchTerm] = useState("");
+  const [teamRoleFilter, setTeamRoleFilter] = useState<string>("all");
   const [managementSearchTerm, setManagementSearchTerm] = useState("");
-  const [managementRoleFilter, setManagementRoleFilter] =
-    useState<string>("all");
+  const [managementRoleFilter, setManagementRoleFilter] = useState<string>("all");
   const [isCreatingBounty, setIsCreatingBounty] = useState(false);
   const [completingBountyId, setCompletingBountyId] =
     useState<Id<"bounties"> | null>(null);
@@ -67,15 +67,7 @@ export function MembersPage({ member }: MembersPageProps) {
   }) as LeaderboardEntry[] | undefined;
   const leaderboard = useMemo(() => leaderboardQuery ?? [], [leaderboardQuery]);
   const isLeaderboardLoading = leaderboardQuery === undefined;
-  const totalAttendanceMs = useMemo(
-    () =>
-      leaderboard.reduce(
-        (sum, entry) => sum + entry.totalAttendanceMs,
-        0
-      ),
-    [leaderboard]
-  );
-  const totalAttendanceLabel = formatHoursHelper(totalAttendanceMs);
+
   const bountyBoardQuery = useQuery(api.bounties.getBounties) as
     | BountyBoardData
     | undefined;
@@ -105,51 +97,15 @@ export function MembersPage({ member }: MembersPageProps) {
 
   useEffect(() => {
     if (activeTab === "management" && !canManageRoles) {
-      setActiveTab("leaderboard");
+      setActiveTab("team");
     }
   }, [activeTab, canManageRoles]);
-
-  const filteredDirectoryMembers = useMemo(
-    () =>
-      filterMembersHelper(members, directorySearchTerm, directoryRoleFilter),
-    [members, directorySearchTerm, directoryRoleFilter]
-  );
 
   const filteredManagementMembers = useMemo(
     () =>
       filterMembersHelper(members, managementSearchTerm, managementRoleFilter),
     [members, managementSearchTerm, managementRoleFilter]
   );
-
-  const roleStats = useMemo(
-    () => ({
-      admin: members.filter((m) => m.role === "admin").length,
-      lead: members.filter((m) => m.role === "lead").length,
-      member: members.filter((m) => m.role === "member").length,
-    }),
-    [members]
-  );
-
-  const leaderboardStats = useMemo(() => {
-    if (leaderboard.length === 0) {
-      return {
-        totalPoints: 0,
-        totalAwards: 0,
-        topMemberName: null as string | null,
-      };
-    }
-    const totalPoints = leaderboard.reduce(
-      (sum, entry) => sum + entry.totalPoints,
-      0
-    );
-    const totalAwards = leaderboard.reduce(
-      (sum, entry) => sum + entry.awardsCount,
-      0
-    );
-    const topMemberName =
-      totalAwards > 0 && leaderboard[0] ? leaderboard[0].name : null;
-    return { totalPoints, totalAwards, topMemberName };
-  }, [leaderboard]);
 
   const selectedMember = selectedMemberId
     ? (members.find((m) => m._id === selectedMemberId) ?? null)
@@ -174,7 +130,7 @@ export function MembersPage({ member }: MembersPageProps) {
   );
   const selectedMemberAttendanceSummary =
     selectedMemberAttendanceMs > 0
-      ? `${selectedMemberAttendanceLabel} hours across ${selectedMemberAttendanceMeetings.toLocaleString()} ${
+      ? `${selectedMemberAttendanceLabel}h across ${selectedMemberAttendanceMeetings.toLocaleString()} ${
           selectedMemberAttendanceMeetings === 1 ? "meeting" : "meetings"
         } • ${selectedMemberAttendanceSessions.toLocaleString()} ${
           selectedMemberAttendanceSessions === 1 ? "check-in" : "check-ins"
@@ -328,14 +284,20 @@ export function MembersPage({ member }: MembersPageProps) {
     () =>
       [
         {
-          key: "leaderboard" as const,
-          label: "Leaderboard",
+          key: "team" as const,
+          label: "Team",
+          icon: <Users size={16} />,
+        },
+        {
+          key: "recognition" as const,
+          label: "Recognition",
           icon: <Trophy size={16} />,
         },
         {
-          key: "directory" as const,
-          label: "Directory",
-          icon: <Users size={16} />,
+          key: "bounties" as const,
+          label: "Bounties",
+          icon: <Target size={16} />,
+          count: bountyBoard.openBounties.length || undefined,
         },
         {
           key: "management" as const,
@@ -344,40 +306,18 @@ export function MembersPage({ member }: MembersPageProps) {
           restricted: true,
         },
       ].filter((tab) => !tab.restricted || canManageRoles),
-    [canManageRoles]
+    [canManageRoles, bountyBoard.openBounties.length]
   );
 
   return (
     <div className="space-y-6 pt-2">
       {/* Header */}
       <section>
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4">
-          <div>
-            <h1 className="text-2xl font-semibold text-text-primary">Members</h1>
-            <p className="text-sm text-text-muted mt-1">
-              Team recognition and directory for FRC 7157
-            </p>
-          </div>
-          <div className="flex gap-4 text-center">
-            <div className="bg-bg-secondary border border-border rounded-lg px-4 py-2">
-              <p className="text-xl font-semibold text-accent-orange">
-                {members.length}
-              </p>
-              <p className="text-xs text-text-muted">Members</p>
-            </div>
-            <div className="bg-bg-secondary border border-border rounded-lg px-4 py-2">
-              <p className="text-xl font-semibold text-accent">
-                {formatPoints(leaderboardStats.totalPoints)}
-              </p>
-              <p className="text-xs text-text-muted">Points</p>
-            </div>
-            <div className="bg-bg-secondary border border-border rounded-lg px-4 py-2">
-              <p className="text-xl font-semibold text-accent-success">
-                {totalAttendanceLabel}h
-              </p>
-              <p className="text-xs text-text-muted">Hours</p>
-            </div>
-          </div>
+        <div className="mb-4">
+          <h1 className="text-2xl font-semibold text-text-primary">Members</h1>
+          <p className="text-sm text-text-muted mt-1">
+            {members.length} team members • FRC 7157
+          </p>
         </div>
 
         {/* Tabs */}
@@ -385,6 +325,8 @@ export function MembersPage({ member }: MembersPageProps) {
           tabs={visibleTabs.map((tab) => ({
             id: tab.key,
             label: tab.label,
+            icon: tab.icon,
+            count: tab.count,
           }))}
           activeTab={activeTab}
           onTabChange={(id) => setActiveTab(id as TabKey)}
@@ -392,38 +334,45 @@ export function MembersPage({ member }: MembersPageProps) {
         />
       </section>
 
-      {activeTab === "leaderboard" && (
-        <LeaderboardTab
+      {activeTab === "team" && (
+        <TeamTab
+          members={members}
           leaderboard={leaderboard}
-          leaderboardStats={leaderboardStats}
+          searchTerm={teamSearchTerm}
+          onSearchTermChange={setTeamSearchTerm}
+          roleFilter={teamRoleFilter}
+          onRoleFilterChange={setTeamRoleFilter}
+          currentMemberId={member._id}
+          onSelectMember={openMemberDetails}
+          formatPoints={formatPoints}
+          formatHours={formatHoursHelper}
+        />
+      )}
+
+      {activeTab === "recognition" && (
+        <RecognitionTab
+          leaderboard={leaderboard}
           leaderboardRange={leaderboardRange}
           onSelectRange={setLeaderboardRange}
           onSelectMember={openMemberDetails}
           currentMemberId={member._id}
           isLoading={isLeaderboardLoading}
           formatPoints={formatPoints}
-          formatAwardDate={formatAwardDate}
           formatHours={formatHoursHelper}
           canAwardPoints={canAwardPoints}
+        />
+      )}
+
+      {activeTab === "bounties" && (
+        <BountiesTab
           bountyBoard={bountyBoard}
           members={members}
           canManageBounties={canManageBounties}
+          formatPoints={formatPoints}
           onCreateBounty={handleCreateBounty}
           onCompleteBounty={handleCompleteBounty}
           isCreatingBounty={isCreatingBounty}
           completingBountyId={completingBountyId}
-        />
-      )}
-
-      {activeTab === "directory" && (
-        <DirectoryTab
-          filteredMembers={filteredDirectoryMembers}
-          searchTerm={directorySearchTerm}
-          onSearchTermChange={setDirectorySearchTerm}
-          roleFilter={directoryRoleFilter}
-          onRoleFilterChange={setDirectoryRoleFilter}
-          currentMemberId={member._id}
-          roleStats={roleStats}
         />
       )}
 
@@ -445,53 +394,70 @@ export function MembersPage({ member }: MembersPageProps) {
         <Modal
           isOpen={selectedMemberId !== null}
           onClose={closeMemberDetails}
-          title="Member Details"
+          title="Member Profile"
           size="lg"
         >
           <div className="space-y-6">
             {/* Member Header */}
-            <div className="bg-bg-tertiary rounded-xl p-4">
-              <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
-                <div className="flex items-start gap-4">
-                  {selectedMember ? (
-                    <ProfileAvatar
-                      name={selectedMember.name}
-                      imageUrl={selectedMember.profileImageUrl}
-                      size="lg"
-                      className="ring-2 ring-accent/30"
-                    />
-                  ) : (
-                    <ProfileAvatar
-                      name="Team Member"
-                      size="lg"
-                      className="ring-2 ring-accent/30"
-                    />
+            <div className="flex flex-col sm:flex-row sm:items-start gap-4">
+              {selectedMember ? (
+                <ProfileAvatar
+                  name={selectedMember.name}
+                  imageUrl={selectedMember.profileImageUrl}
+                  size="xl"
+                  className="ring-2 ring-accent/30 mx-auto sm:mx-0"
+                />
+              ) : (
+                <ProfileAvatar
+                  name="Team Member"
+                  size="xl"
+                  className="ring-2 ring-accent/30 mx-auto sm:mx-0"
+                />
+              )}
+              <div className="flex-1 text-center sm:text-left">
+                <div className="flex items-center justify-center sm:justify-start gap-2 flex-wrap">
+                  <h3 className="text-xl font-semibold text-text-primary">
+                    {selectedMember?.name ?? "Team Member"}
+                  </h3>
+                  {selectedMember && (
+                    <Badge
+                      variant={
+                        selectedMember.role === "admin"
+                          ? "error"
+                          : selectedMember.role === "lead"
+                          ? "warning"
+                          : "default"
+                      }
+                    >
+                      {selectedMember.role}
+                    </Badge>
                   )}
-                  <div>
-                    <h3 className="text-xl font-semibold text-text-primary">
-                      {selectedMember?.name ?? "Team Member"}
-                    </h3>
-                    {selectedMember?.email && (
-                      <p className="text-sm text-text-muted mt-1">
-                        {selectedMember.email}
-                      </p>
-                    )}
-                    <p className="text-xs text-text-muted mt-2 flex items-center gap-2">
-                      <Timer size={14} className="text-accent-success" />
-                      {selectedMemberAttendanceSummary}
-                    </p>
-                  </div>
                 </div>
-                <div className="text-right">
-                  <p className="text-3xl font-semibold text-accent-orange">
-                    +{formatPoints(selectedMemberTotalPoints)}
+                {selectedMember?.email && (
+                  <p className="text-sm text-text-muted mt-1">
+                    {selectedMember.email}
                   </p>
-                  <p className="text-xs text-text-muted">total points</p>
-                  <p className="text-xs text-text-muted mt-1">
-                    {selectedMemberAwardsCount.toLocaleString()}{" "}
-                    {selectedMemberAwardsLabel}
-                  </p>
+                )}
+                <div className="flex items-center justify-center sm:justify-start gap-2 mt-2 text-xs text-text-muted">
+                  <Clock size={14} className="text-accent-success" />
+                  {selectedMemberAttendanceSummary}
                 </div>
+              </div>
+            </div>
+
+            {/* Stats Cards */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="bg-accent-orange/10 border border-accent-orange/20 rounded-xl p-4 text-center">
+                <p className="text-2xl font-semibold text-accent-orange">
+                  {formatPoints(selectedMemberTotalPoints)}
+                </p>
+                <p className="text-xs text-text-muted mt-1">Total Points</p>
+              </div>
+              <div className="bg-accent-success/10 border border-accent-success/20 rounded-xl p-4 text-center">
+                <p className="text-2xl font-semibold text-accent-success">
+                  {selectedMemberAttendanceLabel}h
+                </p>
+                <p className="text-xs text-text-muted mt-1">Hours Logged</p>
               </div>
             </div>
 
@@ -501,9 +467,12 @@ export function MembersPage({ member }: MembersPageProps) {
                 onSubmit={(event) => {
                   void handleAwardSubmit(event);
                 }}
-                className="space-y-4"
+                className="bg-bg-tertiary rounded-xl p-4 space-y-4"
               >
-                <div className="grid grid-cols-1 md:grid-cols-[120px,1fr] gap-4">
+                <h4 className="text-sm font-medium text-text-primary">
+                  Award Points
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-[100px,1fr] gap-3">
                   <Input
                     label="Points"
                     type="number"
@@ -516,8 +485,8 @@ export function MembersPage({ member }: MembersPageProps) {
                     label="Reason"
                     value={awardReason}
                     onChange={(e) => setAwardReason(e.target.value)}
-                    placeholder="Describe why this member earned points..."
-                    rows={3}
+                    placeholder="Why are you awarding these points?"
+                    rows={2}
                   />
                 </div>
                 <div className="flex justify-end">
@@ -539,38 +508,47 @@ export function MembersPage({ member }: MembersPageProps) {
                 Point History
               </h4>
               {isHistoryLoading ? (
-                <p className="text-sm text-text-muted">Loading history...</p>
+                <div className="space-y-2">
+                  {[1, 2, 3].map((i) => (
+                    <div
+                      key={i}
+                      className="h-16 bg-bg-tertiary rounded-lg animate-pulse"
+                    />
+                  ))}
+                </div>
               ) : memberHistory.length === 0 ? (
-                <p className="text-sm text-text-muted">
-                  {selectedMember?.name ?? "This member"} hasn't received any
-                  points yet.
-                </p>
+                <div className="bg-bg-tertiary rounded-lg p-6 text-center">
+                  <Trophy size={24} className="text-text-muted mx-auto mb-2" />
+                  <p className="text-sm text-text-muted">
+                    No points awarded yet
+                  </p>
+                </div>
               ) : (
-                <div className="space-y-3">
+                <div className="space-y-2 max-h-64 overflow-y-auto">
                   {memberHistory.map((award) => (
                     <div
                       key={award._id}
-                      className="bg-bg-tertiary rounded-lg p-4"
+                      className="bg-bg-tertiary rounded-lg p-3 flex items-start justify-between gap-3"
                     >
-                      <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-2">
-                        <div>
-                          <p className="text-base font-medium text-accent-orange">
-                            +{formatPoints(award.points)} points
-                          </p>
-                          <p className="text-sm text-text-primary mt-1">
-                            {award.reason}
-                          </p>
-                        </div>
-                        <div className="text-right text-xs text-text-muted">
-                          <p>{formatHistoryDate(award.createdAt)}</p>
-                          <p className="mt-1">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-accent-orange">
+                            +{formatPoints(award.points)}
+                          </span>
+                          <span className="text-xs text-text-muted">
                             by {award.assignedBy.name}
                             {award.assignedBy.memberId === member._id
                               ? " (you)"
                               : ""}
-                          </p>
+                          </span>
                         </div>
+                        <p className="text-sm text-text-secondary mt-1 line-clamp-2">
+                          {award.reason}
+                        </p>
                       </div>
+                      <span className="text-xs text-text-muted whitespace-nowrap">
+                        {formatHistoryDate(award.createdAt)}
+                      </span>
                     </div>
                   ))}
                 </div>
