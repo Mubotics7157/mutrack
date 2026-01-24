@@ -14,6 +14,7 @@ import type {
   FunctionReference,
 } from "convex/server";
 import type * as ResendOTPPasswordReset from "../ResendOTPPasswordReset.js";
+import type * as analytics from "../analytics.js";
 import type * as attendance from "../attendance.js";
 import type * as auth from "../auth.js";
 import type * as beacons from "../beacons.js";
@@ -38,6 +39,7 @@ import type * as scanners from "../scanners.js";
  */
 declare const fullApi: ApiFromModules<{
   ResendOTPPasswordReset: typeof ResendOTPPasswordReset;
+  analytics: typeof analytics;
   attendance: typeof attendance;
   auth: typeof auth;
   beacons: typeof beacons;
