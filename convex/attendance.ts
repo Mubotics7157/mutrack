@@ -2,8 +2,24 @@ import { query, mutation, internalQuery, internalMutation } from "./_generated/s
 import { v } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { internal } from "./_generated/api";
+import { computeMeetingTimezoneOffsetMs } from "./lib/meetingTime";
 
 const ACTIVE_TIMEOUT_MS = 5 * 60 * 1000; // consider inactive if not seen for 5 minutes
+
+function computeMeetingEndUtcMs(dateMs: number, endTime: string): number {
+  const [hoursPart, minutesPart] = endTime.split(":");
+  const hours = Number.parseInt(hoursPart ?? "", 10);
+  const minutes = Number.parseInt(minutesPart ?? "", 10);
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) {
+    return Infinity; // Invalid format, don't auto-close
+  }
+  const date = new Date(dateMs);
+  const year = date.getUTCFullYear();
+  const month = date.getUTCMonth();
+  const day = date.getUTCDate();
+  const timezoneOffsetMs = computeMeetingTimezoneOffsetMs(dateMs);
+  return Date.UTC(year, month, day, hours, minutes) + timezoneOffsetMs;
+}
 const MIN_UPDATE_MS = 60 * 1000; // throttle session updates to at most once every minute
 
 export const handleIbeaconSighting = mutation({
@@ -136,35 +152,45 @@ export const getMyActiveSession = query({
     if (!member) return null;
 
     // Find any active session for this member (endTime === null)
+    // Only consider sessions where the meeting hasn't ended yet
     const sessions = await ctx.db
       .query("attendanceSessions")
       .withIndex("by_member", (q) => q.eq("memberId", member._id))
       .collect();
 
-    const activeSession = sessions.find((s) => s.endTime === null);
-    if (!activeSession) return null;
+    const now = Date.now();
+    const openSessions = sessions.filter((s) => s.endTime === null);
 
-    const meeting = await ctx.db.get(activeSession.meetingId);
-    if (!meeting) return null;
+    // Find an active session whose meeting hasn't ended yet
+    for (const session of openSessions) {
+      const meeting = await ctx.db.get(session.meetingId);
+      if (!meeting) continue;
 
-    return {
-      session: {
-        _id: activeSession._id,
-        meetingId: activeSession.meetingId,
-        memberId: activeSession.memberId,
-        startTime: activeSession.startTime,
-        lastSeenAt: activeSession.lastSeenAt,
-        endTime: activeSession.endTime,
-        isManual: activeSession.isManual,
-      },
-      meeting: {
-        _id: meeting._id,
-        title: meeting.title,
-        date: meeting.date,
-        startTime: meeting.startTime,
-        endTime: meeting.endTime,
-      },
-    };
+      const meetingEndMs = computeMeetingEndUtcMs(meeting.date, meeting.endTime);
+      // Session is active if meeting hasn't ended
+      if (now < meetingEndMs) {
+        return {
+          session: {
+            _id: session._id,
+            meetingId: session.meetingId,
+            memberId: session.memberId,
+            startTime: session.startTime,
+            lastSeenAt: session.lastSeenAt,
+            endTime: session.endTime,
+            isManual: session.isManual,
+          },
+          meeting: {
+            _id: meeting._id,
+            title: meeting.title,
+            date: meeting.date,
+            startTime: meeting.startTime,
+            endTime: meeting.endTime,
+          },
+        };
+      }
+    }
+
+    return null;
   },
 });
 
