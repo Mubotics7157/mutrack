@@ -364,9 +364,9 @@ export const sendCheckInSms = internalAction({
   handler: async (ctx, args) => {
     const accountSid = process.env.TWILIO_ACCOUNT_SID;
     const authToken = process.env.TWILIO_AUTH_TOKEN;
-    const fromNumber = process.env.TWILIO_PHONE_NUMBER;
+    const messagingServiceSid = process.env.TWILIO_MESSAGING_SERVICE_SID;
 
-    if (!accountSid || !authToken || !fromNumber) {
+    if (!accountSid || !authToken || !messagingServiceSid) {
       console.error("Twilio credentials not configured");
       return { success: false, error: "Twilio not configured" };
     }
@@ -390,7 +390,7 @@ IMPORTANT: You must check out when you leave or your hours won't count!`;
           },
           body: new URLSearchParams({
             To: args.phoneNumber,
-            From: fromNumber,
+            MessagingServiceSid: messagingServiceSid,
             Body: message,
           }),
         }
@@ -421,9 +421,9 @@ export const sendCheckoutReminderSms = internalAction({
   handler: async (ctx, args) => {
     const accountSid = process.env.TWILIO_ACCOUNT_SID;
     const authToken = process.env.TWILIO_AUTH_TOKEN;
-    const fromNumber = process.env.TWILIO_PHONE_NUMBER;
+    const messagingServiceSid = process.env.TWILIO_MESSAGING_SERVICE_SID;
 
-    if (!accountSid || !authToken || !fromNumber) {
+    if (!accountSid || !authToken || !messagingServiceSid) {
       console.error("Twilio credentials not configured");
       return { success: false, error: "Twilio not configured" };
     }
@@ -447,7 +447,7 @@ If you don't check out, your attendance hours won't be counted!`;
           },
           body: new URLSearchParams({
             To: args.phoneNumber,
-            From: fromNumber,
+            MessagingServiceSid: messagingServiceSid,
             Body: message,
           }),
         }
