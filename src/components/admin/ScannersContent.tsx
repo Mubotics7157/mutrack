@@ -14,6 +14,8 @@ import {
   Bluetooth,
   UserPlus,
   X,
+  Tag,
+  ArrowRight,
 } from "lucide-react";
 import { MemberWithProfile } from "../../lib/members";
 import { Button, Badge, Select } from "../ui";
@@ -38,15 +40,21 @@ export function ScannersContent({ member }: ScannersContentProps) {
   const [regeneratingKey, setRegeneratingKey] = useState<string | null>(null);
   const [pairingBeaconId, setPairingBeaconId] = useState<string | null>(null);
   const [selectedMemberId, setSelectedMemberId] = useState<string>("");
+  const [reassigningBeaconId, setReassigningBeaconId] = useState<string | null>(null);
+  const [reassignMemberId, setReassignMemberId] = useState<string>("");
+  const [beaconSearch, setBeaconSearch] = useState("");
 
   const scanners = useQuery(api.scanners.listScanners) ?? [];
   const unpairedBeacons = useQuery(api.scanners.listUnpairedBeacons) ?? [];
+  const pairedBeacons = useQuery(api.beacons.listAllForAdmin) ?? [];
   const members = useQuery(api.members.getAllMembers) ?? [];
   const updateScanner = useMutation(api.scanners.updateScanner);
   const deleteScanner = useMutation(api.scanners.deleteScanner);
   const regenerateApiKey = useMutation(api.scanners.regenerateApiKey);
   const pairBeacon = useMutation(api.scanners.pairUnpairedBeaconToMember);
   const dismissBeacon = useMutation(api.scanners.dismissUnpairedBeacon);
+  const reassignBeacon = useMutation(api.beacons.adminReassignBeacon);
+  const deleteBeacon = useMutation(api.beacons.adminDeleteBeacon);
 
   const handleToggleActive = async (
     scannerId: Id<"scanners">,
@@ -118,6 +126,58 @@ export function ScannersContent({ member }: ScannersContentProps) {
       toast.error("Failed to dismiss beacon");
     }
   };
+
+  const handleReassignBeacon = async (beaconId: Id<"beacons">) => {
+    if (!reassignMemberId) {
+      toast.error("Please select a member");
+      return;
+    }
+    try {
+      await reassignBeacon({
+        beaconId,
+        newMemberId: reassignMemberId as Id<"members">,
+      });
+      toast.success("Beacon reassigned");
+      setReassigningBeaconId(null);
+      setReassignMemberId("");
+    } catch {
+      toast.error("Failed to reassign beacon");
+    }
+  };
+
+  const handleDeleteBeacon = async (beaconId: Id<"beacons">) => {
+    if (!confirm("Delete this beacon? The member will need to re-pair their device.")) return;
+    try {
+      await deleteBeacon({ beaconId });
+      toast.success("Beacon deleted");
+    } catch {
+      toast.error("Failed to delete beacon");
+    }
+  };
+
+  // Parse beacon key to get uuid/major/minor
+  const parseBeaconKey = (key: string) => {
+    const parts = key.split(":");
+    if (parts[0] === "ibeacon" && parts.length >= 4) {
+      return {
+        uuid: parts[1],
+        major: parts[2],
+        minor: parts[3],
+      };
+    }
+    return null;
+  };
+
+  // Filter paired beacons by search
+  const filteredBeacons = pairedBeacons.filter((b) => {
+    if (!beaconSearch) return true;
+    const search = beaconSearch.toLowerCase();
+    return (
+      b.ownerName.toLowerCase().includes(search) ||
+      b.key.toLowerCase().includes(search) ||
+      (b.label?.toLowerCase().includes(search) ?? false)
+    );
+  });
 
   return (
     <div className="space-y-4">
@@ -375,6 +435,131 @@ export function ScannersContent({ member }: ScannersContentProps) {
           </div>
         </div>
       )}
+
+      {/* Paired Beacons */}
+      <div className="bg-bg-secondary border border-border rounded-xl overflow-hidden">
+        <div className="px-4 py-3 border-b border-border-subtle">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-sm font-medium text-text-primary flex items-center gap-2">
+                <Tag size={16} />
+                Assigned Beacons
+                <Badge variant="default" size="sm">{pairedBeacons.length}</Badge>
+              </h3>
+              <p className="text-xs text-text-muted mt-1">
+                Beacons currently assigned to members
+              </p>
+            </div>
+          </div>
+          {pairedBeacons.length > 5 && (
+            <input
+              type="text"
+              placeholder="Search by name or beacon..."
+              value={beaconSearch}
+              onChange={(e) => setBeaconSearch(e.target.value)}
+              className="mt-3 w-full px-3 py-2 bg-bg-tertiary border border-border rounded-lg text-sm text-text-primary placeholder:text-text-dim focus:outline-none focus:ring-2 focus:ring-accent/50"
+            />
+          )}
+        </div>
+        {pairedBeacons.length === 0 ? (
+          <div className="p-8 text-center">
+            <div className="w-12 h-12 rounded-full bg-bg-tertiary flex items-center justify-center mx-auto mb-3">
+              <Tag size={24} className="text-text-muted" />
+            </div>
+            <p className="text-text-muted mb-1">No beacons assigned yet</p>
+            <p className="text-sm text-text-dim">
+              Pair beacons from the "Detected Beacons" section above
+            </p>
+          </div>
+        ) : (
+          <div className="divide-y divide-border-subtle max-h-96 overflow-y-auto">
+            {filteredBeacons.map((beacon) => {
+              const parsed = parseBeaconKey(beacon.key);
+              return (
+                <div key={beacon._id} className="p-4">
+                  <div className="flex flex-col md:flex-row md:items-center gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-text-primary">
+                          {beacon.ownerName}
+                        </span>
+                        {beacon.label && (
+                          <Badge variant="default" size="sm">{beacon.label}</Badge>
+                        )}
+                      </div>
+                      {parsed && (
+                        <div className="text-xs text-text-muted mt-1 font-mono">
+                          <span className="hidden md:inline">{parsed.uuid}</span>
+                          <span className="md:hidden">{parsed.uuid.slice(0, 8)}...</span>
+                          <span className="text-text-dim"> · </span>
+                          Major: {parsed.major} · Minor: {parsed.minor}
+                        </div>
+                      )}
+                    </div>
+
+                    {reassigningBeaconId === beacon._id ? (
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Select
+                          value={reassignMemberId}
+                          onChange={(e) => setReassignMemberId(e.target.value)}
+                          options={[
+                            { value: "", label: "Select member..." },
+                            ...members
+                              .filter((m) => m._id !== beacon.ownerMemberId)
+                              .map((m) => ({ value: m._id, label: m.name })),
+                          ]}
+                          className="w-48"
+                        />
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          icon={<ArrowRight size={14} />}
+                          onClick={() => handleReassignBeacon(beacon._id)}
+                          disabled={!reassignMemberId}
+                        >
+                          Reassign
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          icon={<X size={14} />}
+                          onClick={() => {
+                            setReassigningBeaconId(null);
+                            setReassignMemberId("");
+                          }}
+                        />
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          icon={<RefreshCw size={14} />}
+                          onClick={() => setReassigningBeaconId(beacon._id)}
+                        >
+                          Reassign
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          icon={<Trash2 size={14} />}
+                          onClick={() => handleDeleteBeacon(beacon._id)}
+                          className="text-accent-error hover:text-accent-error"
+                        />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+            {filteredBeacons.length === 0 && beaconSearch && (
+              <div className="p-4 text-center text-sm text-text-muted">
+                No beacons match "{beaconSearch}"
+              </div>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* Info Box */}
       <div className="bg-bg-secondary border border-border rounded-xl p-4">

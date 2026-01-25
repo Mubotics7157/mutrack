@@ -212,7 +212,14 @@ export const buildKeyForIbeacon = internalQuery({
 export const listAllForAdmin = query({
   args: {},
   returns: v.array(
-    v.object({ key: v.string(), ownerMemberId: v.id("members") })
+    v.object({
+      _id: v.id("beacons"),
+      key: v.string(),
+      label: v.optional(v.string()),
+      ownerMemberId: v.id("members"),
+      ownerName: v.string(),
+      createdAt: v.number(),
+    })
   ),
   handler: async (ctx) => {
     const userId = await getAuthUserId(ctx);
@@ -223,6 +230,73 @@ export const listAllForAdmin = query({
       .unique();
     if (!actor || (actor.role !== "admin" && actor.role !== "lead")) return [];
     const all = await ctx.db.query("beacons").collect();
-    return all.map((b) => ({ key: b.key, ownerMemberId: b.ownerMemberId }));
+
+    // Get member names
+    const memberIds = [...new Set(all.map((b) => b.ownerMemberId))];
+    const members = await Promise.all(memberIds.map((id) => ctx.db.get(id)));
+    const memberMap = new Map(
+      members.filter(Boolean).map((m) => [m!._id, m!.name])
+    );
+
+    return all.map((b) => ({
+      _id: b._id,
+      key: b.key,
+      label: b.label,
+      ownerMemberId: b.ownerMemberId,
+      ownerName: memberMap.get(b.ownerMemberId) ?? "Unknown",
+      createdAt: b.createdAt,
+    }));
+  },
+});
+
+export const adminReassignBeacon = mutation({
+  args: {
+    beaconId: v.id("beacons"),
+    newMemberId: v.id("members"),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+    const actor = await ctx.db
+      .query("members")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .unique();
+    if (!actor || (actor.role !== "admin" && actor.role !== "lead")) {
+      throw new Error("Only admins or leads can reassign beacons");
+    }
+
+    const beacon = await ctx.db.get(args.beaconId);
+    if (!beacon) throw new Error("Beacon not found");
+
+    const newOwner = await ctx.db.get(args.newMemberId);
+    if (!newOwner) throw new Error("Target member not found");
+
+    await ctx.db.patch(args.beaconId, { ownerMemberId: args.newMemberId });
+    return null;
+  },
+});
+
+export const adminDeleteBeacon = mutation({
+  args: {
+    beaconId: v.id("beacons"),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+    const actor = await ctx.db
+      .query("members")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .unique();
+    if (!actor || (actor.role !== "admin" && actor.role !== "lead")) {
+      throw new Error("Only admins or leads can delete beacons");
+    }
+
+    const beacon = await ctx.db.get(args.beaconId);
+    if (!beacon) return null;
+
+    await ctx.db.delete(args.beaconId);
+    return null;
   },
 });
