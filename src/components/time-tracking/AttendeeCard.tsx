@@ -27,7 +27,8 @@ export function AttendeeCard({
   const displayName = member ? member.name : session.memberId.slice(-6);
   const avatarUrl = member?.profileImageUrl ?? null;
   const secondsSinceLastSeen = Math.round((now - lastSeenAt) / 1000);
-  const isActive = isManual ? true : secondsSinceLastSeen < 30;
+  // BLE is noisy - use 90 second threshold for "active" status to reduce flickering
+  const isActive = isManual ? true : secondsSinceLastSeen < 90;
 
   return (
     <div className="flex items-center justify-between p-4 bg-bg-tertiary border border-border rounded-xl">
