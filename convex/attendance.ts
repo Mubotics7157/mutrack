@@ -102,6 +102,8 @@ export const getActiveSessionsForMeeting = query({
       scannerMemberId: v.optional(v.id("members")),
       scannerDeviceId: v.optional(v.id("scanners")),
       isManual: v.optional(v.boolean()),
+      isSmsCheckIn: v.optional(v.boolean()),
+      smsTokenId: v.optional(v.id("smsCheckInTokens")),
     })
   ),
   handler: async (ctx, args) => {
@@ -131,6 +133,7 @@ export const getMyActiveSession = query({
         lastSeenAt: v.number(),
         endTime: v.union(v.null(), v.number()),
         isManual: v.optional(v.boolean()),
+        isSmsCheckIn: v.optional(v.boolean()),
       }),
       meeting: v.object({
         _id: v.id("meetings"),
@@ -178,6 +181,7 @@ export const getMyActiveSession = query({
             lastSeenAt: session.lastSeenAt,
             endTime: session.endTime,
             isManual: session.isManual,
+            isSmsCheckIn: session.isSmsCheckIn,
           },
           meeting: {
             _id: meeting._id,
@@ -207,6 +211,9 @@ export const getSessionsForMeeting = query({
       endTime: v.union(v.null(), v.number()),
       scannerMemberId: v.optional(v.id("members")),
       scannerDeviceId: v.optional(v.id("scanners")),
+      isManual: v.optional(v.boolean()),
+      isSmsCheckIn: v.optional(v.boolean()),
+      smsTokenId: v.optional(v.id("smsCheckInTokens")),
     })
   ),
   handler: async (ctx, args) => {

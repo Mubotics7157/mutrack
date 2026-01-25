@@ -28,6 +28,8 @@ import type * as purchases from "../purchases.js";
 import type * as router from "../router.js";
 import type * as scannerApi from "../scannerApi.js";
 import type * as scanners from "../scanners.js";
+import type * as smsCheckIn from "../smsCheckIn.js";
+import type * as smsCheckInApi from "../smsCheckInApi.js";
 
 /**
  * A utility for referencing Convex functions in your app's API.
@@ -53,6 +55,8 @@ declare const fullApi: ApiFromModules<{
   router: typeof router;
   scannerApi: typeof scannerApi;
   scanners: typeof scanners;
+  smsCheckIn: typeof smsCheckIn;
+  smsCheckInApi: typeof smsCheckInApi;
 }>;
 export declare const api: FilterApi<
   typeof fullApi,

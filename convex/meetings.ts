@@ -100,6 +100,12 @@ export const createMeeting = mutation({
       internal.notifications.sendMeetingReminderNotification,
       { meetingId }
     );
+    // Schedule SMS check-in for members without beacons
+    await ctx.scheduler.runAfter(
+      0,
+      internal.smsCheckIn.scheduleSmsForMeeting,
+      { meetingId }
+    );
     return meetingId;
   },
 });
@@ -162,6 +168,12 @@ export const createScheduledMeetings = mutation({
         await ctx.scheduler.runAfter(
           delayMs,
           internal.notifications.sendMeetingReminderNotification,
+          { meetingId }
+        );
+        // Schedule SMS check-in for members without beacons
+        await ctx.scheduler.runAfter(
+          0,
+          internal.smsCheckIn.scheduleSmsForMeeting,
           { meetingId }
         );
       }

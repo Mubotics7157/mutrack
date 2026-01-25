@@ -14,6 +14,8 @@ import { PurchasesPage } from "./components/PurchasesPage";
 import { ProfilePage } from "./components/ProfilePage";
 import { Onboarding } from "./components/Onboarding";
 import { AdminPage } from "./components/AdminPage";
+import { SmsCheckInPage } from "./components/SmsCheckInPage";
+import { SmsConsentDisclosure } from "./components/SmsConsentDisclosure";
 import {
   Home,
   Trophy,
@@ -31,6 +33,49 @@ type PageType = "home" | "leaderboard" | "purchases" | "admin" | "profile";
 
 export default function App() {
   const [currentPage, setCurrentPage] = useState<PageType>("home");
+
+  // Check for public routes (no auth required)
+  const path = window.location.pathname;
+
+  // SMS check-in route
+  if (path.startsWith("/checkin/")) {
+    return (
+      <>
+        <SmsCheckInPage />
+        <Toaster
+          theme="dark"
+          position="top-center"
+          toastOptions={{
+            style: {
+              background: "#18181b",
+              border: "1px solid #27272a",
+              color: "#fafafa",
+            },
+          }}
+        />
+      </>
+    );
+  }
+
+  // Static SMS consent disclosure page (for A2P 10DLC compliance)
+  if (path === "/sms-consent") {
+    return (
+      <>
+        <SmsConsentDisclosure />
+        <Toaster
+          theme="dark"
+          position="top-center"
+          toastOptions={{
+            style: {
+              background: "#18181b",
+              border: "1px solid #27272a",
+              color: "#fafafa",
+            },
+          }}
+        />
+      </>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-bg-primary">

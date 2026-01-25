@@ -31,6 +31,7 @@ export function ProfilePage({ member }: ProfilePageProps) {
   const { signOut } = useAuthActions();
   const savePush = useMutation(api.members.savePushSubscription);
   const setNotificationsEnabled = useMutation(api.members.setNotificationsEnabled);
+  const setSmsCheckInEnabled = useMutation(api.members.setSmsCheckInEnabled);
   const myBeacons = useQuery(api.beacons.listMyBeacons);
   const pairIbeacon = useMutation(api.beacons.pairIbeacon);
   const unpairBeacon = useMutation(api.beacons.unpairBeacon);
@@ -180,6 +181,15 @@ export function ProfilePage({ member }: ProfilePageProps) {
     toast.success('beacon unpaired');
   };
 
+  const handleToggleSmsCheckIn = async (enabled: boolean) => {
+    try {
+      await setSmsCheckInEnabled({ enabled });
+      toast.success(enabled ? 'SMS check-in enabled' : 'SMS check-in disabled');
+    } catch {
+      toast.error('Failed to update SMS preference');
+    }
+  };
+
   return (
     <div className="space-y-6">
       <ProfileHeader
@@ -206,6 +216,8 @@ export function ProfilePage({ member }: ProfilePageProps) {
         myBeacons={myBeacons}
         onRenameBeacon={handleRenameBeacon}
         onUnpairBeacon={handleUnpairBeacon}
+        smsCheckInEnabled={member.smsCheckInEnabled !== false}
+        onToggleSmsCheckIn={handleToggleSmsCheckIn}
       />
 
       <section className="bg-bg-secondary border border-border rounded-xl overflow-hidden">

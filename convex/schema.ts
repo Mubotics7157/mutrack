@@ -15,9 +15,27 @@ const applicationTables = {
     role: v.union(v.literal("admin"), v.literal("lead"), v.literal("member")),
     joinedAt: v.number(),
     profileImageId: v.optional(v.id("_storage")),
+    smsCheckInEnabled: v.optional(v.boolean()), // defaults to true; false to opt out of SMS check-ins
   })
     .index("by_user", ["userId"])
     .index("by_notifications_enabled", ["notificationsEnabled"]),
+
+  smsCheckInTokens: defineTable({
+    memberId: v.id("members"),
+    meetingId: v.id("meetings"),
+    token: v.string(), // 12-char alphanumeric (for URL)
+    tokenHash: v.string(), // SHA-256 for secure lookup
+    createdAt: v.number(),
+    expiresAt: v.number(), // Meeting end + 30 min
+    usedForCheckIn: v.optional(v.boolean()),
+    checkInTime: v.optional(v.number()),
+    checkOutTime: v.optional(v.number()),
+    reminderSent: v.optional(v.boolean()),
+    sessionInvalidated: v.optional(v.boolean()),
+  })
+    .index("by_tokenHash", ["tokenHash"])
+    .index("by_member_meeting", ["memberId", "meetingId"])
+    .index("by_meeting", ["meetingId"]),
 
   meetings: defineTable({
     title: v.string(),
@@ -63,6 +81,8 @@ const applicationTables = {
     scannerMemberId: v.optional(v.id("members")), // admin/lead operating the scanner (for web scanning)
     scannerDeviceId: v.optional(v.id("scanners")), // device scanner (for companion app)
     isManual: v.optional(v.boolean()), // true for manual sign-ins, undefined/false for beacon
+    isSmsCheckIn: v.optional(v.boolean()), // true for SMS-based check-ins
+    smsTokenId: v.optional(v.id("smsCheckInTokens")), // reference to the SMS token used
   })
     .index("by_meeting", ["meetingId"])
     .index("by_member", ["memberId"])

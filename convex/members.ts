@@ -215,6 +215,22 @@ export const setNotificationsEnabled = mutation({
   },
 });
 
+export const setSmsCheckInEnabled = mutation({
+  args: { enabled: v.boolean() },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+    const member = await ctx.db
+      .query("members")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .unique();
+    if (!member) throw new Error("Member not found");
+    await ctx.db.patch(member._id, { smsCheckInEnabled: args.enabled });
+    return null;
+  },
+});
+
 export const generateProfileImageUploadUrl = mutation({
   args: {},
   handler: async (ctx) => {

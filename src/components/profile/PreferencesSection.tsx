@@ -1,4 +1,4 @@
-import { Bell, Bluetooth, Moon, Pencil, Trash2 } from 'lucide-react';
+import { Bell, Bluetooth, Moon, Pencil, Trash2, MessageSquare } from 'lucide-react';
 import { Toggle, Button } from '../ui';
 
 interface PreferencesSectionProps {
@@ -7,6 +7,8 @@ interface PreferencesSectionProps {
   myBeacons: any[] | undefined;
   onRenameBeacon: (beacon: any) => void;
   onUnpairBeacon: (beacon: any) => void;
+  smsCheckInEnabled?: boolean;
+  onToggleSmsCheckIn?: (enabled: boolean) => void;
 }
 
 export function PreferencesSection({
@@ -15,6 +17,8 @@ export function PreferencesSection({
   myBeacons,
   onRenameBeacon,
   onUnpairBeacon,
+  smsCheckInEnabled = true,
+  onToggleSmsCheckIn,
 }: PreferencesSectionProps) {
   return (
     <section className="bg-bg-secondary border border-border rounded-xl overflow-hidden">
@@ -91,6 +95,25 @@ export function PreferencesSection({
           ) : (
             <p className="text-sm text-text-muted ml-0 sm:ml-[52px]">No beacons paired yet</p>
           )}
+        </div>
+
+        {/* SMS Check-In */}
+        <div className="flex items-center justify-between gap-4 p-4">
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 rounded-lg bg-accent-success/10 flex items-center justify-center shrink-0">
+              <MessageSquare size={20} className="text-accent-success" />
+            </div>
+            <div>
+              <h3 className="text-sm font-medium text-text-primary">SMS Check-In</h3>
+              <p className="text-xs text-text-muted mt-0.5">
+                Receive check-in links via SMS if you don't have a beacon
+              </p>
+            </div>
+          </div>
+          <Toggle
+            enabled={smsCheckInEnabled}
+            onChange={(enabled) => onToggleSmsCheckIn?.(enabled)}
+          />
         </div>
 
         {/* Dark Mode */}
