@@ -2,6 +2,7 @@ import {
   query,
   mutation,
   internalMutation,
+  internalQuery,
 } from "./_generated/server";
 import { v } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
@@ -454,5 +455,26 @@ export const updateModelParameters = internalMutation({
     });
 
     return { success: true };
+  },
+});
+
+/**
+ * List all trajectories (internal, no auth) - for debugging
+ */
+export const listTrajectoriesInternal = internalQuery({
+  args: {},
+  handler: async (ctx) => {
+    const trajectories = await ctx.db.query("trajectories").collect();
+    return trajectories.map((t) => ({
+      _id: t._id,
+      videoId: t.videoId,
+      isValid: t.isValid,
+      launchAngle: t.launchAngle,
+      launchSpeed: t.launchSpeed,
+      maxHeight: t.maxHeight,
+      horizontalDistance: t.horizontalDistance,
+      detectedFrameCount: t.detectedFrameCount,
+      averageConfidence: t.averageConfidence,
+    }));
   },
 });

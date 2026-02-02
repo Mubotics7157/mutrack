@@ -20,6 +20,16 @@ export function TrajectoryViewer3D({
     trajectoryId ? { trajectoryId: trajectoryId as any } : "skip"
   );
 
+  // Parse positions - must be called before any conditional returns to respect hooks rules
+  const positions = useMemo(() => {
+    if (!trajectory?.positions) return [];
+    try {
+      return JSON.parse(trajectory.positions);
+    } catch {
+      return [];
+    }
+  }, [trajectory?.positions]);
+
   if (!trajectoryId) {
     return (
       <div className="w-full h-full flex items-center justify-center text-text-muted">
@@ -43,15 +53,6 @@ export function TrajectoryViewer3D({
       </div>
     );
   }
-
-  // Parse positions
-  const positions = useMemo(() => {
-    try {
-      return JSON.parse(trajectory.positions);
-    } catch {
-      return [];
-    }
-  }, [trajectory.positions]);
 
   return (
     <Canvas>

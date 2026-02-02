@@ -186,6 +186,7 @@ export const handleCompleteJob = httpAction(async (ctx, request) => {
     );
   }
 
+  // Convert null to undefined for optional fields (Convex validators don't accept null)
   const result = await ctx.runMutation(internal.mlJobs.completeJob, {
     jobId: body.jobId as any,
     workerId: worker.workerId,
@@ -194,14 +195,14 @@ export const handleCompleteJob = httpAction(async (ctx, request) => {
       frameCount: t.frameCount,
       detectedFrameCount: t.detectedFrameCount,
       averageConfidence: t.averageConfidence,
-      launchAngle: t.launchAngle,
-      launchSpeed: t.launchSpeed,
-      maxHeight: t.maxHeight,
-      horizontalDistance: t.horizontalDistance,
-      flightTime: t.flightTime,
+      launchAngle: t.launchAngle ?? undefined,
+      launchSpeed: t.launchSpeed ?? undefined,
+      maxHeight: t.maxHeight ?? undefined,
+      horizontalDistance: t.horizontalDistance ?? undefined,
+      flightTime: t.flightTime ?? undefined,
       isValid: t.isValid,
-      qualityScore: t.qualityScore,
-      qualityNotes: t.qualityNotes,
+      qualityScore: t.qualityScore ?? undefined,
+      qualityNotes: t.qualityNotes ?? undefined,
     },
   });
 
