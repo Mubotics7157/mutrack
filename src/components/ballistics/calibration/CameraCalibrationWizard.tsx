@@ -10,6 +10,7 @@ import {
   Loader2,
   X,
   AlertCircle,
+  Upload,
 } from "lucide-react";
 import { Button, Input, Card, CardContent } from "../../ui";
 
@@ -40,8 +41,99 @@ export function CameraCalibrationWizard({
   const [result, setResult] = useState<CalibrationResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const jsonInputRef = useRef<HTMLInputElement>(null);
 
   const saveCalibration = useMutation(api.calibration.saveCalibration);
+
+  const handleJsonUpload = useCallback(
+    async (files: FileList | null) => {
+      if (!files || files.length === 0) return;
+
+      const file = files[0];
+      if (!file.name.endsWith(".json")) {
+        toast.error("Please upload a JSON file");
+        return;
+      }
+
+      try {
+        const text = await file.text();
+        const data = JSON.parse(text);
+
+        // Validate required fields
+        if (!data.camera_matrix || !data.distortion_coefficients || !data.img_size) {
+          throw new Error("Invalid calibration file format: missing required fields");
+        }
+
+        let fx: number, fy: number, cx: number, cy: number;
+        let distortionCoeffs: number[];
+        let imageWidth: number, imageHeight: number;
+
+        // Handle camera_matrix - supports both formats:
+        // 1. Direct 3x3 array: [[fx, 0, cx], [0, fy, cy], [0, 0, 1]]
+        // 2. OpenCV matrix format: { type_id: "opencv-matrix", data: [fx, 0, cx, 0, fy, cy, 0, 0, 1] }
+        if (Array.isArray(data.camera_matrix)) {
+          const matrix = data.camera_matrix;
+          if (matrix.length < 2 || !Array.isArray(matrix[0]) || matrix[0].length < 3) {
+            throw new Error("Invalid camera_matrix format");
+          }
+          fx = Number(matrix[0][0]);
+          fy = Number(matrix[1][1]);
+          cx = Number(matrix[0][2]);
+          cy = Number(matrix[1][2]);
+        } else if (data.camera_matrix.data && Array.isArray(data.camera_matrix.data)) {
+          // OpenCV format: row-major flat array [fx, 0, cx, 0, fy, cy, 0, 0, 1]
+          const matrixData = data.camera_matrix.data;
+          fx = Number(matrixData[0]); // [0,0]
+          fy = Number(matrixData[4]); // [1,1]
+          cx = Number(matrixData[2]); // [0,2]
+          cy = Number(matrixData[5]); // [1,2]
+        } else {
+          throw new Error("Invalid camera_matrix format");
+        }
+
+        // Handle distortion_coefficients - supports both formats
+        if (Array.isArray(data.distortion_coefficients)) {
+          distortionCoeffs = data.distortion_coefficients.map((c: unknown) => Number(c));
+        } else if (data.distortion_coefficients.data && Array.isArray(data.distortion_coefficients.data)) {
+          distortionCoeffs = data.distortion_coefficients.data.map((c: unknown) => Number(c));
+        } else {
+          throw new Error("Invalid distortion_coefficients format");
+        }
+
+        // Handle img_size - supports both formats
+        if (Array.isArray(data.img_size)) {
+          imageWidth = Number(data.img_size[0]);
+          imageHeight = Number(data.img_size[1]);
+        } else if (data.img_size.data && Array.isArray(data.img_size.data)) {
+          imageWidth = Number(data.img_size.data[0]);
+          imageHeight = Number(data.img_size.data[1]);
+        } else {
+          throw new Error("Invalid img_size format");
+        }
+
+        const calibrationResult: CalibrationResult = {
+          fx,
+          fy,
+          cx,
+          cy,
+          distortionCoeffs,
+          imageWidth,
+          imageHeight,
+          reprojectionError: Number(data.avg_reprojection_error) || 0,
+        };
+
+        setResult(calibrationResult);
+        setStep("result");
+        toast.success("Calibration file loaded successfully");
+      } catch (err) {
+        console.error("Calibration file upload error:", err);
+        toast.error(
+          err instanceof Error ? err.message : "Failed to parse calibration file"
+        );
+      }
+    },
+    [deviceName]
+  );
 
   const handleImageCapture = useCallback(
     (files: FileList | null) => {
@@ -270,6 +362,39 @@ export function CameraCalibrationWizard({
                 Start Capture
               </Button>
             </div>
+
+            {/* Divider */}
+            <div className="relative py-2">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-border-subtle" />
+              </div>
+              <div className="relative flex justify-center text-xs">
+                <span className="bg-bg-secondary px-2 text-text-muted">
+                  or upload existing calibration
+                </span>
+              </div>
+            </div>
+
+            {/* Upload Existing Calibration */}
+            <div
+              onClick={() => jsonInputRef.current?.click()}
+              className="border border-border-subtle rounded-lg p-4 text-center cursor-pointer hover:border-accent hover:bg-bg-tertiary/50 transition-colors"
+            >
+              <Upload size={24} className="mx-auto mb-2 text-text-muted" />
+              <p className="text-sm text-text-secondary">
+                Upload calibration JSON file
+              </p>
+              <p className="text-xs text-text-muted mt-1">
+                From previous calibration or external tool
+              </p>
+            </div>
+            <input
+              ref={jsonInputRef}
+              type="file"
+              accept=".json,application/json"
+              onChange={(e) => void handleJsonUpload(e.target.files)}
+              className="hidden"
+            />
           </CardContent>
         </Card>
       )}

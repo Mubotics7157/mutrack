@@ -27,14 +27,38 @@ class Camera:
         self.height = height
 
         if calibration:
-            # Use calibrated intrinsics
-            self.fx = calibration["fx"]
-            self.fy = calibration["fy"]
-            self.cx = calibration["cx"]
-            self.cy = calibration["cy"]
-            self.dist_coeffs = np.array(
-                calibration.get("distortionCoeffs", [0, 0, 0, 0, 0])
-            )
+            cal_width = calibration.get("imageWidth", width)
+            cal_height = calibration.get("imageHeight", height)
+
+            # Check if video orientation differs from calibration
+            # Portrait video (h > w) with landscape calibration (cal_w > cal_h) or vice versa
+            video_is_portrait = height > width
+            cal_is_portrait = cal_height > cal_width
+            orientation_mismatch = video_is_portrait != cal_is_portrait
+
+            if orientation_mismatch:
+                # Swap fx/fy and cx/cy for 90-degree rotation
+                # Also swap the principal point relative to new dimensions
+                self.fx = calibration["fy"]
+                self.fy = calibration["fx"]
+                # Principal point: (cx, cy) in landscape becomes (cal_height - cy, cx) in portrait
+                # But since we're going from calibration space to video space:
+                self.cx = calibration["cy"] * (width / cal_height)
+                self.cy = calibration["cx"] * (height / cal_width)
+                self.dist_coeffs = np.array(
+                    calibration.get("distortionCoeffs", [0, 0, 0, 0, 0])
+                )
+            else:
+                # Same orientation - scale if needed
+                scale_x = width / cal_width
+                scale_y = height / cal_height
+                self.fx = calibration["fx"] * scale_x
+                self.fy = calibration["fy"] * scale_y
+                self.cx = calibration["cx"] * scale_x
+                self.cy = calibration["cy"] * scale_y
+                self.dist_coeffs = np.array(
+                    calibration.get("distortionCoeffs", [0, 0, 0, 0, 0])
+                )
         else:
             # Estimate intrinsics from image size
             # Assume typical smartphone FOV of ~70 degrees horizontal

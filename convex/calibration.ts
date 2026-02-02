@@ -2,6 +2,7 @@ import {
   query,
   mutation,
   internalMutation,
+  internalQuery,
 } from "./_generated/server";
 import { v } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
@@ -227,8 +228,31 @@ export const deleteCalibration = mutation({
 });
 
 // ============================================
-// INTERNAL MUTATION (for ML worker API)
+// INTERNAL QUERIES & MUTATIONS (for ML worker API)
 // ============================================
+
+/**
+ * List all calibrations (internal, no auth) - for debugging
+ */
+export const listCalibrationsInternal = internalQuery({
+  args: {},
+  handler: async (ctx) => {
+    const calibrations = await ctx.db.query("cameraCalibrations").collect();
+    return calibrations.map((c) => ({
+      _id: c._id,
+      deviceId: c.deviceId,
+      deviceName: c.deviceName,
+      fx: c.fx,
+      fy: c.fy,
+      cx: c.cx,
+      cy: c.cy,
+      distortionCoeffs: c.distortionCoeffs,
+      imageWidth: c.imageWidth,
+      imageHeight: c.imageHeight,
+      reprojectionError: c.reprojectionError,
+    }));
+  },
+});
 
 /**
  * Create calibration from ML worker (used by calibration endpoint)

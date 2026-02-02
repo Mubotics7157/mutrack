@@ -518,3 +518,38 @@ export const getJobInternal = internalQuery({
     return job;
   },
 });
+
+/**
+ * Update job calibration and retry (internal, no auth)
+ */
+export const retryJobWithCalibration = internalMutation({
+  args: {
+    jobId: v.id("processingJobs"),
+    calibrationId: v.id("cameraCalibrations"),
+  },
+  handler: async (ctx, args) => {
+    const job = await ctx.db.get(args.jobId);
+    if (!job) throw new Error("Job not found");
+
+    // Delete old trajectory if exists
+    if (job.resultId) {
+      await ctx.db.delete(job.resultId);
+    }
+
+    // Update job with calibration and reset to pending
+    await ctx.db.patch(args.jobId, {
+      status: "pending",
+      progress: undefined,
+      progressMessage: undefined,
+      startedAt: undefined,
+      completedAt: undefined,
+      workerId: undefined,
+      errorMessage: undefined,
+      resultId: undefined,
+      retryCount: (job.retryCount ?? 0) + 1,
+      params: { calibrationId: args.calibrationId },
+    });
+
+    return { success: true };
+  },
+});
