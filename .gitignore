@@ -23,5 +23,26 @@ dist-ssr
 *.sln
 *.sw?
 
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Python (ballistics-backend)
+ballistics-backend/venv/
+ballistics-backend/.venv/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+eggs/
+*.egg-info/
+*.egg
+.mypy_cache/
+.ruff_cache/
+
 # Ignored for the template, you probably want to remove it:
 package-lock.json

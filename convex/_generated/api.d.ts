@@ -33,6 +33,7 @@ import type * as purchases from "../purchases.js";
 import type * as router from "../router.js";
 import type * as scannerApi from "../scannerApi.js";
 import type * as scanners from "../scanners.js";
+import type * as setupMlWorker from "../setupMlWorker.js";
 import type * as shootingVideos from "../shootingVideos.js";
 import type * as smsCheckIn from "../smsCheckIn.js";
 import type * as smsCheckInApi from "../smsCheckInApi.js";
@@ -66,6 +67,7 @@ declare const fullApi: ApiFromModules<{
   router: typeof router;
   scannerApi: typeof scannerApi;
   scanners: typeof scanners;
+  setupMlWorker: typeof setupMlWorker;
   shootingVideos: typeof shootingVideos;
   smsCheckIn: typeof smsCheckIn;
   smsCheckInApi: typeof smsCheckInApi;
