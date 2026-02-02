@@ -5,6 +5,14 @@ import {
   handleSmsCheckIn,
   handleSmsCheckOut,
 } from "./smsCheckInApi";
+import {
+  handleClaimJob,
+  handleUpdateProgress,
+  handleCompleteJob,
+  handleFailJob,
+  handleWorkerHeartbeat,
+  handleCalibrationUpload,
+} from "./mlWorkerApi";
 
 const http = httpRouter();
 
@@ -38,6 +46,43 @@ http.route({
   path: "/api/sms-checkin/checkout",
   method: "POST",
   handler: handleSmsCheckOut,
+});
+
+// ML Worker API routes
+http.route({
+  path: "/api/ml/jobs/claim",
+  method: "POST",
+  handler: handleClaimJob,
+});
+
+http.route({
+  path: "/api/ml/jobs/progress",
+  method: "POST",
+  handler: handleUpdateProgress,
+});
+
+http.route({
+  path: "/api/ml/jobs/complete",
+  method: "POST",
+  handler: handleCompleteJob,
+});
+
+http.route({
+  path: "/api/ml/jobs/fail",
+  method: "POST",
+  handler: handleFailJob,
+});
+
+http.route({
+  path: "/api/ml/heartbeat",
+  method: "POST",
+  handler: handleWorkerHeartbeat,
+});
+
+http.route({
+  path: "/api/ml/calibration",
+  method: "POST",
+  handler: handleCalibrationUpload,
 });
 
 export default http;

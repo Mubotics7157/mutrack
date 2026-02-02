@@ -255,6 +255,161 @@ const applicationTables = {
     .index("by_robot", ["robot"])
     .index("by_uploaded_at", ["uploadedAt"])
     .index("by_uploader", ["uploadedBy"]),
+
+  // ============================================
+  // BALLISTICS ANALYSIS SYSTEM
+  // ============================================
+
+  // Camera calibrations per device for 3D reconstruction
+  cameraCalibrations: defineTable({
+    deviceId: v.string(), // Unique device identifier
+    deviceName: v.optional(v.string()), // Human-readable name (e.g., "iPhone 15 Pro")
+    // Intrinsic camera matrix parameters
+    fx: v.number(), // Focal length x
+    fy: v.number(), // Focal length y
+    cx: v.number(), // Principal point x
+    cy: v.number(), // Principal point y
+    distortionCoeffs: v.array(v.number()), // [k1, k2, p1, p2, k3] radial/tangential distortion
+    imageWidth: v.number(),
+    imageHeight: v.number(),
+    reprojectionError: v.optional(v.number()), // RMS error from calibration
+    calibratedBy: v.id("members"),
+    calibratedAt: v.number(),
+  })
+    .index("by_device", ["deviceId"])
+    .index("by_member", ["calibratedBy"]),
+
+  // ML processing job queue
+  processingJobs: defineTable({
+    videoId: v.id("shootingVideos"),
+    type: v.union(
+      v.literal("trajectory_detection"),
+      v.literal("parameter_fitting")
+    ),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("processing"),
+      v.literal("completed"),
+      v.literal("failed")
+    ),
+    progress: v.optional(v.number()), // 0-100
+    progressMessage: v.optional(v.string()), // e.g., "Detecting ball in frame 150/300"
+    createdAt: v.number(),
+    startedAt: v.optional(v.number()),
+    completedAt: v.optional(v.number()),
+    workerId: v.optional(v.string()), // ML worker identifier
+    resultId: v.optional(v.id("trajectories")),
+    errorMessage: v.optional(v.string()),
+    retryCount: v.optional(v.number()),
+    params: v.optional(
+      v.object({
+        calibrationId: v.optional(v.id("cameraCalibrations")),
+      })
+    ),
+  })
+    .index("by_status", ["status"])
+    .index("by_video", ["videoId"])
+    .index("by_worker", ["workerId"]),
+
+  // Detected 3D ball trajectories
+  trajectories: defineTable({
+    videoId: v.id("shootingVideos"),
+    jobId: v.id("processingJobs"),
+    calibrationId: v.optional(v.id("cameraCalibrations")),
+    // JSON-encoded array: [{frame, time, x, y, z, confidence}]
+    positions: v.string(),
+    frameCount: v.number(), // Total frames in video
+    detectedFrameCount: v.number(), // Frames where ball was detected
+    averageConfidence: v.number(), // Mean detection confidence
+    // Computed trajectory metrics
+    launchAngle: v.optional(v.number()), // degrees
+    launchSpeed: v.optional(v.number()), // m/s
+    maxHeight: v.optional(v.number()), // meters
+    horizontalDistance: v.optional(v.number()), // meters
+    flightTime: v.optional(v.number()), // seconds
+    // Quality assessment
+    isValid: v.boolean(), // Whether trajectory passes quality checks
+    qualityScore: v.optional(v.number()), // 0-1 overall quality
+    qualityNotes: v.optional(v.string()), // Issues found during validation
+    createdAt: v.number(),
+  })
+    .index("by_video", ["videoId"])
+    .index("by_job", ["jobId"])
+    .index("by_isValid", ["isValid"]),
+
+  // Fitted physics models (crowdsourced from multiple trajectories)
+  physicsModels: defineTable({
+    name: v.string(), // e.g., "Team Model v3"
+    version: v.number(),
+    modelType: v.union(
+      v.literal("drag_magnus"), // Basic drag + Magnus effect
+      v.literal("full_aerodynamic") // Full aerodynamic model
+    ),
+    parameters: v.object({
+      // Aerodynamic coefficients
+      dragCoefficient: v.optional(v.number()), // Cd
+      magnusCoefficient: v.optional(v.number()), // Cm
+      liftCoefficient: v.optional(v.number()), // Cl (for full model)
+      // Ball properties
+      ballMass: v.optional(v.number()), // kg
+      ballDiameter: v.optional(v.number()), // m
+      ballMomentOfInertia: v.optional(v.number()), // kg·m²
+      // Shooter characteristics
+      motorCurve: v.optional(v.array(v.number())), // RPM response curve coefficients
+      hoodAngleBias: v.optional(v.number()), // Systematic angle offset (degrees)
+      spinRatio: v.optional(v.number()), // Ball spin / flywheel RPM ratio
+    }),
+    // Uncertainty quantification
+    parameterUncertainties: v.optional(
+      v.object({
+        dragCoefficient: v.optional(v.number()),
+        magnusCoefficient: v.optional(v.number()),
+        hoodAngleBias: v.optional(v.number()),
+      })
+    ),
+    // Fitting statistics
+    fittingStats: v.object({
+      trajectoryCount: v.number(), // Number of trajectories used
+      videoCount: v.number(), // Number of unique videos
+      rmse: v.number(), // Root mean square error (meters)
+      r2Score: v.number(), // Coefficient of determination
+      fittedAt: v.number(),
+    }),
+    status: v.union(
+      v.literal("training"), // Currently being fitted
+      v.literal("active"), // Current best model
+      v.literal("superseded") // Replaced by newer version
+    ),
+    createdBy: v.optional(v.id("members")),
+    createdAt: v.number(),
+  })
+    .index("by_status", ["status"])
+    .index("by_modelType_status", ["modelType", "status"])
+    .index("by_version", ["version"]),
+
+  // ML worker registration (similar to scanners pattern)
+  mlWorkers: defineTable({
+    name: v.string(), // Human-readable name (e.g., "GPU Worker 1")
+    apiKeyHash: v.string(), // SHA-256 hash of API key
+    apiKeyPrefix: v.string(), // First 8 chars for display (e.g., "mlw_abc1...")
+    capabilities: v.array(v.string()), // ["trajectory_detection", "parameter_fitting", "depth_estimation"]
+    isActive: v.boolean(),
+    lastHeartbeatAt: v.optional(v.number()),
+    currentJobId: v.optional(v.id("processingJobs")),
+    jobsCompleted: v.optional(v.number()),
+    averageProcessingTime: v.optional(v.number()), // seconds
+    registeredBy: v.id("members"),
+    createdAt: v.number(),
+    metadata: v.optional(
+      v.object({
+        gpuModel: v.optional(v.string()), // e.g., "A10G"
+        platform: v.optional(v.string()), // e.g., "modal", "local"
+        version: v.optional(v.string()), // Worker software version
+      })
+    ),
+  })
+    .index("by_apiKeyHash", ["apiKeyHash"])
+    .index("by_isActive", ["isActive"]),
 };
 
 export default defineSchema({
