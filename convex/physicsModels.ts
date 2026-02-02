@@ -478,3 +478,22 @@ export const listTrajectoriesInternal = internalQuery({
     }));
   },
 });
+
+/**
+ * Get trajectory with full positions (internal) - for debugging
+ */
+export const getTrajectoryPositionsInternal = internalQuery({
+  args: { trajectoryId: v.id("trajectories") },
+  handler: async (ctx, args) => {
+    const trajectory = await ctx.db.get(args.trajectoryId);
+    if (!trajectory) return null;
+    return {
+      _id: trajectory._id,
+      positions: trajectory.positions,
+      launchAngle: trajectory.launchAngle,
+      launchSpeed: trajectory.launchSpeed,
+      maxHeight: trajectory.maxHeight,
+      horizontalDistance: trajectory.horizontalDistance,
+    };
+  },
+});
