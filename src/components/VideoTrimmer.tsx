@@ -8,6 +8,7 @@ import {
   Loader2,
   AlertCircle,
   Check,
+  Scissors,
 } from "lucide-react";
 import { Button } from "./ui";
 import { cn } from "../lib/utils";
@@ -42,6 +43,8 @@ export function VideoTrimmer({ file, onTrimComplete, onCancel }: VideoTrimmerPro
   const [videoError, setVideoError] = useState<string | null>(null);
   const [isVideoLoading, setIsVideoLoading] = useState(true);
   const [isDragging, setIsDragging] = useState<"start" | "end" | null>(null);
+  const [isTrimming, setIsTrimming] = useState(false);
+  const [trimProgress, setTrimProgress] = useState(0);
 
   // Create video URL on mount
   useEffect(() => {
@@ -202,16 +205,159 @@ export function VideoTrimmer({ file, onTrimComplete, onCancel }: VideoTrimmerPro
   const clipDuration = endTime - startTime;
   const hasClip = startTime > 0 || endTime < duration;
 
-  const handleContinue = () => {
+  // Trim the video using MediaRecorder
+  const trimVideo = useCallback(async (): Promise<File> => {
+    const video = videoRef.current;
+    if (!video) throw new Error("Video element not available");
+
+    return new Promise((resolve, reject) => {
+      // Create a canvas for rendering
+      const canvas = document.createElement("canvas");
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        reject(new Error("Could not get canvas context"));
+        return;
+      }
+
+      // Create canvas stream for video
+      const canvasStream = canvas.captureStream(30); // 30 fps for recording
+
+      // Try to get audio from the video
+      let combinedStream: MediaStream;
+      try {
+        const videoStream = (video as any).captureStream();
+        const audioTracks = videoStream.getAudioTracks();
+        if (audioTracks.length > 0) {
+          // Combine canvas video with original audio
+          combinedStream = new MediaStream([
+            ...canvasStream.getVideoTracks(),
+            ...audioTracks,
+          ]);
+        } else {
+          combinedStream = canvasStream;
+        }
+      } catch {
+        combinedStream = canvasStream;
+      }
+
+      // Choose best available codec
+      let mimeType = "video/webm;codecs=vp9";
+      if (!MediaRecorder.isTypeSupported(mimeType)) {
+        mimeType = "video/webm;codecs=vp8";
+        if (!MediaRecorder.isTypeSupported(mimeType)) {
+          mimeType = "video/webm";
+          if (!MediaRecorder.isTypeSupported(mimeType)) {
+            mimeType = "video/mp4";
+          }
+        }
+      }
+
+      const mediaRecorder = new MediaRecorder(combinedStream, {
+        mimeType,
+        videoBitsPerSecond: 8000000, // 8 Mbps for good quality
+      });
+
+      const chunks: Blob[] = [];
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) chunks.push(e.data);
+      };
+
+      mediaRecorder.onerror = (e) => {
+        reject(new Error("MediaRecorder error: " + e));
+      };
+
+      mediaRecorder.onstop = () => {
+        // Stop all tracks
+        combinedStream.getTracks().forEach((track) => track.stop());
+        canvasStream.getTracks().forEach((track) => track.stop());
+
+        const blob = new Blob(chunks, { type: mimeType.split(";")[0] });
+        const extension = mimeType.includes("mp4") ? "mp4" : "webm";
+        const baseName = file.name.replace(/\.[^/.]+$/, "");
+        const trimmedFile = new File([blob], `${baseName}_trimmed.${extension}`, {
+          type: mimeType.split(";")[0],
+        });
+        resolve(trimmedFile);
+      };
+
+      // Animation loop to draw video frames to canvas
+      let animationId: number;
+      const drawFrame = () => {
+        if (video.paused || video.ended || video.currentTime >= endTime) {
+          return;
+        }
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        animationId = requestAnimationFrame(drawFrame);
+      };
+
+      // Progress tracking
+      const updateProgress = () => {
+        if (video.currentTime >= endTime) return;
+        const elapsed = video.currentTime - startTime;
+        const total = endTime - startTime;
+        setTrimProgress(Math.min(99, Math.round((elapsed / total) * 100)));
+      };
+      const progressInterval = setInterval(updateProgress, 100);
+
+      // Handle video ending or reaching end time
+      const handleTimeUpdate = () => {
+        if (video.currentTime >= endTime - 0.05) {
+          video.pause();
+          cancelAnimationFrame(animationId);
+          clearInterval(progressInterval);
+          setTrimProgress(100);
+          // Small delay to ensure last frames are captured
+          setTimeout(() => {
+            mediaRecorder.stop();
+          }, 100);
+          video.removeEventListener("timeupdate", handleTimeUpdate);
+        }
+      };
+
+      // Seek to start and begin recording
+      video.currentTime = startTime;
+      video.onseeked = () => {
+        video.onseeked = null;
+        mediaRecorder.start(100); // Collect data every 100ms
+        drawFrame();
+        video.addEventListener("timeupdate", handleTimeUpdate);
+        video.play().catch(reject);
+      };
+    });
+  }, [file, startTime, endTime]);
+
+  const handleContinue = async () => {
     const fps = manualFrameRate ? parseFloat(manualFrameRate) : detectedFrameRate;
 
-    onTrimComplete(file, {
-      duration: duration,
+    let fileToUse = file;
+    let trimmedDuration = duration;
+
+    // Actually trim the video if user has marked a clip
+    if (hasClip) {
+      setIsTrimming(true);
+      setTrimProgress(0);
+      try {
+        fileToUse = await trimVideo();
+        trimmedDuration = endTime - startTime;
+      } catch (error) {
+        console.error("Failed to trim video:", error);
+        // Fall back to uploading original with metadata
+        fileToUse = file;
+      } finally {
+        setIsTrimming(false);
+      }
+    }
+
+    onTrimComplete(fileToUse, {
+      duration: trimmedDuration,
       width: resolution?.width || 0,
       height: resolution?.height || 0,
       frameRate: fps && isFinite(fps) ? fps : null,
-      clipStart: hasClip ? startTime : undefined,
-      clipEnd: hasClip ? endTime : undefined,
+      // Only include clip times if we failed to trim (fallback)
+      clipStart: fileToUse === file && hasClip ? startTime : undefined,
+      clipEnd: fileToUse === file && hasClip ? endTime : undefined,
     });
   };
 
@@ -439,16 +585,36 @@ export function VideoTrimmer({ file, onTrimComplete, onCancel }: VideoTrimmerPro
         </div>
       )}
 
+      {/* Trimming Progress */}
+      {isTrimming && (
+        <div className="space-y-2 bg-bg-tertiary rounded-lg p-4">
+          <div className="flex items-center gap-2 text-sm text-text-secondary">
+            <Scissors size={16} className="text-accent animate-pulse" />
+            <span>Trimming video...</span>
+          </div>
+          <div className="h-2 bg-bg-secondary rounded-full overflow-hidden">
+            <div
+              className="h-full bg-accent transition-all duration-300"
+              style={{ width: `${trimProgress}%` }}
+            />
+          </div>
+          <p className="text-xs text-text-muted text-center">
+            {trimProgress}% - Creating trimmed clip
+          </p>
+        </div>
+      )}
+
       {/* Actions */}
       <div className="flex flex-col gap-2 pt-2">
         <Button
           variant="primary"
-          icon={<Check size={16} />}
+          icon={isTrimming ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
           onClick={handleContinue}
+          disabled={isTrimming}
         >
-          Continue
+          {isTrimming ? "Trimming..." : hasClip ? "Trim & Continue" : "Continue"}
         </Button>
-        <Button variant="ghost" onClick={onCancel}>
+        <Button variant="ghost" onClick={onCancel} disabled={isTrimming}>
           Cancel
         </Button>
       </div>

@@ -569,9 +569,16 @@ function UploadModal({ onClose }: UploadModalProps) {
                     <Video size={20} className="text-accent" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm text-text-primary truncate">
-                      {trimmedFile.name}
-                    </p>
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm text-text-primary truncate">
+                        {trimmedFile.name}
+                      </p>
+                      {trimmedFile.name.includes("_trimmed") && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-accent/20 text-accent font-medium">
+                          Trimmed
+                        </span>
+                      )}
+                    </div>
                     <p className="text-xs text-text-muted">
                       {(trimmedFile.size / (1024 * 1024)).toFixed(1)} MB
                       {metadata?.duration && ` · ${metadata.duration.toFixed(1)}s`}
