@@ -190,6 +190,11 @@ def compute_trajectory_metrics(positions: list[dict]) -> dict:
     """
     Compute trajectory metrics from observed 3D positions.
 
+    Coordinate system (camera frame):
+    - X: right (lateral, not used for main metrics)
+    - Y: up (height)
+    - Z: forward (depth/distance from camera = horizontal distance)
+
     Args:
         positions: List of {time, x, y, z} dicts
 
@@ -204,28 +209,29 @@ def compute_trajectory_metrics(positions: list[dict]) -> dict:
 
     # Extract arrays
     times = np.array([p["time"] for p in positions])
-    x = np.array([p["x"] for p in positions])
-    y = np.array([p["y"] for p in positions])
+    y = np.array([p["y"] for p in positions])  # Height
+    z = np.array([p["z"] for p in positions])  # Forward distance
 
     # Max height
     max_height = float(np.max(y))
 
-    # Horizontal distance
-    horizontal_distance = float(x[-1] - x[0])
+    # Horizontal distance (Z = forward distance from camera)
+    horizontal_distance = float(z[-1] - z[0])
 
     # Flight time
     flight_time = float(times[-1] - times[0])
 
     # Estimate launch conditions from first few points
     if len(positions) >= 3:
-        # Velocity from first few points
-        dt = times[1] - times[0]
+        # Use average of first few points for more stable estimate
+        dt = times[2] - times[0]
         if dt > 0:
-            vx0 = (x[1] - x[0]) / dt
-            vy0 = (y[1] - y[0]) / dt
+            vz0 = (z[2] - z[0]) / dt  # Forward velocity
+            vy0 = (y[2] - y[0]) / dt  # Vertical velocity
 
-            launch_speed = float(np.sqrt(vx0**2 + vy0**2))
-            launch_angle = float(np.degrees(np.arctan2(vy0, vx0)))
+            launch_speed = float(np.sqrt(vz0**2 + vy0**2))
+            # Angle from horizontal (forward direction)
+            launch_angle = float(np.degrees(np.arctan2(vy0, vz0)))
         else:
             launch_speed = None
             launch_angle = None

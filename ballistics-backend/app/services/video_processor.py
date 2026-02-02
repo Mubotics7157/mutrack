@@ -15,8 +15,7 @@ import numpy as np
 from app.config import get_settings
 from app.services.ball_detector import BallDetector
 from app.services.ball_tracker import BallTracker
-from app.services.depth_estimator import DepthEstimator
-from app.core.geometry import Camera, project_to_3d
+from app.core.geometry import Camera, project_to_3d, estimate_scale_from_ball_size
 from app.core.physics import compute_trajectory_metrics
 
 logger = logging.getLogger(__name__)
@@ -37,17 +36,7 @@ class VideoProcessor:
         self.tracker = BallTracker(
             track_threshold=settings.tracking_confidence,
         )
-        self.depth_estimator: Optional[DepthEstimator] = None
         self.max_frames = settings.max_frames
-
-    def _get_depth_estimator(self) -> DepthEstimator:
-        """Lazy load depth estimator (heavy model)."""
-        if self.depth_estimator is None:
-            settings = get_settings()
-            self.depth_estimator = DepthEstimator(
-                model_name=settings.depth_model,
-            )
-        return self.depth_estimator
 
     async def process_video(
         self,
@@ -173,50 +162,33 @@ class VideoProcessor:
             # Get longest track
             main_track = max(tracks, key=len)
 
-            await report_progress(60, "Estimating depth...")
+            await report_progress(60, "Estimating depth from ball size...")
 
-            # Estimate depth for key frames (subsample for speed)
-            depth_frames_indices = self._select_key_frames(main_track, max_frames=20)
-
-            # Reopen video for depth estimation
-            cap = cv2.VideoCapture(video_path)
-            depth_estimator = self._get_depth_estimator()
-            depths = {}
-
-            for i, det in enumerate(main_track):
-                if det["frame"] in depth_frames_indices:
-                    cap.set(cv2.CAP_PROP_POS_FRAMES, det["frame"])
-                    ret, frame = cap.read()
-                    if ret:
-                        depth_map = depth_estimator.estimate(frame)
-                        # Get depth at ball center
-                        cx, cy = int(det["center_x"]), int(det["center_y"])
-                        # Use region around center
-                        region = depth_map[
-                            max(0, cy - 10) : min(height, cy + 10),
-                            max(0, cx - 10) : min(width, cx + 10),
-                        ]
-                        if region.size > 0:
-                            depths[det["frame"]] = float(np.median(region))
-
-                if i % 5 == 0:
-                    progress = 60 + (i / len(main_track)) * 20
-                    await report_progress(progress, f"Estimating depth...")
-
-            cap.release()
+            # Estimate depth from apparent ball size (much more reliable than depth model)
+            settings = get_settings()
+            ball_diameter = settings.ball_diameter  # 0.15m (5.91 inches)
 
             await report_progress(80, "Computing 3D trajectory...")
 
-            # Interpolate depths for all frames
-            depth_array = self._interpolate_depths(main_track, depths)
-
-            # Project to 3D
+            # Project to 3D using ball-size depth estimation
             positions_3d = []
             for i, det in enumerate(main_track):
+                # Estimate depth from apparent ball size
+                if "width" in det and "height" in det and det["width"] > 0:
+                    depth = estimate_scale_from_ball_size(
+                        bbox_width=det["width"],
+                        bbox_height=det["height"],
+                        camera=camera,
+                        known_diameter=ball_diameter,
+                    )
+                else:
+                    # Fallback if no bbox size
+                    depth = 3.0  # meters
+
                 x_3d, y_3d, z_3d = project_to_3d(
                     pixel_x=det["center_x"],
                     pixel_y=det["center_y"],
-                    depth=depth_array[i],
+                    depth=depth,
                     camera=camera,
                 )
                 positions_3d.append(

@@ -142,6 +142,10 @@ class BallTracker:
                         * 0.8,  # Lower confidence for interpolated
                         "interpolated": True,
                     }
+                    # Interpolate bbox size if available
+                    if "width" in current and "width" in next_det:
+                        interpolated_det["width"] = current["width"] + (next_det["width"] - current["width"]) * t
+                        interpolated_det["height"] = current["height"] + (next_det["height"] - current["height"]) * t
                     interpolated.append(interpolated_det)
 
         # Add last detection
