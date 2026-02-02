@@ -23,13 +23,11 @@ def _get_ultralytics():
 class BallDetector:
     """Detect balls in video frames using YOLOv8."""
 
-    # COCO class ID for sports ball
-    SPORTS_BALL_CLASS = 32
-
     def __init__(
         self,
         model_path: str = "yolov8n.pt",
         confidence_threshold: float = 0.5,
+        target_class: int | None = None,  # None = accept any class (for custom models)
     ):
         """
         Initialize ball detector.
@@ -37,8 +35,10 @@ class BallDetector:
         Args:
             model_path: Path to YOLO model or model name to download
             confidence_threshold: Minimum confidence for detection
+            target_class: Class ID to detect (None = any class, 32 = COCO sports ball)
         """
         self.confidence_threshold = confidence_threshold
+        self.target_class = target_class
         self._model = None
         self._model_path = model_path
 
@@ -66,7 +66,7 @@ class BallDetector:
         # Run inference
         results = self.model(frame, verbose=False)[0]
 
-        # Filter for sports ball class with confidence threshold
+        # Filter by class (if specified) and confidence threshold
         best_detection = None
         best_confidence = 0
 
@@ -74,9 +74,10 @@ class BallDetector:
             cls = int(box.cls[0])
             conf = float(box.conf[0])
 
-            # Look for sports ball or any round object
-            # In practice, you might train a custom model for your specific ball
-            if cls == self.SPORTS_BALL_CLASS and conf > self.confidence_threshold:
+            # Check class filter (None = accept any class)
+            class_match = self.target_class is None or cls == self.target_class
+
+            if class_match and conf > self.confidence_threshold:
                 if conf > best_confidence:
                     best_confidence = conf
                     xyxy = box.xyxy[0].cpu().numpy()
@@ -118,7 +119,9 @@ class BallDetector:
                 cls = int(box.cls[0])
                 conf = float(box.conf[0])
 
-                if cls == self.SPORTS_BALL_CLASS and conf > self.confidence_threshold:
+                class_match = self.target_class is None or cls == self.target_class
+
+                if class_match and conf > self.confidence_threshold:
                     if conf > best_confidence:
                         best_confidence = conf
                         xyxy = box.xyxy[0].cpu().numpy()

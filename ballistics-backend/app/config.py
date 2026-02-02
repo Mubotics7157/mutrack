@@ -26,7 +26,7 @@ class Settings(BaseSettings):
     max_frames: int = 1000  # Max frames to process per video
 
     # Physics defaults (can be overridden per-model)
-    ball_diameter: float = 0.24  # meters (standard foam ball)
+    ball_diameter: float = 0.15  # meters (5.91 inches)
     ball_mass: float = 0.27  # kg
     air_density: float = 1.225  # kg/m³
     gravity: float = 9.81  # m/s²

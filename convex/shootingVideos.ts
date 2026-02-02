@@ -1,6 +1,7 @@
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import { mutation, query, internalQuery, internalMutation } from "./_generated/server";
 import { getAuthUserId } from "@convex-dev/auth/server";
+import { internal } from "./_generated/api";
 
 export const generateUploadUrl = mutation({
   args: {},
@@ -52,6 +53,15 @@ export const createVideo = mutation({
       resolution: args.resolution,
       clipStart: args.clipStart,
       clipEnd: args.clipEnd,
+    });
+
+    // Automatically create a processing job for trajectory detection
+    await ctx.db.insert("processingJobs", {
+      videoId,
+      type: "trajectory_detection",
+      status: "pending",
+      createdAt: Date.now(),
+      retryCount: 0,
     });
 
     return videoId;
@@ -132,5 +142,75 @@ export const deleteVideo = mutation({
 
     // Delete the record
     await ctx.db.delete(args.videoId);
+  },
+});
+
+// ============================================
+// INTERNAL FUNCTIONS (for debugging/admin)
+// ============================================
+
+/**
+ * List all videos with their processing status (no auth required)
+ */
+export const listAllVideosInternal = internalQuery({
+  args: {},
+  handler: async (ctx) => {
+    const videos = await ctx.db.query("shootingVideos").collect();
+
+    const videosWithJobs = await Promise.all(
+      videos.map(async (video) => {
+        // Get the most recent job for this video
+        const job = await ctx.db
+          .query("processingJobs")
+          .withIndex("by_video", (q) => q.eq("videoId", video._id))
+          .order("desc")
+          .first();
+
+        return {
+          _id: video._id,
+          robot: video.robot,
+          flywheelRpm: video.flywheelRpm,
+          hoodAngle: video.hoodAngle,
+          uploadedAt: video.uploadedAt,
+          hasJob: !!job,
+          jobStatus: job?.status,
+          jobId: job?._id,
+        };
+      })
+    );
+
+    return videosWithJobs;
+  },
+});
+
+/**
+ * Create processing jobs for videos that don't have one
+ */
+export const createMissingJobs = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const videos = await ctx.db.query("shootingVideos").collect();
+    let created = 0;
+
+    for (const video of videos) {
+      // Check if there's any job for this video
+      const existingJob = await ctx.db
+        .query("processingJobs")
+        .withIndex("by_video", (q) => q.eq("videoId", video._id))
+        .first();
+
+      if (!existingJob) {
+        await ctx.db.insert("processingJobs", {
+          videoId: video._id,
+          type: "trajectory_detection",
+          status: "pending",
+          createdAt: Date.now(),
+          retryCount: 0,
+        });
+        created++;
+      }
+    }
+
+    return { videosChecked: videos.length, jobsCreated: created };
   },
 });

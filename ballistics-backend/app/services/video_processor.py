@@ -90,9 +90,23 @@ class VideoProcessor:
             # Open video
             cap = cv2.VideoCapture(video_path)
             fps = cap.get(cv2.CAP_PROP_FPS) or video_info.get("frameRate", 30)
-            total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+            raw_frame_count = cap.get(cv2.CAP_PROP_FRAME_COUNT)
             width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
             height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+
+            # Handle invalid frame count (common with WebM files)
+            if raw_frame_count <= 0 or raw_frame_count > 1e9:
+                # Estimate from duration if available, otherwise use max_frames
+                duration = video_info.get("duration")
+                if duration and duration > 0:
+                    total_frames = int(duration * fps)
+                else:
+                    total_frames = self.max_frames
+                logger.warning(
+                    f"Invalid frame count ({raw_frame_count}), estimating {total_frames} frames"
+                )
+            else:
+                total_frames = int(raw_frame_count)
 
             logger.info(
                 f"Video: {total_frames} frames at {fps} fps, {width}x{height}"

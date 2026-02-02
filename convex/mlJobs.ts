@@ -483,3 +483,38 @@ export const getPendingJobCount = internalQuery({
     return pending.length;
   },
 });
+
+/**
+ * Internal retry function (no auth required)
+ */
+export const retryJobInternal = internalMutation({
+  args: { jobId: v.id("processingJobs") },
+  handler: async (ctx, args) => {
+    const job = await ctx.db.get(args.jobId);
+    if (!job) throw new Error("Job not found");
+
+    await ctx.db.patch(args.jobId, {
+      status: "pending",
+      progress: undefined,
+      progressMessage: undefined,
+      startedAt: undefined,
+      completedAt: undefined,
+      workerId: undefined,
+      errorMessage: undefined,
+      retryCount: (job.retryCount ?? 0) + 1,
+    });
+
+    return { success: true };
+  },
+});
+
+/**
+ * Get job details (internal, no auth)
+ */
+export const getJobInternal = internalQuery({
+  args: { jobId: v.id("processingJobs") },
+  handler: async (ctx, args) => {
+    const job = await ctx.db.get(args.jobId);
+    return job;
+  },
+});
