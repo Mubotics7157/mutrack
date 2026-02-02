@@ -20,6 +20,11 @@ export const createVideo = mutation({
     notes: v.optional(v.string()),
     fileSize: v.optional(v.number()),
     mimeType: v.optional(v.string()),
+    frameRate: v.optional(v.number()),
+    duration: v.optional(v.number()),
+    resolution: v.optional(v.string()),
+    clipStart: v.optional(v.number()),
+    clipEnd: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
@@ -42,6 +47,11 @@ export const createVideo = mutation({
       uploadedAt: Date.now(),
       fileSize: args.fileSize,
       mimeType: args.mimeType,
+      frameRate: args.frameRate,
+      duration: args.duration,
+      resolution: args.resolution,
+      clipStart: args.clipStart,
+      clipEnd: args.clipEnd,
     });
 
     return videoId;

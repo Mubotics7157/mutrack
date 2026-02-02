@@ -9,9 +9,10 @@ import {
   Play,
   Trash2,
   Settings2,
-  Filter,
   X,
   Loader2,
+  ArrowLeft,
+  Film,
 } from "lucide-react";
 import {
   Button,
@@ -23,6 +24,7 @@ import {
   CardContent,
 } from "./ui";
 import { cn } from "../lib/utils";
+import { VideoTrimmer } from "./VideoTrimmer";
 
 interface VideosPageProps {
   member: MemberWithProfile;
@@ -128,6 +130,9 @@ interface VideoCardProps {
     notes?: string;
     uploaderName: string;
     uploadedAt: number;
+    frameRate?: number;
+    duration?: number;
+    resolution?: string;
   };
   currentMember: MemberWithProfile;
 }
@@ -216,6 +221,21 @@ function VideoCard({ video, currentMember }: VideoCardProps) {
           </div>
         </div>
 
+        {/* Video metadata */}
+        {(video.frameRate || video.duration) && (
+          <div className="flex items-center gap-3 text-xs text-text-muted">
+            {video.frameRate && (
+              <span className="text-accent">{video.frameRate.toFixed(0)} fps</span>
+            )}
+            {video.duration && (
+              <span>{video.duration.toFixed(1)}s</span>
+            )}
+            {video.resolution && (
+              <span>{video.resolution}</span>
+            )}
+          </div>
+        )}
+
         {/* Notes */}
         {video.notes && (
           <p className="text-sm text-text-secondary line-clamp-2">
@@ -258,9 +278,22 @@ interface UploadModalProps {
   onClose: () => void;
 }
 
+interface VideoMetadata {
+  duration: number;
+  width: number;
+  height: number;
+  frameRate: number | null;
+  clipStart?: number;
+  clipEnd?: number;
+}
+
+type UploadStep = "select" | "trim" | "details";
+
 function UploadModal({ onClose }: UploadModalProps) {
-  const [file, setFile] = useState<File | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [step, setStep] = useState<UploadStep>("select");
+  const [originalFile, setOriginalFile] = useState<File | null>(null);
+  const [trimmedFile, setTrimmedFile] = useState<File | null>(null);
+  const [metadata, setMetadata] = useState<VideoMetadata | null>(null);
   const [robot, setRobot] = useState<"alpha" | "beta">("alpha");
   const [flywheelRpm, setFlywheelRpm] = useState("");
   const [hoodAngle, setHoodAngle] = useState("");
@@ -272,50 +305,47 @@ function UploadModal({ onClose }: UploadModalProps) {
   const generateUploadUrl = useMutation(api.shootingVideos.generateUploadUrl);
   const createVideo = useMutation(api.shootingVideos.createVideo);
 
-  const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = e.target.files?.[0];
-    if (!selectedFile) return;
-
-    if (!selectedFile.type.startsWith("video/")) {
+  const handleFileSelect = (file: File) => {
+    if (!file.type.startsWith("video/")) {
       toast.error("Please select a video file");
       return;
     }
+    setOriginalFile(file);
+    setStep("trim");
+  };
 
-    // 100MB limit
-    const MAX_SIZE = 100 * 1024 * 1024;
-    if (selectedFile.size > MAX_SIZE) {
-      toast.error("Video must be under 100 MB");
-      return;
-    }
-
-    setFile(selectedFile);
-    setPreviewUrl(URL.createObjectURL(selectedFile));
+  const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = e.target.files?.[0];
+    if (selectedFile) handleFileSelect(selectedFile);
   };
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     const droppedFile = e.dataTransfer.files[0];
-    if (!droppedFile) return;
+    if (droppedFile) handleFileSelect(droppedFile);
+  };
 
-    if (!droppedFile.type.startsWith("video/")) {
-      toast.error("Please drop a video file");
-      return;
+  const handleTrimComplete = (file: File, meta: VideoMetadata) => {
+    setTrimmedFile(file);
+    setMetadata(meta);
+    setStep("details");
+  };
+
+  const handleBack = () => {
+    if (step === "trim") {
+      setOriginalFile(null);
+      setStep("select");
+    } else if (step === "details") {
+      setTrimmedFile(null);
+      setStep("trim");
     }
-
-    const MAX_SIZE = 100 * 1024 * 1024;
-    if (droppedFile.size > MAX_SIZE) {
-      toast.error("Video must be under 100 MB");
-      return;
-    }
-
-    setFile(droppedFile);
-    setPreviewUrl(URL.createObjectURL(droppedFile));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!file) {
+    const fileToUpload = trimmedFile || originalFile;
+    if (!fileToUpload) {
       toast.error("Please select a video");
       return;
     }
@@ -334,52 +364,89 @@ function UploadModal({ onClose }: UploadModalProps) {
     }
 
     setIsUploading(true);
-    setUploadProgress(10);
+    setUploadProgress(5);
 
     try {
-      // Get upload URL
+      // Step 1: Get upload URL from Convex
       const uploadUrl = await generateUploadUrl();
-      setUploadProgress(20);
+      setUploadProgress(10);
 
-      // Upload file
-      const response = await fetch(uploadUrl, {
-        method: "POST",
-        headers: { "Content-Type": file.type },
-        body: file,
+      // Step 2: Upload file with progress tracking using XMLHttpRequest
+      const { storageId } = await new Promise<{ storageId: string }>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+
+        xhr.upload.addEventListener("progress", (event) => {
+          if (event.lengthComputable) {
+            // Map upload progress to 10-80% range
+            const percent = 10 + Math.round((event.loaded / event.total) * 70);
+            setUploadProgress(percent);
+          }
+        });
+
+        xhr.addEventListener("load", () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            try {
+              const json = JSON.parse(xhr.responseText);
+              resolve(json);
+            } catch {
+              reject(new Error("Invalid response from server"));
+            }
+          } else {
+            reject(new Error(`Upload failed: ${xhr.status}`));
+          }
+        });
+
+        xhr.addEventListener("error", () => {
+          reject(new Error("Network error during upload"));
+        });
+
+        xhr.addEventListener("timeout", () => {
+          reject(new Error("Upload timed out"));
+        });
+
+        xhr.open("POST", uploadUrl);
+        xhr.setRequestHeader("Content-Type", fileToUpload.type);
+        xhr.timeout = 5 * 60 * 1000; // 5 minute timeout
+        xhr.send(fileToUpload);
       });
 
-      if (!response.ok) throw new Error("Upload failed");
+      setUploadProgress(85);
 
-      setUploadProgress(80);
+      if (!storageId) {
+        throw new Error("No storageId returned from upload");
+      }
 
-      const { storageId } = (await response.json()) as { storageId: string };
-
-      // Create video record
+      // Step 3: Create video record in database
       await createVideo({
-        videoStorageId: storageId as any,
+        videoStorageId: storageId,
         robot,
         flywheelRpm: rpm,
         hoodAngle: angle,
         notes: notes.trim() || undefined,
-        fileSize: file.size,
-        mimeType: file.type,
+        fileSize: fileToUpload.size,
+        mimeType: fileToUpload.type,
+        frameRate: metadata?.frameRate || undefined,
+        duration: metadata?.duration || undefined,
+        resolution: metadata ? `${metadata.width}x${metadata.height}` : undefined,
+        clipStart: metadata?.clipStart,
+        clipEnd: metadata?.clipEnd,
       });
 
       setUploadProgress(100);
       toast.success("Video uploaded successfully");
       onClose();
-    } catch {
-      toast.error("Failed to upload video");
+    } catch (error) {
+      console.error("Video upload error:", error);
+      toast.error(error instanceof Error ? error.message : "Failed to upload video");
     } finally {
       setIsUploading(false);
     }
   };
 
-  const clearFile = () => {
-    setFile(null);
-    if (previewUrl) URL.revokeObjectURL(previewUrl);
-    setPreviewUrl(null);
-    if (fileInputRef.current) fileInputRef.current.value = "";
+  const stepTitles: Record<UploadStep, string> = {
+    select: "Select Video",
+    trim: "Trim Clip",
+    details: "Shot Details",
   };
 
   return (
@@ -387,16 +454,26 @@ function UploadModal({ onClose }: UploadModalProps) {
       {/* Backdrop */}
       <div
         className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-        onClick={onClose}
+        onClick={step === "select" ? onClose : undefined}
       />
 
       {/* Modal */}
       <div className="relative w-full max-w-lg bg-bg-secondary border border-border rounded-2xl shadow-xl max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-border-subtle sticky top-0 bg-bg-secondary z-10">
-          <h2 className="text-lg font-semibold text-text-primary">
-            Upload Shooting Video
-          </h2>
+          <div className="flex items-center gap-3">
+            {step !== "select" && (
+              <button
+                onClick={handleBack}
+                className="p-1.5 text-text-muted hover:text-text-primary transition-colors rounded-lg hover:bg-bg-hover"
+              >
+                <ArrowLeft size={18} />
+              </button>
+            )}
+            <h2 className="text-lg font-semibold text-text-primary">
+              {stepTitles[step]}
+            </h2>
+          </div>
           <button
             onClick={onClose}
             className="p-2 text-text-muted hover:text-text-primary transition-colors rounded-lg hover:bg-bg-hover"
@@ -405,154 +482,197 @@ function UploadModal({ onClose }: UploadModalProps) {
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-5">
-          {/* Video Drop Zone */}
-          <div>
-            <label className="block text-sm font-medium text-text-primary mb-2">
-              Video File
-            </label>
-            {!file ? (
+        {/* Step Progress */}
+        <div className="px-6 py-3 border-b border-border-subtle">
+          <div className="flex items-center gap-2">
+            {(["select", "trim", "details"] as UploadStep[]).map((s, i) => (
+              <div key={s} className="flex items-center gap-2 flex-1">
+                <div
+                  className={cn(
+                    "w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium transition-colors",
+                    step === s
+                      ? "bg-accent text-white"
+                      : (["select", "trim", "details"].indexOf(step) > i)
+                        ? "bg-accent/20 text-accent"
+                        : "bg-bg-tertiary text-text-muted"
+                  )}
+                >
+                  {i + 1}
+                </div>
+                {i < 2 && (
+                  <div
+                    className={cn(
+                      "flex-1 h-0.5 rounded",
+                      (["select", "trim", "details"].indexOf(step) > i)
+                        ? "bg-accent/40"
+                        : "bg-bg-tertiary"
+                    )}
+                  />
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="p-6">
+          {/* Step 1: Select Video */}
+          {step === "select" && (
+            <div className="space-y-4">
               <div
                 onDrop={handleDrop}
                 onDragOver={(e) => e.preventDefault()}
                 onClick={() => fileInputRef.current?.click()}
-                className="border-2 border-dashed border-border-subtle rounded-xl p-8 text-center cursor-pointer hover:border-accent hover:bg-bg-tertiary/50 transition-colors"
+                className="border-2 border-dashed border-border-subtle rounded-xl p-10 text-center cursor-pointer hover:border-accent hover:bg-bg-tertiary/50 transition-colors"
               >
-                <Upload
-                  size={32}
-                  className="mx-auto mb-3 text-text-muted"
-                />
-                <p className="text-sm text-text-secondary mb-1">
+                <Film size={40} className="mx-auto mb-4 text-text-muted" />
+                <p className="text-base text-text-secondary mb-2">
                   Drop video here or click to browse
                 </p>
-                <p className="text-xs text-text-muted">
-                  MP4, MOV, or WebM up to 100 MB
+                <p className="text-sm text-text-muted">
+                  Any length - you'll trim it in the next step
+                </p>
+                <p className="text-xs text-text-muted mt-2">
+                  Supports MP4, MOV, WebM, and more
                 </p>
               </div>
-            ) : (
-              <div className="relative rounded-xl overflow-hidden bg-bg-tertiary">
-                <video
-                  src={previewUrl || undefined}
-                  className="w-full aspect-video object-cover"
-                  controls
-                  playsInline
-                />
-                <button
-                  type="button"
-                  onClick={clearFile}
-                  className="absolute top-2 right-2 p-1.5 bg-black/60 hover:bg-black/80 rounded-lg text-white transition-colors"
-                >
-                  <X size={16} />
-                </button>
-                <div className="p-3 border-t border-border-subtle">
-                  <p className="text-sm text-text-secondary truncate">
-                    {file.name}
-                  </p>
-                  <p className="text-xs text-text-muted">
-                    {(file.size / (1024 * 1024)).toFixed(1)} MB
-                  </p>
-                </div>
-              </div>
-            )}
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="video/*"
-              onChange={handleFileChange}
-              className="hidden"
-            />
-          </div>
-
-          {/* Robot Selection */}
-          <Select
-            label="Robot"
-            value={robot}
-            onChange={(e) => setRobot(e.target.value as "alpha" | "beta")}
-            options={[
-              { value: "alpha", label: "Alpha" },
-              { value: "beta", label: "Beta" },
-            ]}
-          />
-
-          {/* Settings Row */}
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-text-secondary mb-2">
-                Flywheel RPM
-              </label>
-              <Input
-                type="number"
-                value={flywheelRpm}
-                onChange={(e) => setFlywheelRpm(e.target.value)}
-                placeholder="e.g. 4500"
-                min="0"
-                required
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="video/*"
+                onChange={handleFileChange}
+                className="hidden"
               />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-text-secondary mb-2">
-                Hood Angle (°)
-              </label>
-              <Input
-                type="number"
-                value={hoodAngle}
-                onChange={(e) => setHoodAngle(e.target.value)}
-                placeholder="e.g. 45"
-                step="0.1"
-                required
-              />
-            </div>
-          </div>
-
-          {/* Notes */}
-          <div>
-            <label className="block text-sm font-medium text-text-secondary mb-2">
-              Notes (optional)
-            </label>
-            <Input
-              type="text"
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="e.g. Shot from back of field, 2-ball auto"
-            />
-          </div>
-
-          {/* Upload Progress */}
-          {isUploading && (
-            <div className="space-y-2">
-              <div className="h-2 bg-bg-tertiary rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-accent transition-all duration-300"
-                  style={{ width: `${uploadProgress}%` }}
-                />
+              <div className="flex justify-end">
+                <Button variant="ghost" onClick={onClose}>
+                  Cancel
+                </Button>
               </div>
-              <p className="text-xs text-text-muted text-center">
-                Uploading... {uploadProgress}%
-              </p>
             </div>
           )}
 
-          {/* Actions */}
-          <div className="flex gap-3 pt-2">
-            <Button
-              type="submit"
-              variant="primary"
-              className="flex-1"
-              disabled={!file || isUploading}
-              loading={isUploading}
-            >
-              Upload Video
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={onClose}
-              disabled={isUploading}
-            >
-              Cancel
-            </Button>
-          </div>
-        </form>
+          {/* Step 2: Trim Video */}
+          {step === "trim" && originalFile && (
+            <VideoTrimmer
+              file={originalFile}
+              onTrimComplete={handleTrimComplete}
+              onCancel={handleBack}
+            />
+          )}
+
+          {/* Step 3: Details Form */}
+          {step === "details" && (
+            <form onSubmit={handleSubmit} className="space-y-5">
+              {/* Trimmed Video Preview */}
+              {trimmedFile && (
+                <div className="bg-bg-tertiary rounded-lg p-3 flex items-center gap-3">
+                  <div className="w-10 h-10 rounded bg-accent/20 flex items-center justify-center">
+                    <Video size={20} className="text-accent" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-text-primary truncate">
+                      {trimmedFile.name}
+                    </p>
+                    <p className="text-xs text-text-muted">
+                      {(trimmedFile.size / (1024 * 1024)).toFixed(1)} MB
+                      {metadata?.duration && ` · ${metadata.duration.toFixed(1)}s`}
+                      {metadata?.frameRate && ` · ${metadata.frameRate.toFixed(0)} fps`}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Robot Selection */}
+              <Select
+                label="Robot"
+                value={robot}
+                onChange={(e) => setRobot(e.target.value as "alpha" | "beta")}
+                options={[
+                  { value: "alpha", label: "Alpha" },
+                  { value: "beta", label: "Beta" },
+                ]}
+              />
+
+              {/* Settings Row */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-text-secondary mb-2">
+                    Flywheel RPM
+                  </label>
+                  <Input
+                    type="number"
+                    value={flywheelRpm}
+                    onChange={(e) => setFlywheelRpm(e.target.value)}
+                    placeholder="e.g. 4500"
+                    min="0"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-text-secondary mb-2">
+                    Hood Angle (°)
+                  </label>
+                  <Input
+                    type="number"
+                    value={hoodAngle}
+                    onChange={(e) => setHoodAngle(e.target.value)}
+                    placeholder="e.g. 45"
+                    step="0.1"
+                    required
+                  />
+                </div>
+              </div>
+
+              {/* Notes */}
+              <div>
+                <label className="block text-sm font-medium text-text-secondary mb-2">
+                  Notes (optional)
+                </label>
+                <Input
+                  type="text"
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder="e.g. Shot from back of field, 2-ball auto"
+                />
+              </div>
+
+              {/* Upload Progress */}
+              {isUploading && (
+                <div className="space-y-2">
+                  <div className="h-2 bg-bg-tertiary rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-accent transition-all duration-300"
+                      style={{ width: `${uploadProgress}%` }}
+                    />
+                  </div>
+                  <p className="text-xs text-text-muted text-center">
+                    Uploading... {uploadProgress}%
+                  </p>
+                </div>
+              )}
+
+              {/* Actions */}
+              <div className="flex gap-3 pt-2">
+                <Button
+                  type="submit"
+                  variant="primary"
+                  className="flex-1"
+                  disabled={isUploading}
+                  loading={isUploading}
+                >
+                  Upload Video
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={handleBack}
+                  disabled={isUploading}
+                >
+                  Back
+                </Button>
+              </div>
+            </form>
+          )}
+        </div>
       </div>
     </div>
   );

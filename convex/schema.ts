@@ -246,6 +246,11 @@ const applicationTables = {
     uploadedAt: v.number(),
     fileSize: v.optional(v.number()), // bytes
     mimeType: v.optional(v.string()),
+    frameRate: v.optional(v.number()), // fps (especially for slow-mo)
+    duration: v.optional(v.number()), // seconds
+    resolution: v.optional(v.string()), // e.g. "1920x1080"
+    clipStart: v.optional(v.number()), // start of shot in seconds
+    clipEnd: v.optional(v.number()), // end of shot in seconds
   })
     .index("by_robot", ["robot"])
     .index("by_uploaded_at", ["uploadedAt"])
