@@ -234,6 +234,22 @@ const applicationTables = {
     .index("by_normalized_name", ["normalizedName"])
     .index("by_vendor", ["vendorId"])
     .index("by_updated_at", ["updatedAt"]),
+
+  shootingVideos: defineTable({
+    videoStorageId: v.id("_storage"),
+    thumbnailStorageId: v.optional(v.id("_storage")),
+    robot: v.union(v.literal("alpha"), v.literal("beta")),
+    flywheelRpm: v.number(),
+    hoodAngle: v.number(), // degrees
+    notes: v.optional(v.string()),
+    uploadedBy: v.id("members"),
+    uploadedAt: v.number(),
+    fileSize: v.optional(v.number()), // bytes
+    mimeType: v.optional(v.string()),
+  })
+    .index("by_robot", ["robot"])
+    .index("by_uploaded_at", ["uploadedAt"])
+    .index("by_uploader", ["uploadedBy"]),
 };
 
 export default defineSchema({

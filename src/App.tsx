@@ -10,7 +10,7 @@ import { SignInForm } from "./SignInForm";
 import { Toaster } from "sonner";
 import { HomePage } from "./components/HomePage";
 import { LeaderboardPage } from "./components/LeaderboardPage";
-import { PurchasesPage } from "./components/PurchasesPage";
+import { ToolsPage } from "./components/ToolsPage";
 import { ProfilePage } from "./components/ProfilePage";
 import { Onboarding } from "./components/Onboarding";
 import { AdminPage } from "./components/AdminPage";
@@ -19,7 +19,7 @@ import { SmsConsentDisclosure } from "./components/SmsConsentDisclosure";
 import {
   Home,
   Trophy,
-  ShoppingCart,
+  Wrench,
   User,
   LogOut,
   Settings,
@@ -29,7 +29,7 @@ import { useAuthActions } from "@convex-dev/auth/react";
 import { MemberWithProfile } from "./lib/members";
 import { cn } from "./lib/utils";
 
-type PageType = "home" | "leaderboard" | "purchases" | "admin" | "profile";
+type PageType = "home" | "leaderboard" | "tools" | "admin" | "profile";
 
 export default function App() {
   const [currentPage, setCurrentPage] = useState<PageType>("home");
@@ -125,7 +125,7 @@ function NavigationBar({ currentPage, onPageChange }: NavigationBarProps) {
   const navItems = [
     { id: "home" as PageType, label: "Home", icon: Home },
     { id: "leaderboard" as PageType, label: "Leaderboard", icon: Trophy },
-    { id: "purchases" as PageType, label: "Purchases", icon: ShoppingCart },
+    { id: "tools" as PageType, label: "Tools", icon: Wrench },
     ...(canAccessAdmin
       ? [{ id: "admin" as PageType, label: "Admin", icon: Settings }]
       : []),
@@ -279,7 +279,7 @@ function MainContent({ currentPage }: MainContentProps) {
       <div className="animate-fade-in">
         {currentPage === "home" && <HomePage member={currentMember} />}
         {currentPage === "leaderboard" && <LeaderboardPage member={currentMember} />}
-        {currentPage === "purchases" && <PurchasesPage member={currentMember} />}
+        {currentPage === "tools" && <ToolsPage member={currentMember} />}
         {currentPage === "admin" &&
           (currentMember.role === "admin" || currentMember.role === "lead") && (
             <AdminPage member={currentMember} />
